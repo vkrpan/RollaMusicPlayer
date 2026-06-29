@@ -1,0 +1,217 @@
+# RollaMusicPlayer - Project Memory
+
+## Project Overview
+
+**RollaMusicPlayer** is a feature-rich Android music player application built with modern Android development practices. The app focuses on providing an excellent local music playback experience with advanced features like equalizer, tag editing, and comprehensive library management.
+
+## 🔒 Offline & Privacy Architecture
+
+**RollaMusicPlayer is designed as a fully offline, privacy-first application.**
+
+### Architectural Principles
+
+1. **No Network Layer**: The application architecture intentionally excludes any networking components
+2. **Local Data Only**: All data persistence uses local storage (Room database, DataStore, file system)
+3. **Zero External Communication**: No analytics, crash reporting to external services, or data transmission
+4. **Privacy by Design**: User data never leaves the device
+5. **Minimal Permissions**: Only READ_MEDIA_AUDIO (Android 13+) or READ_EXTERNAL_STORAGE (older versions)
+
+### Data Storage Strategy
+
+- **Music Files**: Accessed from device storage via MediaStore API
+- **Library Database**: Room SQLite database for metadata indexing
+- **Playlists**: Stored in local Room database
+- **Equalizer Presets**: Stored in local Room database
+- **Settings**: DataStore (Preferences) for app configuration and equalizer active-state
+- **Album Artwork**: Cached locally in app-specific storage
+- **Playback State**: Persisted locally for session restoration
+
+### Technical Implications
+
+- **No Retrofit/OkHttp**: No HTTP client libraries in dependencies
+- **No Firebase**: No analytics, crash reporting, or cloud services
+- **No Third-Party SDKs**: Avoid SDKs that collect data or require internet
+- **Local Caching Only**: All caching strategies use device storage
+- **Offline-First UI**: No loading states for network requests, no sync indicators
+
+## Tech Stack
+
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose with Material Design 3
+- **Architecture**: MVVM (Model-View-ViewModel), multi-module (hybrid feature + core)
+- **Build**: Gradle Kotlin DSL with version catalog + convention plugins (build-logic)
+- **Audio Playback**: Media3 ExoPlayer
+- **Database**: Room for local data persistence
+- **Dependency Injection**: Hilt
+- **Coroutines**: For asynchronous operations
+- **Media Session**: For playback control and notification integration
+- **Foreground Service**: For background playback
+
+## Core Features
+
+### Essential Features
+- **100% Offline Operation** - No internet connection required
+- **Privacy Focused** - Zero data collection or external communication
+- Local music file playback (MP3, FLAC, WAV, OGG, M4A, AAC)
+- Complete playlist management (create, edit, delete, reorder)
+- Shuffle and repeat modes (off, all, one)
+- Background playback with notification controls
+- Persistent playback state across app restarts
+
+### Advanced Audio Features
+- 8-band graphic equalizer (40Hz, 80Hz, 160Hz, 315Hz, 630Hz, 1.25kHz, 2.5kHz, 5kHz, 10kHz)
+- Equalizer preset management (save/load custom presets)
+- Real-time audio visualization during adjustment
+
+### Music Library Management
+- Automatic music library scanning and indexing
+- Metadata extraction and display
+- Advanced search and filtering (artists, albums, genres, tags)
+- Album artwork extraction and caching
+- Custom tag system for organization
+- Full ID3 tag editing (title, artist, album, genre, year, track number, album artist, composer, custom tags)
+- Batch tag editing for multiple files
+
+### Home Screen Widget
+- Album artwork display with high-quality rendering
+- Visual timeline/progress bar
+- 15-second skip backward/forward buttons
+- Previous/next track buttons
+- Play/pause toggle
+- Real-time updates during playback
+- Tappable to open main app
+
+## Project Structure
+
+**Architecture: multi-module, hybrid feature + core (Now in Android style).** The app shell wires
+everything; `:core:*` modules hold shared concerns; `:feature:*` modules hold one screen-area each.
+See the `setup-modularization` skill for the full graph, convention plugins, and dependency rules.
+
+```
+:app                    # Application, MainActivity, NavHost wiring, DI root, app theme entry
+
+:core
+├── :core:model         # Domain models + enums (Song, Album, Artist, Playlist, ...). Pure Kotlin.
+├── :core:common        # Dispatchers, Result types, extensions, base utilities
+├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
+├── :core:datastore     # DataStore: settings + equalizer active-state
+├── :core:data          # Repositories + media scanner
+├── :core:media         # Media3 playback service, MediaSession, audio session, equalizer effect
+├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
+├── :core:ui            # Model-aware shared composables (SongListItem, AlbumCard, AlbumArtwork)
+├── :core:permissions   # Runtime media permission gate + flow
+└── :core:testing       # Fakes, fixtures, test rules
+
+:feature
+├── :feature:library    # Songs/Albums/Artists/Genres lists
+├── :feature:search     # Local search across the library
+├── :feature:player     # Now-playing + mini-player
+├── :feature:equalizer  # Equalizer screen (band sliders, presets UI)
+├── :feature:playlists  # Playlist management + reordering
+├── :feature:tageditor  # ID3 read/write screen + scoped-storage consent
+├── :feature:settings   # App settings
+└── :feature:widget     # Glance home screen widget
+
+:baselineprofile        # Macrobenchmark + Baseline Profile generator (test module)
+build-logic/            # Convention plugins (included build)
+```
+
+**Dependency direction**: `:feature → :core → :core:model`. Features never depend on each other;
+core never depends on a feature; no cycles. Cross-feature flows go through `:core:data` or navigation.
+
+### Agent ↔ Module Ownership (quick map)
+
+- `:core:database` → data-layer-agent · `:core:data` scanner → media-scanning-agent
+- `:core:media` → audio-engineer · equalizer effect → equalizer-agent
+- `:core:designsystem` → m3-design-system-agent · `:core:ui` & `:feature:*` screens → ui-builder
+- `:core:permissions` → permissions-agent · `:feature:widget` → widget-agent
+- `:feature:tageditor` IO → tag-editor-agent · `:feature:*` ViewModels → viewmodel-architect
+- `:app` NavHost + per-feature nav entries → navigation-agent
+- `build-logic/`, root Gradle, version catalog, `:baselineprofile` → build-tooling-agent
+- `:core:model` is a shared contract — settle model names once (the codebase uses **`Song`**, not `Track`)
+
+## Development Phases
+
+### Phase 1: Foundation (Weeks 1-2)
+- Project setup and dependencies
+- Basic UI structure with Compose
+- Room database schema
+- Media scanning implementation
+
+### Phase 2: Core Playback (Weeks 3-4)
+- ExoPlayer integration
+- Playback service with MediaSession
+- Notification controls
+- Basic player UI
+
+### Phase 3: Library Management (Weeks 5-6)
+- Library screens (songs, albums, artists, genres)
+- Search and filtering
+- Album artwork handling
+- Navigation implementation
+
+### Phase 4: Playlists (Week 7)
+- Playlist creation and management
+- Playlist UI
+- Drag-and-drop reordering
+
+### Phase 5: Advanced Features (Weeks 8-9)
+- 8-band equalizer implementation
+- Preset management
+- Audio visualization
+- Tag editor (single and batch)
+- Custom tag system
+
+### Phase 6: Widget & Polish (Week 10)
+- Home screen widget implementation
+- UI/UX refinements
+- Performance optimization
+- Bug fixes
+
+### Phase 7: Testing & Release (Weeks 11-12)
+- Comprehensive testing
+- Documentation
+- Release preparation
+
+## Key Design Decisions
+
+1. **Media3 over MediaPlayer**: Better API, more features, active development
+2. **Jetpack Compose**: Modern UI toolkit, declarative approach
+3. **MVVM Architecture**: Clear separation of concerns, testability
+4. **Room Database**: Type-safe, compile-time verification
+5. **Hilt for DI**: Official Android DI solution, good Compose integration
+6. **Foreground Service**: Required for background playback on modern Android
+
+## Important Considerations
+
+- **Offline Operation**: No internet permission requested or used; all features work without connectivity
+- **Privacy**: No analytics, no crash reporting to external services, no data collection
+- **Local Storage**: All data stored on device; efficient caching and indexing strategies
+- **Permissions**: READ_MEDIA_AUDIO (Android 13+), READ_EXTERNAL_STORAGE (older versions) - storage only
+- **Scoped Storage**: Handle Android 10+ storage restrictions properly
+- **Battery Optimization**: Proper service lifecycle management for background playback
+- **Memory Management**: Efficient bitmap loading for album art from local storage
+- **Audio Focus**: Handle audio focus changes properly for local playback
+- **MediaSession**: Proper integration for system controls (no Android Auto streaming)
+
+## Current Status
+
+**Status**: Planning Phase
+**Last Updated**: 2026-06-23
+
+## Next Steps
+
+1. Set up Android project with required dependencies
+2. Implement Room database schema
+3. Create basic UI structure with Compose
+4. Implement media scanning service
+5. Integrate ExoPlayer for playback
+
+## Notes
+
+- Target Android API: 24 (Android 7.0) minimum, 34 (Android 14) target
+- Use Material Design 3 components throughout
+- Follow Kotlin coding conventions
+- Write unit tests for business logic
+- Use Coil for image loading
+- Implement proper error handling and user feedback
