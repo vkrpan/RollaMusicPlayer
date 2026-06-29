@@ -1,0 +1,48 @@
+build:
+  maxIssues: 0
+  excludeCorrectable: false
+
+config:
+  validation: true
+  warningsAsErrors: false
+  checkExhaustiveness: false
+
+processors:
+  active: true
+
+console-reports:
+  active: true
+
+complexity:
+  LongMethod:
+    threshold: 30
+  TooManyFunctions:
+    active: true
+    thresholdInFiles: 20
+    thresholdInClasses: 15
+    thresholdInInterfaces: 10
+    thresholdInObjects: 10
+    thresholdInEnums: 5
+
+naming:
+  FunctionNaming:
+    active: true
+    functionPattern: '[a-z][a-zA-Z0-9]*'
+    ignoreAnnotated: ['Composable']
+
+style:
+  MagicNumber:
+    active: true
+    ignorePropertyDeclaration: true
+    ignoreCompanionObjectPropertyDeclaration: true
+    ignoreAnnotation: true
+    ignoreNamedArgument: true
+    ignoreEnums: true
+  UnusedPrivateMember:
+    active: true
+
+potential-bugs:
+  active: true
+
+exceptions:
+  active: true

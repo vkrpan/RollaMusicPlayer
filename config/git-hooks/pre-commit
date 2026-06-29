@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+echo "Running static analysis pre-commit checks..."
+./gradlew spotlessCheck detekt checkNoNetwork --daemon -q
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "Pre-commit checks failed."
+  echo "  - Run './gradlew spotlessApply' to auto-fix formatting"
+  echo "  - Fix detekt issues manually"
+  echo "  - Remove any network imports (retrofit2, okhttp3, firebase, ktor)"
+  exit 1
+fi
+echo "All checks passed."

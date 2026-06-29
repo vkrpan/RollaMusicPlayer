@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        System bar colors are managed by enableEdgeToEdge() in MainActivity.
+        Do NOT set android:statusBarColor or android:navigationBarColor here.
+    -->
+    <style name="Theme.RollaMusicPlayer" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
