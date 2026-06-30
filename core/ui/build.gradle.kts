@@ -10,6 +10,12 @@ android {
     }
 }
 
+composeCompiler {
+    stabilityConfigurationFile.set(
+        rootProject.layout.projectDirectory.file("config/compose/stability-configuration.conf"),
+    )
+}
+
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))

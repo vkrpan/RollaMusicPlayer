@@ -38,7 +38,8 @@ class LibraryViewModel @Inject constructor(
     }
 
     fun onPermissionGranted() {
-        if (_scanState.value is ScanState.Scanning) return
+        val current = _scanState.value
+        if (current is ScanState.Scanning || current is ScanState.Done) return
         viewModelScope.launch {
             _scanState.value = ScanState.Scanning
             _scanState.value = try {

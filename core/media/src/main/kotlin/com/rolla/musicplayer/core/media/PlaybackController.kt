@@ -26,7 +26,11 @@ class PlaybackController @Inject constructor(
         get() = controllerFuture?.let { if (it.isDone && !it.isCancelled) it.get() else null }
 
     fun connect() {
-        if (controllerFuture != null) return
+        val existing = controllerFuture
+        // Return if there's an in-flight or successfully completed future.
+        // Only reconnect if the previous future was cancelled (e.g. service crash).
+        if (existing != null && !existing.isCancelled) return
+        existing?.let { MediaController.releaseFuture(it) }
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(context, token).buildAsync()
     }
@@ -37,7 +41,21 @@ class PlaybackController @Inject constructor(
     }
 
     fun play(song: Song) {
-        val item = MediaItem.Builder()
+        val item = buildMediaItem(song)
+        val c = controller
+        if (c != null) {
+            startPlayback(c, item)
+        } else {
+            // Future not yet resolved — enqueue command; last tap wins if multiple queued.
+            controllerFuture?.addListener(
+                { controller?.let { startPlayback(it, item) } },
+                { command -> command.run() },
+            )
+        }
+    }
+
+    private fun buildMediaItem(song: Song): MediaItem =
+        MediaItem.Builder()
             .setMediaId(song.id)
             .setUri(song.contentUri)
             .setMediaMetadata(
@@ -48,11 +66,11 @@ class PlaybackController @Inject constructor(
                     .build(),
             )
             .build()
-        controller?.run {
-            setMediaItem(item)
-            prepare()
-            play()
-        }
+
+    private fun startPlayback(c: MediaController, item: MediaItem) {
+        c.setMediaItem(item)
+        c.prepare()
+        c.play()
     }
 
     fun togglePlayPause() {

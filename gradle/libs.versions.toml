@@ -47,6 +47,7 @@ spotless           = "6.25.0"
 junit              = "4.13.2"
 junitExt           = "1.2.1"
 espresso           = "3.6.1"
+mockk              = "1.13.10"
 
 [libraries]
 # AndroidX core
@@ -109,6 +110,7 @@ kotlinx-serialization-json     = { group = "org.jetbrains.kotlinx",   name = "ko
 junit                          = { group = "junit",                    name = "junit",                         version.ref = "junit" }
 androidx-junit                 = { group = "androidx.test.ext",        name = "junit",                         version.ref = "junitExt" }
 androidx-espresso-core         = { group = "androidx.test.espresso",   name = "espresso-core",                 version.ref = "espresso" }
+mockk                          = { group = "io.mockk",                 name = "mockk",                         version.ref = "mockk" }
 
 [plugins]
 android-application            = { id = "com.android.application",     version.ref = "agp" }

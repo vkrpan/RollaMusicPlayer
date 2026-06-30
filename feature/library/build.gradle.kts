@@ -10,6 +10,12 @@ android {
     }
 }
 
+composeCompiler {
+    stabilityConfigurationFile.set(
+        rootProject.layout.projectDirectory.file("config/compose/stability-configuration.conf"),
+    )
+}
+
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))
@@ -25,4 +31,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(project(":core:testing"))
 }

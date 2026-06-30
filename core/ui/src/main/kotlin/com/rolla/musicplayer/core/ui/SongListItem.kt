@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -112,6 +113,10 @@ private fun ArtworkThumbnail(
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val imageRequest = remember(artworkUri) {
+        ImageRequest.Builder(context).data(artworkUri).crossfade(true).build()
+    }
     Box(
         modifier = modifier
             .size(ThumbnailSize)
@@ -121,10 +126,7 @@ private fun ArtworkThumbnail(
     ) {
         if (artworkUri.isNotEmpty()) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(artworkUri)
-                    .crossfade(true)
-                    .build(),
+                model = imageRequest,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
