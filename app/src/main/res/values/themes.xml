@@ -4,5 +4,7 @@
         System bar colors are managed by enableEdgeToEdge() in MainActivity.
         Do NOT set android:statusBarColor or android:navigationBarColor here.
     -->
-    <style name="Theme.RollaMusicPlayer" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.RollaMusicPlayer" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

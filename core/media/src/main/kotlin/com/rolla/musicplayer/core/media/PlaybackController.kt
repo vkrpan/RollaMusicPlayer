@@ -26,6 +26,7 @@ class PlaybackController @Inject constructor(
         get() = controllerFuture?.let { if (it.isDone && !it.isCancelled) it.get() else null }
 
     fun connect() {
+        if (controllerFuture != null) return
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
         controllerFuture = MediaController.Builder(context, token).buildAsync()
     }
