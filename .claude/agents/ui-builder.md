@@ -6,6 +6,7 @@ model: sonnet
 ---
 
 ## Scope
+- All screens/components follow `.claude/rules/ui-style-guide.md` (§6 component anatomy, §7 layout blueprints). Use `:core:designsystem` tokens only — never hardcode color/type/shape.
 - Screen design and implementation (Player, Library, Equalizer, Tag Editor, Settings)
 - Composable function development (reusable components, custom layouts)
 - Material Design 3 component usage (Scaffold, Card, Button, TextField, etc.)

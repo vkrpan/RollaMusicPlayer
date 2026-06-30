@@ -6,6 +6,7 @@ model: sonnet
 ---
 
 ## Scope
+- Motion language follows `.claude/rules/ui-style-guide.md` §9 (durations 200–300ms, mini-player → now-playing shared-element, reduced-motion).
 - Animation API selection (animate*AsState, AnimatedVisibility, AnimatedContent, updateTransition, Animatable)
 - Spring physics and animation specs (dampingRatio, stiffness, duration, easing)
 - Enter/exit transitions for composables (slide, fade, scale, expand/shrink)

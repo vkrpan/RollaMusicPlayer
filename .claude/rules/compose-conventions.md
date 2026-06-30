@@ -2,6 +2,7 @@
 
 ## Overview
 Best practices and conventions for Jetpack Compose UI development in RollaMusicPlayer, following Material Design 3 guidelines.
+> **Visual tokens live elsewhere.** Color, typography, shape, spacing, and per-screen layout are governed by [`ui-style-guide.md`](./ui-style-guide.md) (implemented as tokens in `:core:designsystem`). This rule covers composable *structure, state, and accessibility*; `ui-style-guide.md` covers *appearance*. Never hardcode visual values — reference `MaterialTheme.colorScheme/typography/shapes` and the semantic token extensions (`songTitle`, `miniPlayerContainer`, etc.).
 
 ## Composable Naming
 

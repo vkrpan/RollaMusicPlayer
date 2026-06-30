@@ -35,6 +35,7 @@ model: sonnet
 - Use `GlanceTheme` and `GlanceTheme.colors.*` for all colors — no hardcoded `Color(0xFF...)`
 - Dependencies needed inside the receiver/callback are obtained via Hilt `EntryPointAccessors` (Glance receivers cannot use constructor injection)
 - Every control and the artwork must have a content description for accessibility
+- Widget visual style per `.claude/rules/ui-style-guide.md` §8 (GlanceTheme tokens, dark rounded card).
 
 ## Definition of done
 - App builds: ./gradlew assembleDebug exits 0

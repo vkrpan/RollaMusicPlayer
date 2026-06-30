@@ -40,6 +40,7 @@
 - **UI Framework**: Jetpack Compose with Material Design 3
 - **Architecture**: MVVM (Model-View-ViewModel), multi-module (hybrid feature + core)
 - **Build**: Gradle Kotlin DSL with version catalog + convention plugins (build-logic)
+- **Visual style**: One UI–inspired dark (OLED black, blue accent, soft rounded surfaces). Binding spec: `.claude/rules/ui-style-guide.md`; tokens implemented in `:core:designsystem` (Color.kt / Type.kt / Shape.kt / Theme.kt)
 - **Audio Playback**: Media3 ExoPlayer
 - **Database**: Room for local data persistence
 - **Dependency Injection**: Hilt
@@ -181,6 +182,7 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 4. **Room Database**: Type-safe, compile-time verification
 5. **Hilt for DI**: Official Android DI solution, good Compose integration
 6. **Foreground Service**: Required for background playback on modern Android
+7. **One UI–inspired dark design system**: True-black OLED, single blue accent, heavily rounded surfaces. Defined in `.claude/rules/ui-style-guide.md` and implemented as tokens in `:core:designsystem`. All UI agents/skills build from these tokens — never hardcode colors, type, or shapes.
 
 ## Important Considerations
 

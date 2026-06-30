@@ -18,6 +18,7 @@ A comprehensive workflow for adding a new screen to RollaMusicPlayer using Jetpa
 - Navigation component is configured
 - Base architecture is in place
 - Theme and styling are defined
+- Layout, spacing, and tokens follow `.claude/rules/ui-style-guide.md` (§5 spacing, §6 components, §7 blueprints)
 
 ## Workflow Steps
 

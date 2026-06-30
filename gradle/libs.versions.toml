@@ -87,6 +87,7 @@ room-runtime                   = { group = "androidx.room",            name = "r
 room-ktx                       = { group = "androidx.room",            name = "room-ktx",                      version.ref = "room" }
 room-compiler                  = { group = "androidx.room",            name = "room-compiler",                 version.ref = "room" }
 room-gradle-plugin             = { group = "androidx.room",            name = "room-gradle-plugin",            version.ref = "room" }
+room-testing                   = { group = "androidx.room",            name = "room-testing",                  version.ref = "room" }
 
 # DataStore
 datastore-preferences          = { group = "androidx.datastore",       name = "datastore-preferences",         version.ref = "datastore" }

@@ -114,6 +114,7 @@ Coil sizes the decode to the composable's measured bounds automatically — so a
 - **Player / now-playing**: large `AlbumArtwork`; same URI → served from cache after the list already loaded it.
 - **Widget**: the widget does NOT use Coil — it needs a pre-decoded, downscaled `Bitmap` for the RemoteViews memory budget (see `implement-home-widget`/widget-agent). You can share the decoded bitmap, but the widget path stays manual.
 - **Notification**: load the bitmap via Coil's `enqueue`/`execute` on a background dispatcher in the audio service, then pass to `MediaMetadata`/`NotificationCompat`.
+- Artwork placeholder + shape (12dp `small`) and surfaces per `.claude/rules/ui-style-guide.md` §4/§6.
 
 ### Step 6: Verify
 **Checklist**:

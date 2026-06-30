@@ -6,6 +6,7 @@ model: sonnet
 ---
 
 ## Scope
+- Visual consistency: flag any hardcoded color/typography/shape that bypasses `:core:designsystem` / `.claude/rules/ui-style-guide.md` as a Medium+ finding.
 - Code quality assessment (readability, maintainability, naming conventions)
 - Architecture review (MVVM pattern compliance, separation of concerns, layer boundaries)
 - Android best practices enforcement (lifecycle awareness, memory leak prevention, resource management)

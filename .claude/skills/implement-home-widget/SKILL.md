@@ -374,6 +374,7 @@ private fun refreshWidget() {
 - Use `GlanceTheme` colors only — request a token from m3-design-system-agent if one is missing.
 - Glance receivers can't use constructor injection — use Hilt `EntryPointAccessors`.
 - All `PendingIntent`/action wiring must use `FLAG_IMMUTABLE`.
+- Visual style per `.claude/rules/ui-style-guide.md` §8.
 
 ## Common Patterns
 

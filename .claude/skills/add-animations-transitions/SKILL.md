@@ -8,6 +8,8 @@ description: "Comprehensive guide for implementing smooth animations and transit
 ## Overview
 Comprehensive guide for implementing smooth animations and transitions in Jetpack Compose applications. Covers animation APIs, shared element transitions, list animations, state-based animations, and performance optimization following Material Design motion principles.
 
+> Motion language (durations, mini-player → now-playing shared element, reduced-motion) follows `.claude/rules/ui-style-guide.md` §9.
+
 ## When to Use
 - Adding polish to UI interactions
 - Implementing screen transitions

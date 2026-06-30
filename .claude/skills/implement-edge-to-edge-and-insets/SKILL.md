@@ -160,6 +160,7 @@ Box(Modifier.fillMaxSize()) {
 - Prefer `Modifier.windowInsetsPadding(...)` over manual padding math; it reacts to gesture vs button nav automatically.
 - Consume each inset once per axis — the most common bug is double-consumption (gaps) or none (overlap).
 - Test on both gesture navigation and 3-button navigation, and with a cutout.
+- System-bar / inset visuals use `:core:designsystem` tokens per `.claude/rules/ui-style-guide.md` §2.
 
 ## Common Pitfalls
 - ❌ Setting `android:navigationBarColor`/`statusBarColor` and expecting edge-to-edge — they conflict.

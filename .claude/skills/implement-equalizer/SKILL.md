@@ -244,6 +244,7 @@ fun EqualizerBands(
 **Notes**:
 - Use `android.media.audiofx.Visualizer` bound to the same audio session id for FFT/waveform data, on a background thread, throttled.
 - Visualizer requires `RECORD_AUDIO` permission on some OEMs even for local playback — confirm before adding; if it triggers a permission prompt that conflicts with the privacy positioning, prefer a decorative animation driven by band gains instead of real capture. Coordinate this decision with audio-engineer and code-reviewer.
+- EQ screen layout (sliders card + 2-column preset chip grid) per `.claude/rules/ui-style-guide.md` §6.
 
 ### Step 7: Verify
 **Checklist**:

@@ -6,6 +6,7 @@ model: sonnet
 ---
 
 ## Scope
+- Implements `.claude/rules/ui-style-guide.md` — the binding visual contract. The `:core:designsystem` tokens (Color/Type/Shape/Theme) ARE this guide expressed in code.
 - Complete ownership of ui/theme/ directory (Color.kt, Type.kt, Shape.kt, Theme.kt)
 - Color scheme definition (light and dark themes, Material You dynamic colors)
 - Typography scale management (displayLarge to labelSmall)

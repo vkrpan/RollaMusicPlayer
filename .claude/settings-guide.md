@@ -47,6 +47,7 @@ The settings.json file configures:
   },
   "skills": {
     "autoLoad": [
+      "bootstrap-project",
       "setup-modularization",
       "add-new-screen",
       "add-room-database",
@@ -78,7 +79,8 @@ The settings.json file configures:
       "compose-conventions",
       "media3-playback",
       "navigation-conventions",
-      "model-vocabulary"
+      "model-vocabulary",
+      "ui-style-guide"
     ]
   }
 }
@@ -99,9 +101,9 @@ Specialized sub-agents with domain expertise. Several are **exclusive owners** o
 - **tag-editor-agent**: `:feature:tageditor` — ID3/metadata read-write with scoped-storage consent.
 
 **UI & Design**
-- **ui-builder**: `:core:ui` + `:feature:*` screens.
-- **m3-design-system-agent**: `:core:designsystem` (exclusive) — colors, typography, shapes.
-- **compose-animation-agent**: animations across features and `:core:ui`.
+- **ui-builder**: `:core:ui` + `:feature:*` screens. Builds strictly from `ui-style-guide`.
+- **m3-design-system-agent**: `:core:designsystem` (exclusive) — implements the `ui-style-guide` tokens (Color/Type/Shape/Theme).
+- **compose-animation-agent**: animations across features and `:core:ui` (ui-style-guide §9).
 - **compose-performance-auditor**: read-only recomposition/jank analysis.
 
 **Architecture & Navigation**
@@ -110,19 +112,19 @@ Specialized sub-agents with domain expertise. Several are **exclusive owners** o
 
 **Platform Features**
 - **permissions-agent**: `:core:permissions` (exclusive).
-- **widget-agent**: `:feature:widget` (exclusive) — Glance home screen widget.
+- **widget-agent**: `:feature:widget` (exclusive) — Glance home screen widget (ui-style-guide §8).
 
 **Build & Tooling**
 - **build-tooling-agent**: `build-logic/`, root Gradle, `libs.versions.toml`, R8 rules, `:baselineprofile`, static-analysis/CI. The build-level gate for the no-network-dependency rule.
 
 **Quality**
-- **code-reviewer**: read-only review for MVVM compliance, offline/privacy, memory leaks, performance.
+- **code-reviewer**: read-only review for MVVM compliance, offline/privacy, memory leaks, performance, and hardcoded values that bypass `ui-style-guide`.
 - **test-writer**: `:core:testing` + tests across modules.
 
 ### Skills
 Multi-step workflows for common tasks, grouped by area.
 
-**Architecture & Setup**: setup-modularization, add-new-screen, add-room-database, add-dependency-injection-hilt, implement-repository-pattern, implement-use-cases, implement-state-management, implement-navigation-graph, implement-datastore
+**Bootstrap & Architecture**: bootstrap-project, setup-modularization, add-new-screen, add-room-database, add-dependency-injection-hilt, implement-repository-pattern, implement-use-cases, implement-state-management, implement-navigation-graph, implement-datastore
 
 **Feature Implementation**: handle-runtime-permissions, implement-media-scanning, implement-equalizer, implement-tag-editor, implement-home-widget
 
@@ -130,13 +132,16 @@ Multi-step workflows for common tasks, grouped by area.
 
 **Build, Testing & Ops**: setup-static-analysis, add-unit-testing, add-ui-testing-compose, debug-playback-issue, release-build
 
+> `bootstrap-project` is a run-once Phase 0 workflow (scaffold → `:core:model` → first vertical slice). Its copy-paste prompt sequence lives in `PHASE0-BOOTSTRAP.md`.
+
 ### Rules
 Coding standards and conventions:
 - **kotlin-style**: Kotlin coding conventions and offline checklist
-- **compose-conventions**: Jetpack Compose best practices
+- **compose-conventions**: Jetpack Compose best practices (references `ui-style-guide` for visual tokens)
 - **media3-playback**: Media3 ExoPlayer patterns
 - **navigation-conventions**: type-safe `@Serializable` route contract
 - **model-vocabulary**: canonical domain model names (the codebase uses `Song`, never `Track`) and the framework terms that are NOT models
+- **ui-style-guide**: visual contract — colors, typography, shapes, spacing, per-screen layout, widget style; implemented as tokens in `:core:designsystem`
 
 ## Usage
 

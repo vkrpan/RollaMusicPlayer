@@ -59,6 +59,7 @@ RollaMusicPlayer/
     │   ├── implement-state-management/
     │   ├── implement-navigation-graph/
     │   ├── setup-modularization/
+    │   ├── bootstrap-project/
     │   ├── handle-runtime-permissions/
     │   ├── implement-media-scanning/
     │   ├── implement-equalizer/
@@ -78,7 +79,9 @@ RollaMusicPlayer/
     │   ├── kotlin-style.md
     │   ├── compose-conventions.md
     │   ├── media3-playback.md
-    │   └── navigation-conventions.md
+    │   ├── navigation-conventions.md
+    │   ├── model-vocabulary.md
+    │   └── ui-style-guide.md
     └── commands/                          # Quick reference commands
         └── run-emulator.md
 ```
@@ -172,6 +175,7 @@ Located in [`.claude/skills/`](.claude/skills/). Step-by-step workflows.
 - **implement-navigation-graph** — type-safe navigation graph
 - **implement-datastore** — DataStore for settings/equalizer active-state (replaces SharedPreferences)
 - **setup-modularization** — hybrid feature + core multi-module structure (graph, convention plugins, ownership)
+- **bootstrap-project** — run-once Phase 0: scaffold → `:core:model` → first vertical slice, end-to-end
 
 #### Feature Implementation
 - **handle-runtime-permissions** — version-aware media permission + Compose gate
@@ -201,6 +205,8 @@ Located in [`.claude/rules/`](.claude/rules/):
 - **[compose-conventions](/.claude/rules/compose-conventions.md)** — composable structure, state, Material 3, accessibility
 - **[media3-playback](/.claude/rules/media3-playback.md)** — ExoPlayer, MediaSession, notifications, background playback
 - **[navigation-conventions](/.claude/rules/navigation-conventions.md)** — type-safe `@Serializable` routes, argument and back-stack rules
+- **[model-vocabulary](/.claude/rules/model-vocabulary.md)** — canonical domain model names (`Song`, never `Track`)
+- **[ui-style-guide](/.claude/rules/ui-style-guide.md)** — visual contract: colors, typography, shapes, per-screen layout, widget style (implemented in `:core:designsystem`)
 
 ### 5. Quick Commands
 
