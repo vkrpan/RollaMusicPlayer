@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.media
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.core.net.toUri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -72,6 +73,7 @@ class PlaybackController @Inject constructor(
                     .setTitle(song.title)
                     .setArtist(song.artist)
                     .setAlbumTitle(song.album)
+                    .setArtworkUri(song.artworkUri.ifEmpty { null }?.toUri())
                     .build(),
             )
             .build()

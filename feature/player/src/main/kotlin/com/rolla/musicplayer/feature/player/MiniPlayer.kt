@@ -70,14 +70,18 @@ fun MiniPlayerRoute(
 ) {
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
+    val onPrevious = remember(viewModel) { viewModel::previous }
+    val onTogglePlayPause = remember(viewModel) { viewModel::togglePlayPause }
+    val onNext = remember(viewModel) { viewModel::next }
+    val onQueue = remember { {} }
     currentSong?.let { song ->
         MiniPlayer(
             song = song,
             isPlaying = isPlaying,
-            onPrevious = viewModel::previous,
-            onTogglePlayPause = viewModel::togglePlayPause,
-            onNext = viewModel::next,
-            onQueue = {},
+            onPrevious = onPrevious,
+            onTogglePlayPause = onTogglePlayPause,
+            onNext = onNext,
+            onQueue = onQueue,
             sharedTransitionScope = sharedTransitionScope,
             animatedVisibilityScope = animatedVisibilityScope,
             modifier = modifier,
@@ -167,13 +171,14 @@ private fun MiniPlayerArtwork(
         ImageRequest.Builder(context).data(artworkUri.ifEmpty { null }).crossfade(true).build()
     }
     val reducedMotion = isReducedMotion()
+    val boundsTransform = remember(reducedMotion) { artworkBoundsTransform(reducedMotion) }
     with(sharedTransitionScope) {
         Box(
             modifier = modifier
                 .sharedElement(
                     state = rememberSharedContentState(key = NowPlayingTransitionKey.ARTWORK),
                     animatedVisibilityScope = animatedVisibilityScope,
-                    boundsTransform = artworkBoundsTransform(reducedMotion),
+                    boundsTransform = boundsTransform,
                     renderInOverlayDuringTransition = true,
                 )
                 .clip(CircleShape)

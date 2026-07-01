@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
 private fun RollaNavHost() {
     val navController = rememberNavController()
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
-    val currentSong by miniPlayerViewModel.currentSong.collectAsStateWithLifecycle()
+    val showMiniPlayer by miniPlayerViewModel.hasSong.collectAsStateWithLifecycle()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val isNowPlaying = navBackStackEntry?.destination?.hasRoute(NowPlaying::class) == true
 
@@ -63,7 +63,7 @@ private fun RollaNavHost() {
             containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
                 AnimatedVisibility(
-                    visible = currentSong != null && !isNowPlaying,
+                    visible = showMiniPlayer && !isNowPlaying,
                     enter = slideInVertically { it } + fadeIn(),
                     exit = slideOutVertically { it } + fadeOut(),
                 ) {

@@ -1,6 +1,5 @@
 package com.rolla.musicplayer.feature.player
 
-import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.media.PlaybackController
@@ -12,16 +11,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
-
-@Immutable
-data class NowPlayingUiState(
-    val song: Song? = null,
-    val isPlaying: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
-    val shuffleMode: ShuffleMode = ShuffleMode.OFF,
-    val repeatMode: RepeatMode = RepeatMode.OFF,
-)
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(

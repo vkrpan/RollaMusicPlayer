@@ -54,7 +54,7 @@ class PlaybackService : MediaSessionService() {
                     trackNumber = null,
                     year = null,
                     contentUri = item.localConfiguration?.uri?.toString().orEmpty(),
-                    artworkUri = "",
+                    artworkUri = item.mediaMetadata.artworkUri?.toString().orEmpty(),
                 )
             }
             playbackStateHolder.setCurrentSong(song)

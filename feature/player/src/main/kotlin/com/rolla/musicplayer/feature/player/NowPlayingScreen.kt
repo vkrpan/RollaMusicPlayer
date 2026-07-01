@@ -11,7 +11,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,6 +78,8 @@ import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+import kotlinx.coroutines.flow.StateFlow
+
 @Suppress("LongMethod")
 @Composable
 fun NowPlayingRoute(
@@ -90,28 +91,34 @@ fun NowPlayingRoute(
 ) {
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
-    val positionMs by viewModel.positionMs.collectAsStateWithLifecycle()
-    val durationMs by viewModel.durationMs.collectAsStateWithLifecycle()
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
+    val onTogglePlayPause = remember(viewModel) { viewModel::togglePlayPause }
+    val onPrevious = remember(viewModel) { viewModel::previous }
+    val onNext = remember(viewModel) { viewModel::next }
+    val onSeekTo = remember(viewModel) { viewModel::seekTo }
+    val onCycleRepeat = remember(viewModel) { viewModel::cycleRepeatMode }
+    val onToggleShuffle = remember(viewModel) {
+        {
+            viewModel.setShuffle(
+                if (viewModel.shuffleMode.value == ShuffleMode.ON) ShuffleMode.OFF else ShuffleMode.ON,
+            )
+        }
+    }
     NowPlayingScreen(
         song = currentSong,
         isPlaying = isPlaying,
-        positionMs = positionMs,
-        durationMs = durationMs,
+        positionMs = viewModel.positionMs,
+        durationMs = viewModel.durationMs,
         shuffleMode = shuffleMode,
         repeatMode = repeatMode,
         onNavigateUp = onNavigateUp,
-        onTogglePlayPause = viewModel::togglePlayPause,
-        onPrevious = viewModel::previous,
-        onNext = viewModel::next,
-        onSeekTo = viewModel::seekTo,
-        onToggleShuffle = {
-            viewModel.setShuffle(
-                if (shuffleMode == ShuffleMode.ON) ShuffleMode.OFF else ShuffleMode.ON,
-            )
-        },
-        onCycleRepeat = viewModel::cycleRepeatMode,
+        onTogglePlayPause = onTogglePlayPause,
+        onPrevious = onPrevious,
+        onNext = onNext,
+        onSeekTo = onSeekTo,
+        onToggleShuffle = onToggleShuffle,
+        onCycleRepeat = onCycleRepeat,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
         modifier = modifier,
@@ -123,8 +130,8 @@ fun NowPlayingRoute(
 fun NowPlayingScreen(
     song: Song?,
     isPlaying: Boolean,
-    positionMs: Long,
-    durationMs: Long,
+    positionMs: StateFlow<Long>,
+    durationMs: StateFlow<Long>,
     shuffleMode: ShuffleMode,
     repeatMode: RepeatMode,
     onNavigateUp: () -> Unit,
@@ -169,8 +176,8 @@ fun NowPlayingScreen(
 private fun NowPlayingContent(
     song: Song?,
     isPlaying: Boolean,
-    positionMs: Long,
-    durationMs: Long,
+    positionMs: StateFlow<Long>,
+    durationMs: StateFlow<Long>,
     shuffleMode: ShuffleMode,
     repeatMode: RepeatMode,
     onTogglePlayPause: () -> Unit,
@@ -184,10 +191,25 @@ private fun NowPlayingContent(
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = isReducedMotion()
-    val metadataAlpha by animatedContentScope.transition.animateFloat(
+    val metadataAlphaState = animatedContentScope.transition.animateFloat(
         transitionSpec = { if (reducedMotion) snap() else tween(durationMillis = 220) },
         label = "metadata_alpha",
     ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
+    val boundsTransform = remember(reducedMotion) { artworkBoundsTransform(reducedMotion) }
+    val artworkModifier = with(sharedTransitionScope) {
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .aspectRatio(1f)
+            .sharedElement(
+                state = rememberSharedContentState(key = NowPlayingTransitionKey.ARTWORK),
+                animatedVisibilityScope = animatedContentScope,
+                boundsTransform = boundsTransform,
+                renderInOverlayDuringTransition = true,
+            )
+            .clip(MaterialTheme.shapes.extraLarge)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+    }
 
     Column(
         modifier = modifier
@@ -199,14 +221,12 @@ private fun NowPlayingContent(
         NowPlayingArtwork(
             artworkUri = song?.artworkUri.orEmpty(),
             contentDescription = song?.title.orEmpty(),
-            sharedTransitionScope = sharedTransitionScope,
-            animatedContentScope = animatedContentScope,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = artworkModifier,
         )
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .graphicsLayer { alpha = metadataAlpha },
+                .graphicsLayer { alpha = metadataAlphaState.value },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(24.dp))
@@ -305,13 +325,10 @@ private fun NowPlayingTopBarActions() {
     }
 }
 
-@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun NowPlayingArtwork(
     artworkUri: String,
     contentDescription: String,
-    sharedTransitionScope: SharedTransitionScope,
-    animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -321,36 +338,23 @@ private fun NowPlayingArtwork(
             .crossfade(true)
             .build()
     }
-    val reducedMotion = isReducedMotion()
-    with(sharedTransitionScope) {
-        Box(
-            modifier = modifier
-                .padding(horizontal = 16.dp)
-                .aspectRatio(1f)
-                .sharedElement(
-                    state = rememberSharedContentState(key = NowPlayingTransitionKey.ARTWORK),
-                    animatedVisibilityScope = animatedContentScope,
-                    boundsTransform = artworkBoundsTransform(reducedMotion),
-                    renderInOverlayDuringTransition = true,
-                )
-                .clip(MaterialTheme.shapes.extraLarge)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center,
-        ) {
-            AsyncImage(
-                model = request,
-                contentDescription = contentDescription,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        AsyncImage(
+            model = request,
+            contentDescription = contentDescription,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        if (artworkUri.isEmpty()) {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(80.dp),
             )
-            if (artworkUri.isEmpty()) {
-                Icon(
-                    imageVector = Icons.Default.MusicNote,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(80.dp),
-                )
-            }
         }
     }
 }
@@ -382,18 +386,21 @@ private fun NowPlayingActionRow(modifier: Modifier = Modifier) {
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun NowPlayingSeekBar(
-    positionMs: Long,
-    durationMs: Long,
+    positionMs: StateFlow<Long>,
+    durationMs: StateFlow<Long>,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val positionMsValue by positionMs.collectAsStateWithLifecycle()
+    val durationMsValue by durationMs.collectAsStateWithLifecycle()
     var isDragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
     val fraction = when {
         isDragging -> dragFraction
-        durationMs > 0L -> positionMs.toFloat() / durationMs.toFloat()
+        durationMsValue > 0L -> positionMsValue.toFloat() / durationMsValue.toFloat()
         else -> 0f
     }
     Column(modifier = modifier) {
@@ -404,7 +411,7 @@ private fun NowPlayingSeekBar(
                 dragFraction = f
             },
             onValueChangeFinished = {
-                onSeekTo((dragFraction * durationMs).toLong())
+                onSeekTo((dragFraction * durationMsValue).toLong())
                 isDragging = false
             },
             colors = SliderDefaults.colors(
@@ -413,7 +420,7 @@ private fun NowPlayingSeekBar(
                 inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
             ),
         )
-        SeekBarTimeLabels(positionMs = positionMs, durationMs = durationMs)
+        SeekBarTimeLabels(positionMs = positionMsValue, durationMs = durationMsValue)
     }
 }
 
@@ -502,12 +509,12 @@ private fun NowPlayingTransportRow(
 
 @Composable
 private fun PlayPauseButton(isPlaying: Boolean, onClick: () -> Unit) {
-    Box(
+    IconButton(
+        onClick = onClick,
         modifier = Modifier
             .size(72.dp)
-            .background(MaterialTheme.colorScheme.primary, CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primary),
     ) {
         Icon(
             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
