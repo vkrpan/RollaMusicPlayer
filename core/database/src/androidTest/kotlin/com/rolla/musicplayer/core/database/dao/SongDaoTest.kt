@@ -53,6 +53,10 @@ class SongDaoTest {
         contentUri = "content://media/external/audio/media/$mediaStoreId",
         artworkUri = "content://media/external/audio/albumart/10",
         dateModified = 1_000_000L,
+        dateAdded = 1_000_000L,
+        isFavorite = false,
+        playCount = 0,
+        lastPlayed = null,
     )
 
     @Test

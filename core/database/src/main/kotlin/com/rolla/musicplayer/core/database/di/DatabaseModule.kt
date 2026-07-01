@@ -3,7 +3,9 @@ package com.rolla.musicplayer.core.database.di
 import android.content.Context
 import androidx.room.Room
 import com.rolla.musicplayer.core.database.MusicDatabase
+import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.dao.SongDao
+import com.rolla.musicplayer.core.database.migration.MIGRATION_1_2
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -19,8 +21,12 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): MusicDatabase =
         Room.databaseBuilder(context, MusicDatabase::class.java, MusicDatabase.DATABASE_NAME)
+            .addMigrations(MIGRATION_1_2)
             .build()
 
     @Provides
     fun provideSongDao(database: MusicDatabase): SongDao = database.songDao()
+
+    @Provides
+    fun providePlaylistDao(database: MusicDatabase): PlaylistDao = database.playlistDao()
 }

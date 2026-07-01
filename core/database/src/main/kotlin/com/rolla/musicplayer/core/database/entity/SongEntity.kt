@@ -53,6 +53,19 @@ data class SongEntity(
     // Used by the media scanner to detect changed files without a full re-scan
     @ColumnInfo(name = "date_modified")
     val dateModified: Long,
+
+    // When this song was first indexed by the scanner (backing the "Recently added" smart playlist)
+    @ColumnInfo(name = "date_added")
+    val dateAdded: Long = 0L,
+
+    @ColumnInfo(name = "is_favorite")
+    val isFavorite: Boolean = false,
+
+    @ColumnInfo(name = "play_count")
+    val playCount: Int = 0,
+
+    @ColumnInfo(name = "last_played")
+    val lastPlayed: Long? = null,
 )
 
 fun SongEntity.toDomain(): Song = Song(

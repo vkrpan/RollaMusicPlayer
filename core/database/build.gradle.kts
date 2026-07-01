@@ -6,6 +6,12 @@ plugins {
 
 android {
     namespace = "com.rolla.musicplayer.core.database"
+
+    sourceSets {
+        getByName("androidTest") {
+            assets.srcDirs("$projectDir/schemas")
+        }
+    }
 }
 
 dependencies {

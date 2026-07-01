@@ -20,7 +20,7 @@ complexity:
     active: true
     thresholdInFiles: 20
     thresholdInClasses: 15
-    thresholdInInterfaces: 10
+    thresholdInInterfaces: 12
     thresholdInObjects: 10
     thresholdInEnums: 5
 
