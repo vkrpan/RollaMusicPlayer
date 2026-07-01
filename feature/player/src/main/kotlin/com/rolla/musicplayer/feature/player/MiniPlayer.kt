@@ -60,6 +60,7 @@ private val IconSize = 24.dp
 fun MiniPlayerRoute(
     viewModel: MiniPlayerViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
+    onBodyClick: () -> Unit = {},
 ) {
     val currentSong by viewModel.currentSong.collectAsStateWithLifecycle()
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
@@ -72,10 +73,12 @@ fun MiniPlayerRoute(
             onNext = viewModel::next,
             onQueue = {},
             modifier = modifier,
+            onBodyClick = onBodyClick,
         )
     }
 }
 
+@Suppress("LongParameterList")
 @Composable
 fun MiniPlayer(
     song: Song,
@@ -85,6 +88,7 @@ fun MiniPlayer(
     onNext: () -> Unit,
     onQueue: () -> Unit,
     modifier: Modifier = Modifier,
+    onBodyClick: () -> Unit = {},
 ) {
     Row(
         modifier = modifier
@@ -94,7 +98,7 @@ fun MiniPlayer(
             .height(PillHeight)
             .background(MaterialTheme.colorScheme.miniPlayerContainer, CircleShape)
             .clip(CircleShape)
-            .clickable(onClick = {})
+            .clickable(onClick = onBodyClick)
             .padding(start = PillStartPadding, end = PillEndPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

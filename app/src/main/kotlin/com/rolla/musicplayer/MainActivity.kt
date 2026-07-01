@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -19,7 +20,9 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.feature.library.LibraryRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
+import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.navigation.Library
+import com.rolla.musicplayer.navigation.NowPlaying
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -45,18 +48,41 @@ private fun RollaNavHost() {
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
             if (currentSong != null) {
-                MiniPlayerRoute(viewModel = miniPlayerViewModel)
+                MiniPlayerRoute(
+                    viewModel = miniPlayerViewModel,
+                    onBodyClick = {
+                        navController.navigate(NowPlaying) {
+                            launchSingleTop = true
+                        }
+                    },
+                )
             }
         },
     ) { innerPadding ->
-        NavHost(
+        AppNavGraph(
             navController = navController,
-            startDestination = Library,
             modifier = Modifier.padding(innerPadding),
-        ) {
-            composable<Library> {
-                LibraryRoute()
-            }
+        )
+    }
+}
+
+@Composable
+private fun AppNavGraph(
+    navController: NavHostController,
+    modifier: Modifier = Modifier,
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Library,
+        modifier = modifier,
+    ) {
+        composable<Library> {
+            LibraryRoute()
+        }
+        composable<NowPlaying> {
+            NowPlayingRoute(
+                onNavigateUp = { navController.navigateUp() },
+            )
         }
     }
 }
