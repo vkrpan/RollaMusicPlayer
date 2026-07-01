@@ -198,16 +198,42 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-**Status**: Planning Phase
-**Last Updated**: 2026-06-23
+**Status**: Phase 2 Complete — Core Playback Implemented
+**Last Updated**: 2026-07-01
+
+### What's shipped (on `main`)
+
+| Area | Commits | Notes |
+|---|---|---|
+| Project scaffold, multi-module build | foundation | Convention plugins, version catalog, detekt + Spotless pre-commit hook |
+| `:core:model` — domain models | foundation | `Song`, `Album`, `Artist`, `Playlist`, `EqualizerPreset`, `RepeatMode`, `ShuffleMode` |
+| `:core:database` — Room | foundation | Entities, DAOs, `MusicDatabase` |
+| `:core:datastore` — DataStore | foundation | Settings + equalizer active-state |
+| `:core:common` — utilities | foundation | Dispatchers, Result types, extensions |
+| `:core:designsystem` — theme | foundation | Color, Typography, Shape tokens + semantic extensions (`songTitle`, `miniPlayerContainer`, `sliderInactiveTrack`, etc.) per ui-style-guide |
+| `:core:permissions` — permission gate | foundation | Version-aware READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE, rationale UI, Settings routing |
+| `:core:data` — repositories + scanner | foundation | MediaStore scanner, Song/Album/Artist repositories |
+| `:core:media` — ExoPlayer service | `c0c507d`+ | `PlaybackService` (MediaSessionService), `PlaybackController`, `PlaybackStateHolder`, position ticker |
+| `:feature:library` — library screens | foundation | Songs/Albums/Artists/Genres lists |
+| `:feature:player` — Now Playing + Mini-player | `286867f`, `066306b` | Full Now Playing screen, persistent mini-player pill, shared-element artwork transition (spring physics, reduced-motion aware), `PlayerViewModel`, `MiniPlayerViewModel` |
+| Navigation | `c0c507d` | Type-safe `@Serializable` routes, `SharedTransitionLayout` wiring |
+| Audit fixes | `066306b` | artworkUri pipeline fixed, `ProcessLifecycleOwner` release, recomposition scope (position ticks scoped to seekbar only), stable lambdas, `PlayPauseButton` accessibility, `hasSong` StateFlow |
+| Unit tests | `066306b` | 44 tests: `PlayerViewModelTest` (29) + `MiniPlayerViewModelTest` (15), Turbine + MockK |
+
+### What remains
+
+- **Phase 3**: `:feature:search`, album/artist detail screens, artwork caching polish
+- **Phase 4**: `:feature:playlists` — create/edit/reorder, drag-and-drop
+- **Phase 5**: `:feature:equalizer` (8-band, presets), `:feature:tageditor` (ID3 read/write, batch)
+- **Phase 6**: `:feature:widget` (Glance home screen widget), UI/UX polish
+- **Phase 7**: Comprehensive testing, baseline profile, release prep
 
 ## Next Steps
 
-1. Set up Android project with required dependencies
-2. Implement Room database schema
-3. Create basic UI structure with Compose
-4. Implement media scanning service
-5. Integrate ExoPlayer for playback
+1. Implement album artwork caching in `:core:data`
+2. Build `:feature:search` — local search across songs/albums/artists
+3. Add album detail and artist detail screens to `:feature:library`
+4. Implement `:feature:playlists` with drag-and-drop reordering
 
 ## Notes
 
