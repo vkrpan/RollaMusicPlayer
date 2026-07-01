@@ -1,7 +1,11 @@
 @file:Suppress("FunctionNaming")
+@file:OptIn(ExperimentalSharedTransitionApi::class)
 
 package com.rolla.musicplayer.feature.player
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -58,6 +62,8 @@ private val IconSize = 24.dp
 
 @Composable
 fun MiniPlayerRoute(
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     viewModel: MiniPlayerViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
     onBodyClick: () -> Unit = {},
@@ -72,13 +78,15 @@ fun MiniPlayerRoute(
             onTogglePlayPause = viewModel::togglePlayPause,
             onNext = viewModel::next,
             onQueue = {},
+            sharedTransitionScope = sharedTransitionScope,
+            animatedVisibilityScope = animatedVisibilityScope,
             modifier = modifier,
             onBodyClick = onBodyClick,
         )
     }
 }
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun MiniPlayer(
     song: Song,
@@ -87,6 +95,8 @@ fun MiniPlayer(
     onTogglePlayPause: () -> Unit,
     onNext: () -> Unit,
     onQueue: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     modifier: Modifier = Modifier,
     onBodyClick: () -> Unit = {},
 ) {
@@ -102,7 +112,12 @@ fun MiniPlayer(
             .padding(start = PillStartPadding, end = PillEndPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        MiniPlayerArtwork(artworkUri = song.artworkUri, modifier = Modifier.size(ArtworkSize))
+        MiniPlayerArtwork(
+            artworkUri = song.artworkUri,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedVisibilityScope = animatedVisibilityScope,
+            modifier = Modifier.size(ArtworkSize),
+        )
         Spacer(modifier = Modifier.width(ArtworkToTextGap))
         MiniPlayerInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
         MiniPlayerControls(
@@ -139,31 +154,46 @@ private fun MiniPlayerInfo(
     }
 }
 
+@Suppress("LongMethod")
 @Composable
-private fun MiniPlayerArtwork(artworkUri: String, modifier: Modifier = Modifier) {
+private fun MiniPlayerArtwork(
+    artworkUri: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val request = remember(artworkUri) {
         ImageRequest.Builder(context).data(artworkUri.ifEmpty { null }).crossfade(true).build()
     }
-    Box(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = request,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (artworkUri.isEmpty()) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
+    val reducedMotion = isReducedMotion()
+    with(sharedTransitionScope) {
+        Box(
+            modifier = modifier
+                .sharedElement(
+                    state = rememberSharedContentState(key = NowPlayingTransitionKey.ARTWORK),
+                    animatedVisibilityScope = animatedVisibilityScope,
+                    boundsTransform = artworkBoundsTransform(reducedMotion),
+                    renderInOverlayDuringTransition = true,
+                )
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = request,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(IconSize),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+            if (artworkUri.isEmpty()) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(IconSize),
+                )
+            }
         }
     }
 }

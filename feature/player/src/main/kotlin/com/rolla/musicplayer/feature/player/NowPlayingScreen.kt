@@ -1,7 +1,15 @@
 @file:Suppress("FunctionNaming")
+@file:OptIn(ExperimentalSharedTransitionApi::class)
 
 package com.rolla.musicplayer.feature.player
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.EnterExitState
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
@@ -70,9 +79,12 @@ import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+@Suppress("LongMethod")
 @Composable
 fun NowPlayingRoute(
     onNavigateUp: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     viewModel: PlayerViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -100,6 +112,8 @@ fun NowPlayingRoute(
             )
         },
         onCycleRepeat = viewModel::cycleRepeatMode,
+        sharedTransitionScope = sharedTransitionScope,
+        animatedContentScope = animatedContentScope,
         modifier = modifier,
     )
 }
@@ -120,6 +134,8 @@ fun NowPlayingScreen(
     onSeekTo: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -141,6 +157,8 @@ fun NowPlayingScreen(
             onSeekTo = onSeekTo,
             onToggleShuffle = onToggleShuffle,
             onCycleRepeat = onCycleRepeat,
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
             modifier = Modifier.padding(innerPadding),
         )
     }
@@ -161,8 +179,16 @@ private fun NowPlayingContent(
     onSeekTo: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
+    val reducedMotion = isReducedMotion()
+    val metadataAlpha by animatedContentScope.transition.animateFloat(
+        transitionSpec = { if (reducedMotion) snap() else tween(durationMillis = 220) },
+        label = "metadata_alpha",
+    ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -173,32 +199,41 @@ private fun NowPlayingContent(
         NowPlayingArtwork(
             artworkUri = song?.artworkUri.orEmpty(),
             contentDescription = song?.title.orEmpty(),
+            sharedTransitionScope = sharedTransitionScope,
+            animatedContentScope = animatedContentScope,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(24.dp))
-        NowPlayingTitleArtist(title = song?.title.orEmpty(), artist = song?.artist.orEmpty())
-        Spacer(Modifier.height(16.dp))
-        NowPlayingActionRow(modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
-        NowPlayingSeekBar(
-            positionMs = positionMs,
-            durationMs = durationMs,
-            onSeekTo = onSeekTo,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-        NowPlayingTransportRow(
-            isPlaying = isPlaying,
-            shuffleMode = shuffleMode,
-            repeatMode = repeatMode,
-            onToggleShuffle = onToggleShuffle,
-            onPrevious = onPrevious,
-            onTogglePlayPause = onTogglePlayPause,
-            onNext = onNext,
-            onCycleRepeat = onCycleRepeat,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(16.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = metadataAlpha },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(Modifier.height(24.dp))
+            NowPlayingTitleArtist(title = song?.title.orEmpty(), artist = song?.artist.orEmpty())
+            Spacer(Modifier.height(16.dp))
+            NowPlayingActionRow(modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            NowPlayingSeekBar(
+                positionMs = positionMs,
+                durationMs = durationMs,
+                onSeekTo = onSeekTo,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(8.dp))
+            NowPlayingTransportRow(
+                isPlaying = isPlaying,
+                shuffleMode = shuffleMode,
+                repeatMode = repeatMode,
+                onToggleShuffle = onToggleShuffle,
+                onPrevious = onPrevious,
+                onTogglePlayPause = onTogglePlayPause,
+                onNext = onNext,
+                onCycleRepeat = onCycleRepeat,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(16.dp))
+        }
     }
 }
 
@@ -270,11 +305,13 @@ private fun NowPlayingTopBarActions() {
     }
 }
 
-@Suppress("LongMethod")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun NowPlayingArtwork(
     artworkUri: String,
     contentDescription: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -284,27 +321,36 @@ private fun NowPlayingArtwork(
             .crossfade(true)
             .build()
     }
-    Box(
-        modifier = modifier
-            .padding(horizontal = 16.dp)
-            .aspectRatio(1f)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = request,
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        if (artworkUri.isEmpty()) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(80.dp),
+    val reducedMotion = isReducedMotion()
+    with(sharedTransitionScope) {
+        Box(
+            modifier = modifier
+                .padding(horizontal = 16.dp)
+                .aspectRatio(1f)
+                .sharedElement(
+                    state = rememberSharedContentState(key = NowPlayingTransitionKey.ARTWORK),
+                    animatedVisibilityScope = animatedContentScope,
+                    boundsTransform = artworkBoundsTransform(reducedMotion),
+                    renderInOverlayDuringTransition = true,
+                )
+                .clip(MaterialTheme.shapes.extraLarge)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            contentAlignment = Alignment.Center,
+        ) {
+            AsyncImage(
+                model = request,
+                contentDescription = contentDescription,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+            if (artworkUri.isEmpty()) {
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(80.dp),
+                )
+            }
         }
     }
 }

@@ -4,6 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -12,9 +20,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.feature.library.LibraryRoute
@@ -38,37 +48,52 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Suppress("LongMethod")
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun RollaNavHost() {
     val navController = rememberNavController()
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val currentSong by miniPlayerViewModel.currentSong.collectAsStateWithLifecycle()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val isNowPlaying = navBackStackEntry?.destination?.hasRoute(NowPlaying::class) == true
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        bottomBar = {
-            if (currentSong != null) {
-                MiniPlayerRoute(
-                    viewModel = miniPlayerViewModel,
-                    onBodyClick = {
-                        navController.navigate(NowPlaying) {
-                            launchSingleTop = true
-                        }
-                    },
-                )
-            }
-        },
-    ) { innerPadding ->
-        AppNavGraph(
-            navController = navController,
-            modifier = Modifier.padding(innerPadding),
-        )
+    SharedTransitionLayout {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            bottomBar = {
+                AnimatedVisibility(
+                    visible = currentSong != null && !isNowPlaying,
+                    enter = slideInVertically { it } + fadeIn(),
+                    exit = slideOutVertically { it } + fadeOut(),
+                ) {
+                    MiniPlayerRoute(
+                        sharedTransitionScope = this@SharedTransitionLayout,
+                        animatedVisibilityScope = this,
+                        viewModel = miniPlayerViewModel,
+                        onBodyClick = {
+                            navController.navigate(NowPlaying) {
+                                launchSingleTop = true
+                            }
+                        },
+                    )
+                }
+            },
+        ) { innerPadding ->
+            AppNavGraph(
+                navController = navController,
+                sharedTransitionScope = this@SharedTransitionLayout,
+                modifier = Modifier.padding(innerPadding),
+            )
+        }
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun AppNavGraph(
     navController: NavHostController,
+    sharedTransitionScope: SharedTransitionScope,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -82,6 +107,8 @@ private fun AppNavGraph(
         composable<NowPlaying> {
             NowPlayingRoute(
                 onNavigateUp = { navController.navigateUp() },
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = this,
             )
         }
     }
