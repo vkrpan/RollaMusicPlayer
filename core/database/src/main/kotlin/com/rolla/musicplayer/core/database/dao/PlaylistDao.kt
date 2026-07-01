@@ -7,6 +7,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import com.rolla.musicplayer.core.database.entity.PlaylistEntity
 import com.rolla.musicplayer.core.database.entity.PlaylistSongCrossRef
+import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.database.relation.PlaylistWithCount
 import com.rolla.musicplayer.core.database.relation.PlaylistWithSongs
 import com.rolla.musicplayer.core.database.relation.orderedByPosition
@@ -30,13 +31,16 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE id = :playlistId")
     suspend fun getPlaylistWithSongsUnordered(playlistId: Long): PlaylistWithSongs?
 
-    /**
-     * [PlaylistWithSongs.songs] arrives unordered from the `@Relation` (Room can't express
-     * `ORDER BY` there); [PlaylistWithSongs.crossRefs] is loaded in the same call and carries
-     * `position`, so this wrapper just re-sorts via [orderedByPosition] before returning.
-     */
-    suspend fun getPlaylistWithSongs(playlistId: Long): PlaylistWithSongs? =
-        getPlaylistWithSongsUnordered(playlistId)?.orderedByPosition()
+    /** Reactive, position-ordered stream of a single playlist's songs (join on the cross-ref table). */
+    @Query(
+        """
+        SELECT songs.* FROM songs
+        INNER JOIN playlist_songs ON songs.id = playlist_songs.song_id
+        WHERE playlist_songs.playlist_id = :playlistId
+        ORDER BY playlist_songs.position ASC
+        """,
+    )
+    fun observePlaylistSongs(playlistId: Long): Flow<List<SongEntity>>
 
     @Insert
     suspend fun insertPlaylist(playlist: PlaylistEntity): Long
@@ -49,6 +53,16 @@ interface PlaylistDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun addSongToPlaylist(crossRef: PlaylistSongCrossRef)
+
+    /**
+     * Inserts every cross-ref in a single transaction so a multi-song "add to playlist" either
+     * fully applies or not at all. Re-adding an existing song REPLACEs its row (see
+     * [addSongToPlaylist]) rather than duplicating it.
+     */
+    @Transaction
+    suspend fun addSongsToPlaylist(crossRefs: List<PlaylistSongCrossRef>) {
+        crossRefs.forEach { addSongToPlaylist(it) }
+    }
 
     @Query("DELETE FROM playlist_songs WHERE playlist_id = :playlistId AND song_id = :songId")
     suspend fun removeSongFromPlaylist(playlistId: Long, songId: String)
@@ -66,3 +80,14 @@ interface PlaylistDao {
         }
     }
 }
+
+/**
+ * [PlaylistWithSongs.songs] arrives unordered from the `@Relation` (Room can't express `ORDER BY`
+ * there); [PlaylistWithSongs.crossRefs] is loaded in the same call and carries `position`, so this
+ * wrapper just re-sorts via [orderedByPosition] before returning. A plain extension function
+ * rather than an interface member — it needs no `@Transaction` of its own (that guarantee lives on
+ * [PlaylistDao.getPlaylistWithSongsUnordered]), and keeping it out of the interface avoids tripping
+ * detekt's `TooManyFunctions` threshold on [PlaylistDao].
+ */
+suspend fun PlaylistDao.getPlaylistWithSongs(playlistId: Long): PlaylistWithSongs? =
+    getPlaylistWithSongsUnordered(playlistId)?.orderedByPosition()

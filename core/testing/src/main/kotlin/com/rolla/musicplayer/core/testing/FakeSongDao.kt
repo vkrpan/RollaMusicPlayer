@@ -5,6 +5,7 @@ import com.rolla.musicplayer.core.database.entity.SongEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 
 /**
@@ -41,4 +42,28 @@ class FakeSongDao : SongDao {
     }
 
     override suspend fun getAllSongs(): List<SongEntity> = songsFlow.value
+
+    override suspend fun toggleFavorite(songId: String) {
+        songsFlow.update { current ->
+            current.map { if (it.id == songId) it.copy(isFavorite = !it.isFavorite) else it }
+        }
+    }
+
+    override fun observeRecentlyAdded(): Flow<List<SongEntity>> =
+        songsFlow.asStateFlow().map { list -> list.sortedByDescending { it.dateAdded } }
+
+    override fun observeRecentlyPlayed(): Flow<List<SongEntity>> =
+        songsFlow.asStateFlow().map { list ->
+            list.filter { it.lastPlayed != null }.sortedByDescending { it.lastPlayed }
+        }
+
+    override fun observeMostPlayed(): Flow<List<SongEntity>> =
+        songsFlow.asStateFlow().map { list ->
+            list.filter { it.playCount > 0 }.sortedByDescending { it.playCount }
+        }
+
+    override fun observeFavourites(): Flow<List<SongEntity>> =
+        songsFlow.asStateFlow().map { list ->
+            list.filter { it.isFavorite }.sortedBy { it.title }
+        }
 }

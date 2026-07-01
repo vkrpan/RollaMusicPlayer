@@ -95,6 +95,85 @@ class SongRepositoryImplTest {
         assertTrue("observeSongs must emit an empty list when the DAO holds no songs", songs.isEmpty())
     }
 
+    // ── toggleFavorite ────────────────────────────────────────────────────────
+
+    @Test
+    fun `toggleFavorite_flipsIsFavoriteOnMatchingSong`() = runTest {
+        fakeSongDao.emit(listOf(testSongEntity(id = "song-1"), testSongEntity(id = "song-2")))
+
+        repository.toggleFavorite("song-1")
+
+        val entities = fakeSongDao.getAllSongs()
+        assertTrue("song-1 must now be favorited", entities.first { it.id == "song-1" }.isFavorite)
+        assertTrue("song-2 must be unaffected", !entities.first { it.id == "song-2" }.isFavorite)
+    }
+
+    // ── observeRecentlyAdded ──────────────────────────────────────────────────
+
+    @Test
+    fun `observeRecentlyAdded_ordersMostRecentFirst`() = runTest {
+        fakeSongDao.emit(
+            listOf(
+                testSongEntity(id = "song-old", dateAdded = 1_000L),
+                testSongEntity(id = "song-new", dateAdded = 3_000L),
+                testSongEntity(id = "song-mid", dateAdded = 2_000L),
+            ),
+        )
+
+        val songs = repository.observeRecentlyAdded().first()
+
+        assertEquals(listOf("song-new", "song-mid", "song-old"), songs.map { it.id })
+    }
+
+    // ── observeRecentlyPlayed ─────────────────────────────────────────────────
+
+    @Test
+    fun `observeRecentlyPlayed_excludesNeverPlayedSongs`() = runTest {
+        fakeSongDao.emit(
+            listOf(
+                testSongEntity(id = "song-played", lastPlayed = 2_000L),
+                testSongEntity(id = "song-never-played", lastPlayed = null),
+            ),
+        )
+
+        val songs = repository.observeRecentlyPlayed().first()
+
+        assertEquals(listOf("song-played"), songs.map { it.id })
+    }
+
+    // ── observeMostPlayed ─────────────────────────────────────────────────────
+
+    @Test
+    fun `observeMostPlayed_excludesZeroPlayCountSongsAndOrdersDescending`() = runTest {
+        fakeSongDao.emit(
+            listOf(
+                testSongEntity(id = "song-popular", playCount = 10),
+                testSongEntity(id = "song-unplayed", playCount = 0),
+                testSongEntity(id = "song-occasional", playCount = 2),
+            ),
+        )
+
+        val songs = repository.observeMostPlayed().first()
+
+        assertEquals(listOf("song-popular", "song-occasional"), songs.map { it.id })
+    }
+
+    // ── observeFavourites ─────────────────────────────────────────────────────
+
+    @Test
+    fun `observeFavourites_filtersToFavoritedSongsOnly`() = runTest {
+        fakeSongDao.emit(
+            listOf(
+                testSongEntity(id = "song-fav", title = "Zebra", isFavorite = true),
+                testSongEntity(id = "song-not-fav", title = "Apple", isFavorite = false),
+            ),
+        )
+
+        val songs = repository.observeFavourites().first()
+
+        assertEquals(listOf("song-fav"), songs.map { it.id })
+    }
+
     // ── Test factories ────────────────────────────────────────────────────────
 
     @Suppress("LongParameterList")
@@ -111,6 +190,10 @@ class SongRepositoryImplTest {
         contentUri: String = "content://media/external/audio/media/1",
         artworkUri: String = "content://media/external/audio/albumart/1",
         dateModified: Long = 1_700_000_000L,
+        dateAdded: Long = 0L,
+        isFavorite: Boolean = false,
+        playCount: Int = 0,
+        lastPlayed: Long? = null,
     ) = SongEntity(
         id = id,
         mediaStoreId = mediaStoreId,
@@ -124,5 +207,9 @@ class SongRepositoryImplTest {
         contentUri = contentUri,
         artworkUri = artworkUri,
         dateModified = dateModified,
+        dateAdded = dateAdded,
+        isFavorite = isFavorite,
+        playCount = playCount,
+        lastPlayed = lastPlayed,
     )
 }

@@ -23,4 +23,17 @@ class FakeSongRepository : SongRepository {
     }
 
     override fun observeSongs(): Flow<List<Song>> = songsFlow.asStateFlow()
+
+    override suspend fun toggleFavorite(songId: String) {
+        // Song has no isFavorite field of its own (see model-vocabulary / this phase's scope) —
+        // fakes have nothing to flip, this is a no-op provided only to satisfy the interface.
+    }
+
+    override fun observeRecentlyAdded(): Flow<List<Song>> = songsFlow.asStateFlow()
+
+    override fun observeRecentlyPlayed(): Flow<List<Song>> = songsFlow.asStateFlow()
+
+    override fun observeMostPlayed(): Flow<List<Song>> = songsFlow.asStateFlow()
+
+    override fun observeFavourites(): Flow<List<Song>> = songsFlow.asStateFlow()
 }
