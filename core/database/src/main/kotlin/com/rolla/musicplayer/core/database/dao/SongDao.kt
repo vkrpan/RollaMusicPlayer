@@ -24,6 +24,9 @@ interface SongDao {
     @Query("UPDATE songs SET is_favorite = NOT is_favorite WHERE id = :songId")
     suspend fun toggleFavorite(songId: String)
 
+    @Query("UPDATE songs SET play_count = play_count + 1, last_played = :timestamp WHERE id = :songId")
+    suspend fun recordPlaybackStarted(songId: String, timestamp: Long)
+
     @Query("SELECT * FROM songs ORDER BY date_added DESC")
     fun observeRecentlyAdded(): Flow<List<SongEntity>>
 

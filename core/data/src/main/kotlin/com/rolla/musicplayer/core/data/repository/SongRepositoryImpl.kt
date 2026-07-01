@@ -20,6 +20,10 @@ class SongRepositoryImpl @Inject constructor(
         songDao.toggleFavorite(songId)
     }
 
+    override suspend fun recordPlaybackStarted(songId: String) = withContext(Dispatchers.IO) {
+        songDao.recordPlaybackStarted(songId, System.currentTimeMillis())
+    }
+
     override fun observeRecentlyAdded(): Flow<List<Song>> =
         songDao.observeRecentlyAdded().map { entities -> entities.map { it.toDomain() } }
 

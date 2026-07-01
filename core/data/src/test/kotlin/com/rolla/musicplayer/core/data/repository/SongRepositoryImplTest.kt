@@ -108,6 +108,29 @@ class SongRepositoryImplTest {
         assertTrue("song-2 must be unaffected", !entities.first { it.id == "song-2" }.isFavorite)
     }
 
+    // ── recordPlaybackStarted ─────────────────────────────────────────────────
+
+    @Test
+    fun `recordPlaybackStarted_incrementsPlayCountAndSetsLastPlayedOnMatchingSongOnly`() = runTest {
+        fakeSongDao.emit(
+            listOf(
+                testSongEntity(id = "song-1", playCount = 2, lastPlayed = 1_000L),
+                testSongEntity(id = "song-2", playCount = 5, lastPlayed = 2_000L),
+            ),
+        )
+
+        repository.recordPlaybackStarted("song-1")
+
+        val entities = fakeSongDao.getAllSongs()
+        val song1 = entities.first { it.id == "song-1" }
+        val song2 = entities.first { it.id == "song-2" }
+
+        assertEquals("song-1 play_count must be incremented", 3, song1.playCount)
+        assertTrue("song-1 last_played must be updated to a recent timestamp", song1.lastPlayed!! >= 1_000L)
+        assertEquals("song-2 play_count must be unaffected", 5, song2.playCount)
+        assertEquals("song-2 last_played must be unaffected", 2_000L, song2.lastPlayed)
+    }
+
     // ── observeRecentlyAdded ──────────────────────────────────────────────────
 
     @Test

@@ -10,7 +10,10 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:common"))
+    implementation(project(":core:data"))
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation(libs.kotlinx.coroutines.android)
+
+    testImplementation(libs.junit)
 }

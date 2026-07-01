@@ -49,6 +49,14 @@ class FakeSongDao : SongDao {
         }
     }
 
+    override suspend fun recordPlaybackStarted(songId: String, timestamp: Long) {
+        songsFlow.update { current ->
+            current.map {
+                if (it.id == songId) it.copy(playCount = it.playCount + 1, lastPlayed = timestamp) else it
+            }
+        }
+    }
+
     override fun observeRecentlyAdded(): Flow<List<SongEntity>> =
         songsFlow.asStateFlow().map { list -> list.sortedByDescending { it.dateAdded } }
 

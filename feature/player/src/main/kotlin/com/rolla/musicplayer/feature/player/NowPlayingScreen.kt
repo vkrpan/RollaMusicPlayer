@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
@@ -93,11 +94,13 @@ fun NowPlayingRoute(
     val isPlaying by viewModel.isPlaying.collectAsStateWithLifecycle()
     val shuffleMode by viewModel.shuffleMode.collectAsStateWithLifecycle()
     val repeatMode by viewModel.repeatMode.collectAsStateWithLifecycle()
+    val isFavorite by viewModel.isCurrentSongFavorite.collectAsStateWithLifecycle()
     val onTogglePlayPause = remember(viewModel) { viewModel::togglePlayPause }
     val onPrevious = remember(viewModel) { viewModel::previous }
     val onNext = remember(viewModel) { viewModel::next }
     val onSeekTo = remember(viewModel) { viewModel::seekTo }
     val onCycleRepeat = remember(viewModel) { viewModel::cycleRepeatMode }
+    val onToggleFavorite = remember(viewModel) { viewModel::toggleFavorite }
     val onToggleShuffle = remember(viewModel) {
         {
             viewModel.setShuffle(
@@ -112,6 +115,7 @@ fun NowPlayingRoute(
         durationMs = viewModel.durationMs,
         shuffleMode = shuffleMode,
         repeatMode = repeatMode,
+        isFavorite = isFavorite,
         onNavigateUp = onNavigateUp,
         onTogglePlayPause = onTogglePlayPause,
         onPrevious = onPrevious,
@@ -119,6 +123,7 @@ fun NowPlayingRoute(
         onSeekTo = onSeekTo,
         onToggleShuffle = onToggleShuffle,
         onCycleRepeat = onCycleRepeat,
+        onToggleFavorite = onToggleFavorite,
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
         modifier = modifier,
@@ -134,6 +139,7 @@ fun NowPlayingScreen(
     durationMs: StateFlow<Long>,
     shuffleMode: ShuffleMode,
     repeatMode: RepeatMode,
+    isFavorite: Boolean,
     onNavigateUp: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
@@ -141,6 +147,7 @@ fun NowPlayingScreen(
     onSeekTo: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    onToggleFavorite: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -158,12 +165,14 @@ fun NowPlayingScreen(
             durationMs = durationMs,
             shuffleMode = shuffleMode,
             repeatMode = repeatMode,
+            isFavorite = isFavorite,
             onTogglePlayPause = onTogglePlayPause,
             onPrevious = onPrevious,
             onNext = onNext,
             onSeekTo = onSeekTo,
             onToggleShuffle = onToggleShuffle,
             onCycleRepeat = onCycleRepeat,
+            onToggleFavorite = onToggleFavorite,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
             modifier = Modifier.padding(innerPadding),
@@ -180,12 +189,14 @@ private fun NowPlayingContent(
     durationMs: StateFlow<Long>,
     shuffleMode: ShuffleMode,
     repeatMode: RepeatMode,
+    isFavorite: Boolean,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onSeekTo: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    onToggleFavorite: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -232,7 +243,11 @@ private fun NowPlayingContent(
             Spacer(Modifier.height(24.dp))
             NowPlayingTitleArtist(title = song?.title.orEmpty(), artist = song?.artist.orEmpty())
             Spacer(Modifier.height(16.dp))
-            NowPlayingActionRow(modifier = Modifier.fillMaxWidth())
+            NowPlayingActionRow(
+                isFavorite = isFavorite,
+                onToggleFavorite = onToggleFavorite,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(8.dp))
             NowPlayingSeekBar(
                 positionMs = positionMs,
@@ -360,7 +375,11 @@ private fun NowPlayingArtwork(
 }
 
 @Composable
-private fun NowPlayingActionRow(modifier: Modifier = Modifier) {
+private fun NowPlayingActionRow(
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceEvenly) {
         IconButton(onClick = {}) {
             Icon(
@@ -369,11 +388,15 @@ private fun NowPlayingActionRow(modifier: Modifier = Modifier) {
                 tint = MaterialTheme.colorScheme.onSurface,
             )
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = onToggleFavorite) {
             Icon(
-                imageVector = Icons.Default.FavoriteBorder,
+                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = "Favourite",
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = if (isFavorite) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
         }
         IconButton(onClick = {}) {

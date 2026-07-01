@@ -29,6 +29,11 @@ class FakeSongRepository : SongRepository {
         // fakes have nothing to flip, this is a no-op provided only to satisfy the interface.
     }
 
+    override suspend fun recordPlaybackStarted(songId: String) {
+        // Song has no playCount/lastPlayed fields of its own (see model-vocabulary / this phase's
+        // scope) — fakes have nothing to update, this is a no-op provided only to satisfy the interface.
+    }
+
     override fun observeRecentlyAdded(): Flow<List<Song>> = songsFlow.asStateFlow()
 
     override fun observeRecentlyPlayed(): Flow<List<Song>> = songsFlow.asStateFlow()

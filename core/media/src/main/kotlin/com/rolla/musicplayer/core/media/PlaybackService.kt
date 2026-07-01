@@ -8,6 +8,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
@@ -27,11 +28,16 @@ class PlaybackService : MediaSessionService() {
     @Inject
     lateinit var playbackStateHolder: PlaybackStateHolder
 
+    @Inject
+    lateinit var songRepository: SongRepository
+
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
     private val supervisorJob = SupervisorJob()
     private val serviceScope = CoroutineScope(supervisorJob + Dispatchers.Default)
+
+    private val playbackTracker = PlaybackTracker()
 
     private val playerListener = object : Player.Listener {
         override fun onAudioSessionIdChanged(audioSessionId: Int) {
@@ -40,9 +46,14 @@ class PlaybackService : MediaSessionService() {
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             playbackStateHolder.setIsPlaying(isPlaying)
+            val songId = playbackTracker.onIsPlayingChanged(isPlaying, player.currentMediaItem?.mediaId)
+            if (songId != null) {
+                serviceScope.launch { songRepository.recordPlaybackStarted(songId) }
+            }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            playbackTracker.onMediaItemTransition()
             val song = mediaItem?.let { item ->
                 Song(
                     id = item.mediaId,

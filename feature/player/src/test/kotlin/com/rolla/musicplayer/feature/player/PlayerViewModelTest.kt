@@ -1,16 +1,19 @@
 package com.rolla.musicplayer.feature.player
 
 import app.cash.turbine.test
+import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -43,6 +46,7 @@ class PlayerViewModelTest {
     private val durationMsFlow = MutableStateFlow(0L)
     private val shuffleModeFlow = MutableStateFlow(ShuffleMode.OFF)
     private val repeatModeFlow = MutableStateFlow(RepeatMode.OFF)
+    private val favouritesFlow = MutableStateFlow<List<Song>>(emptyList())
 
     // Mock dependency -------------------------------------------------------------
 
@@ -59,11 +63,16 @@ class PlayerViewModelTest {
         every { repeatMode } returns repeatModeFlow
     }
 
+    /** Relaxed so unrelated suspend calls (e.g. recordPlaybackStarted) are no-ops by default. */
+    private val songRepository: SongRepository = mockk(relaxed = true) {
+        every { observeFavourites() } returns favouritesFlow
+    }
+
     private lateinit var viewModel: PlayerViewModel
 
     @Before
     fun setUp() {
-        viewModel = PlayerViewModel(playbackController)
+        viewModel = PlayerViewModel(playbackController, songRepository)
     }
 
     // init ------------------------------------------------------------------------
@@ -384,6 +393,125 @@ class PlayerViewModelTest {
         viewModel.cycleRepeatMode()
         viewModel.cycleRepeatMode()
         verify(exactly = 3) { playbackController.cycleRepeatMode() }
+    }
+
+    // isCurrentSongFavorite ---------------------------------------------------------
+
+    @Test
+    fun isCurrentSongFavorite_givenNoCurrentSong_emitsFalse() = runTest {
+        viewModel.isCurrentSongFavorite.test {
+            assertFalse("Initial isCurrentSongFavorite must be false", awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isCurrentSongFavorite_givenCurrentSongNotInFavourites_emitsFalse() = runTest {
+        val song = createTestSong(id = "song-5", title = "Imagine")
+        favouritesFlow.value = listOf(createTestSong(id = "song-other", title = "Yesterday"))
+
+        viewModel.isCurrentSongFavorite.test {
+            assertFalse(awaitItem()) // initial
+
+            // Value stays false (song is absent from favourites), so the underlying StateFlow
+            // does not re-emit an equal consecutive value — assert the current value directly.
+            currentSongFlow.value = song
+            advanceUntilIdle()
+            assertFalse(
+                "isCurrentSongFavorite must be false when current song is absent from favourites",
+                viewModel.isCurrentSongFavorite.value,
+            )
+            expectNoEvents()
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isCurrentSongFavorite_givenCurrentSongInFavourites_emitsTrue() = runTest {
+        val song = createTestSong(id = "song-6", title = "Let It Be")
+
+        viewModel.isCurrentSongFavorite.test {
+            assertFalse(awaitItem()) // initial
+
+            // Still false (not yet in favourites) — no new emission for an equal value.
+            currentSongFlow.value = song
+            advanceUntilIdle()
+            expectNoEvents()
+
+            favouritesFlow.value = listOf(song)
+            assertTrue(
+                "isCurrentSongFavorite must be true once current song appears in favourites",
+                awaitItem(),
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isCurrentSongFavorite_updatesReactivelyWhenFavouritesChange() = runTest {
+        val song = createTestSong(id = "song-7", title = "Hey Jude")
+        currentSongFlow.value = song
+        favouritesFlow.value = listOf(song)
+
+        viewModel.isCurrentSongFavorite.test {
+            assertTrue(awaitItem()) // prefilled true
+
+            favouritesFlow.value = emptyList()
+            assertFalse(
+                "isCurrentSongFavorite must become false when the song is removed from favourites",
+                awaitItem(),
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun isCurrentSongFavorite_updatesReactivelyWhenCurrentSongChanges() = runTest {
+        val favoriteSong = createTestSong(id = "song-8", title = "Come Together")
+        val otherSong = createTestSong(id = "song-9", title = "Something")
+        favouritesFlow.value = listOf(favoriteSong)
+        currentSongFlow.value = favoriteSong
+
+        viewModel.isCurrentSongFavorite.test {
+            assertTrue(awaitItem()) // prefilled true
+
+            currentSongFlow.value = otherSong
+            assertFalse(
+                "isCurrentSongFavorite must become false when the current song changes to a non-favourite",
+                awaitItem(),
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // toggleFavorite ------------------------------------------------------------------
+
+    @Test
+    fun toggleFavorite_givenCurrentSong_delegatesToSongRepositoryWithSongId() = runTest {
+        val song = createTestSong(id = "song-10", title = "Across the Universe")
+
+        // currentSong is WhileSubscribed(5_000L) — actively subscribe so the shared upstream
+        // starts and viewModel.currentSong.value actually reflects the controller's emission.
+        viewModel.currentSong.test {
+            assertNull(awaitItem()) // initial
+
+            currentSongFlow.value = song
+            assertEquals(song, awaitItem())
+
+            viewModel.toggleFavorite()
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { songRepository.toggleFavorite(song.id) }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun toggleFavorite_givenNoCurrentSong_doesNotCallSongRepository() = runTest {
+        viewModel.toggleFavorite()
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { songRepository.toggleFavorite(any()) }
     }
 
     // test factory ----------------------------------------------------------------

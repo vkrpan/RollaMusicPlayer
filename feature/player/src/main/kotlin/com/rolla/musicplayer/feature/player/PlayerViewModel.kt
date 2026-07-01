@@ -2,6 +2,7 @@ package com.rolla.musicplayer.feature.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
@@ -9,12 +10,15 @@ import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
+    private val songRepository: SongRepository,
 ) : ViewModel() {
 
     val currentSong: StateFlow<Song?> = playbackController.currentSong
@@ -35,6 +39,13 @@ class PlayerViewModel @Inject constructor(
     val repeatMode: StateFlow<RepeatMode> = playbackController.repeatMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), RepeatMode.OFF)
 
+    val isCurrentSongFavorite: StateFlow<Boolean> = combine(
+        currentSong,
+        songRepository.observeFavourites(),
+    ) { song, favourites ->
+        song != null && favourites.any { it.id == song.id }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), false)
+
     init {
         playbackController.connect()
     }
@@ -45,4 +56,11 @@ class PlayerViewModel @Inject constructor(
     fun seekTo(positionMs: Long) = playbackController.seekTo(positionMs)
     fun setShuffle(mode: ShuffleMode) = playbackController.setShuffle(mode)
     fun cycleRepeatMode() = playbackController.cycleRepeatMode()
+
+    fun toggleFavorite() {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            songRepository.toggleFavorite(song.id)
+        }
+    }
 }

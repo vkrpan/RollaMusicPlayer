@@ -9,6 +9,9 @@ interface SongRepository {
     /** Flips the favorite flag on the given song. */
     suspend fun toggleFavorite(songId: String)
 
+    /** Increments the play count and stamps `last_played` with the current time for the given song. */
+    suspend fun recordPlaybackStarted(songId: String)
+
     /** Songs ordered by when they were first indexed by the scanner, most recent first. */
     fun observeRecentlyAdded(): Flow<List<Song>>
 
