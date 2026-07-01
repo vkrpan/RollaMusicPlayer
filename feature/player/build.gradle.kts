@@ -11,6 +11,7 @@ android {
 }
 
 dependencies {
+    implementation(project(":core:media"))
     implementation(project(":core:model"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:ui"))
@@ -21,4 +22,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.compose.material.icons.extended)
 }

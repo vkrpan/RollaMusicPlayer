@@ -4,9 +4,12 @@ import android.content.ComponentName
 import android.content.Context
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
+import com.rolla.musicplayer.core.model.RepeatMode
+import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +22,12 @@ class PlaybackController @Inject constructor(
     private val playbackStateHolder: PlaybackStateHolder,
 ) {
     val audioSessionId: StateFlow<Int> = playbackStateHolder.audioSessionId
+    val currentSong: StateFlow<Song?> = playbackStateHolder.currentSong
+    val isPlaying: StateFlow<Boolean> = playbackStateHolder.isPlaying
+    val positionMs: StateFlow<Long> = playbackStateHolder.positionMs
+    val durationMs: StateFlow<Long> = playbackStateHolder.durationMs
+    val shuffleMode: StateFlow<ShuffleMode> = playbackStateHolder.shuffleMode
+    val repeatMode: StateFlow<RepeatMode> = playbackStateHolder.repeatMode
 
     private var controllerFuture: ListenableFuture<MediaController>? = null
 
@@ -83,5 +92,22 @@ class PlaybackController @Inject constructor(
 
     fun previous() {
         controller?.seekToPrevious()
+    }
+
+    fun seekTo(positionMs: Long) {
+        controller?.seekTo(positionMs)
+    }
+
+    fun setShuffle(mode: ShuffleMode) {
+        controller?.shuffleModeEnabled = (mode == ShuffleMode.ON)
+    }
+
+    fun cycleRepeatMode() {
+        val c = controller ?: return
+        c.repeatMode = when (c.repeatMode) {
+            Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+            Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+            else -> Player.REPEAT_MODE_OFF
+        }
     }
 }
