@@ -207,4 +207,137 @@ class MigrationTest {
 
         migratedDb.close()
     }
+
+    @Test
+    fun migrate2To3_preservesExistingSongsPlaylistsAndCrossRefs_andAddsEqualizerPresetsTable() {
+        // Arrange: a v2 database with a pre-existing song, playlist, and cross-ref row.
+        helper.createDatabase(testDbName, 2).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms,
+                    track_number, year, content_uri, artwork_uri, date_modified,
+                    is_favorite, play_count, last_played, date_added
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000,
+                    1, 2024, 'content://media/external/audio/media/1',
+                    'content://media/external/audio/albumart/10', 1500000000000,
+                    0, 0, NULL, 1500000000000
+                )
+                """.trimIndent(),
+            )
+            execSQL(
+                "INSERT INTO playlists (id, name, created_at, updated_at) VALUES (1, 'My Playlist', 1000, 1000)",
+            )
+            execSQL(
+                """
+                INSERT INTO playlist_songs (playlist_id, song_id, position, added_at)
+                VALUES (1, '1', 0, 2000)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        // Act: migrate to v3.
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 3, true, MIGRATION_2_3)
+
+        // Assert: pre-existing rows across all three v2 tables survived untouched.
+        migratedDb.query("SELECT * FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(cursor.getColumnIndexOrThrow("title")))
+        }
+        migratedDb.query("SELECT * FROM playlists WHERE id = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("My Playlist", cursor.getString(cursor.getColumnIndexOrThrow("name")))
+        }
+        migratedDb.query("SELECT * FROM playlist_songs WHERE playlist_id = 1 AND song_id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(cursor.getColumnIndexOrThrow("position")))
+        }
+
+        // Assert: the new equalizer_presets table exists and accepts inserts matching the entity's
+        // exact column set.
+        migratedDb.execSQL(
+            """
+            INSERT INTO equalizer_presets (id, name, is_custom, gains_millibel, created_at)
+            VALUES (1, 'Rock', 0, '300,200,100,0,-100,-200,0,100', 5000)
+            """.trimIndent(),
+        )
+        migratedDb.query("SELECT * FROM equalizer_presets WHERE id = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Rock", cursor.getString(cursor.getColumnIndexOrThrow("name")))
+            assertEquals(0, cursor.getInt(cursor.getColumnIndexOrThrow("is_custom")))
+            assertEquals(
+                "300,200,100,0,-100,-200,0,100",
+                cursor.getString(cursor.getColumnIndexOrThrow("gains_millibel")),
+            )
+            assertEquals(5000L, cursor.getLong(cursor.getColumnIndexOrThrow("created_at")))
+        }
+
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate2To3_onEmptyDatabase_succeedsAndEqualizerPresetsTableStartsEmpty() {
+        // Arrange: a v2 database with no rows at all — the migration must not assume any
+        // pre-existing data is present.
+        helper.createDatabase(testDbName, 2).apply { close() }
+
+        // Act
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 3, true, MIGRATION_2_3)
+
+        // Assert
+        migratedDb.query("SELECT COUNT(*) FROM equalizer_presets").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To3_allMigrationsChain_preservesPreExistingSongAndCreatesAllNewTables() {
+        // Arrange: a v1 database (pre-playlists, pre-equalizer) with one pre-existing song row.
+        helper.createDatabase(testDbName, 1).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms,
+                    track_number, year, content_uri, artwork_uri, date_modified
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000,
+                    1, 2024, 'content://media/external/audio/media/1',
+                    'content://media/external/audio/albumart/10', 1500000000000
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        // Act: run the full migration chain 1 -> 2 -> 3 in one call.
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 3, true, MIGRATION_1_2, MIGRATION_2_3)
+
+        // Assert: the original song survived both migrations, with play-tracking defaults applied,
+        // and every table introduced across the chain exists and is empty/queryable.
+        migratedDb.query("SELECT * FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(cursor.getColumnIndexOrThrow("title")))
+            assertEquals(0, cursor.getInt(cursor.getColumnIndexOrThrow("is_favorite")))
+            assertEquals(1500000000000L, cursor.getLong(cursor.getColumnIndexOrThrow("date_added")))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM playlists").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM playlist_songs").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM equalizer_presets").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        migratedDb.close()
+    }
 }

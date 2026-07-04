@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.core.media.equalizer
 
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -28,6 +29,7 @@ import javax.inject.Singleton
  * never attached.
  */
 @Singleton
+@androidx.annotation.OptIn(UnstableApi::class)
 class EqualizerController @Inject constructor(
     private val factory: DeviceEqualizer.Factory,
 ) {

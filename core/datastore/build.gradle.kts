@@ -9,4 +9,6 @@ android {
 
 dependencies {
     implementation(libs.datastore.preferences)
+
+    testImplementation(libs.junit)
 }
