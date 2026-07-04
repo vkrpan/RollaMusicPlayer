@@ -5,12 +5,15 @@ package com.rolla.musicplayer.feature.library
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.data.scanner.SyncResult
 import com.rolla.musicplayer.core.media.PlaybackController
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.FakeSongRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -30,6 +33,8 @@ class LibraryViewModelTest {
 
     private val fakeRepository = FakeSongRepository()
 
+    private val fakePlaylistRepository = FakePlaylistRepository()
+
     // Strict mock: any un-stubbed call will throw, catching accidental invocations.
     private val libraryIndexer = mockk<LibraryIndexer>()
 
@@ -45,6 +50,7 @@ class LibraryViewModelTest {
             songRepository = fakeRepository,
             libraryIndexer = libraryIndexer,
             playbackController = playbackController,
+            playlistRepository = fakePlaylistRepository,
         )
     }
 
@@ -155,5 +161,72 @@ class LibraryViewModelTest {
         viewModel.play(song)
 
         verify(exactly = 1) { playbackController.play(song) }
+    }
+
+    // ── userPlaylists ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `userPlaylists_emitsFromRepository`() = runTest {
+        val playlists = listOf(
+            Playlist(id = 1L, name = "Road trip", songCount = 2, createdAt = 1L, updatedAt = 1L),
+        )
+        val received = mutableListOf<List<Playlist>>()
+
+        val collectJob = launch { viewModel.userPlaylists.collect { received.add(it) } }
+
+        fakePlaylistRepository.emitPlaylists(playlists)
+        advanceUntilIdle()
+
+        assertEquals(
+            "Last emission must equal the playlists pushed into fakePlaylistRepository",
+            playlists,
+            received.last(),
+        )
+        collectJob.cancel()
+    }
+
+    // ── addSongToPlaylist ─────────────────────────────────────────────────────
+
+    @Test
+    fun `addSongToPlaylist_callsRepositoryAddSongsWithGivenIds`() = runTest {
+        viewModel.addSongToPlaylist(songId = "song-1", playlistId = 7L)
+        advanceUntilIdle()
+
+        assertEquals(
+            "addSongs must be called once with the given playlistId and songId",
+            listOf(7L to listOf("song-1")),
+            fakePlaylistRepository.addSongsCalls,
+        )
+    }
+
+    // ── createPlaylistAndAddSong ──────────────────────────────────────────────
+
+    @Test
+    fun `createPlaylistAndAddSong_createsPlaylistThenAddsSong`() = runTest {
+        viewModel.createPlaylistAndAddSong(name = "My Mix", songId = "song-1")
+        advanceUntilIdle()
+
+        val newPlaylist = fakePlaylistRepository.observePlaylists().first().firstOrNull { it.name == "My Mix" }
+        assertTrue("A new playlist named 'My Mix' must have been created", newPlaylist != null)
+        assertEquals(
+            "addSongs must be called with the newly created playlist's id and the given songId",
+            listOf(newPlaylist!!.id to listOf("song-1")),
+            fakePlaylistRepository.addSongsCalls,
+        )
+    }
+
+    @Test
+    fun `createPlaylistAndAddSong_givenBlankName_isNoOp`() = runTest {
+        viewModel.createPlaylistAndAddSong(name = "   ", songId = "song-1")
+        advanceUntilIdle()
+
+        assertTrue(
+            "No playlist should be created for a blank name",
+            fakePlaylistRepository.observePlaylists().first().isEmpty(),
+        )
+        assertTrue(
+            "addSongs must not be called for a blank playlist name",
+            fakePlaylistRepository.addSongsCalls.isEmpty(),
+        )
     }
 }

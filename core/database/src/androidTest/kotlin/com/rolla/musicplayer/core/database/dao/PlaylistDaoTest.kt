@@ -210,4 +210,259 @@ class PlaylistDaoTest {
         assertEquals(1, withSongs?.songs?.size)
         assertEquals(1, playlistDao.observePlaylistsWithCounts().first().first().songCount)
     }
+
+    // ── edge cases: empty / single-song playlists ────────────────────────────
+
+    @Test
+    fun getPlaylistWithSongs_forPlaylistWithNoSongs_returnsEmptyList() = runTest {
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+
+        assertEquals(emptyList<String>(), withSongs?.songs?.map { it.id })
+        assertEquals(0, playlistDao.observePlaylistsWithCounts().first().first().songCount)
+    }
+
+    @Test
+    fun addSongToPlaylist_toEmptyPlaylist_assignsPositionZero() = runTest {
+        songDao.upsertSongs(listOf(buildSongEntity(id = "1", mediaStoreId = 1L)))
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf(0), withSongs?.crossRefs?.map { it.position })
+    }
+
+    // ── remove song: position compaction ─────────────────────────────────────
+
+    @Test
+    fun removeSongFromPlaylist_middleSong_compactsRemainingPositions() = runTest {
+        // removeSongFromPlaylist shifts every later row's position down by one (see its docstring
+        // in PlaylistDao), so removing a middle song leaves positions contiguous — 0 and 1, not a
+        // 0-and-2 gap. This matters because appendSongs derives the next position from
+        // MAX(position) + 1: a stale gap would otherwise let a newly appended song collide with
+        // an existing song's position (see the corresponding PlaylistRepositoryImplTest coverage).
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L),
+                buildSongEntity(id = "2", mediaStoreId = 2L),
+                buildSongEntity(id = "3", mediaStoreId = 3L),
+            ),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "3", position = 2, addedAt = 0L),
+        )
+
+        playlistDao.removeSongFromPlaylist(playlistId, "2")
+
+        val remaining = playlistDao.getPlaylistWithSongsUnordered(playlistId)?.crossRefs.orEmpty()
+        assertEquals(2, remaining.size)
+        assertEquals(
+            "positions must be compacted to a contiguous 0..n-1 range after removal",
+            setOf(0, 1),
+            remaining.map { it.position }.toSet(),
+        )
+    }
+
+    @Test
+    fun appendSongs_afterRemovingMiddleSong_assignsNextPositionWithoutCollision() = runTest {
+        // Regression coverage for the position-collision risk: appendSongs must derive the next
+        // position from MAX(position) + 1 (not the row count), so it never collides with an
+        // existing row even when a prior removal briefly created — and then compacted — a gap.
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L),
+                buildSongEntity(id = "2", mediaStoreId = 2L),
+                buildSongEntity(id = "3", mediaStoreId = 3L),
+                buildSongEntity(id = "4", mediaStoreId = 4L),
+            ),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "3", position = 2, addedAt = 0L),
+        )
+
+        playlistDao.removeSongFromPlaylist(playlistId, "2")
+        playlistDao.appendSongs(playlistId, listOf("4"), addedAt = 0L)
+
+        val crossRefs = playlistDao.getPlaylistWithSongsUnordered(playlistId)?.crossRefs.orEmpty()
+        assertEquals(
+            "every remaining row must have a unique position",
+            crossRefs.size,
+            crossRefs.map { it.position }.toSet().size,
+        )
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf("1", "3", "4"), withSongs?.songs?.map { it.id })
+    }
+
+    @Test
+    fun removeSongFromPlaylist_nonExistentSong_isNoOpAndDoesNotThrow() = runTest {
+        songDao.upsertSongs(listOf(buildSongEntity(id = "1", mediaStoreId = 1L)))
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+
+        playlistDao.removeSongFromPlaylist(playlistId, "does-not-exist")
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf("1"), withSongs?.songs?.map { it.id })
+    }
+
+    // ── reorder: move up / move down / atomicity ─────────────────────────────
+
+    @Test
+    fun reorder_moveLastSongToFront_movesUpAndShiftsOthersDown() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L),
+                buildSongEntity(id = "2", mediaStoreId = 2L),
+                buildSongEntity(id = "3", mediaStoreId = 3L),
+            ),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "3", position = 2, addedAt = 0L),
+        )
+
+        // "Move up": song 3 (last) becomes first.
+        playlistDao.reorder(playlistId, listOf("3", "1", "2"))
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf("3", "1", "2"), withSongs?.songs?.map { it.id })
+        assertEquals(listOf(0, 1, 2), withSongs?.crossRefs?.sortedBy { it.position }?.map { it.position })
+    }
+
+    @Test
+    fun reorder_moveFirstSongToBack_movesDownAndShiftsOthersUp() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L),
+                buildSongEntity(id = "2", mediaStoreId = 2L),
+                buildSongEntity(id = "3", mediaStoreId = 3L),
+            ),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "3", position = 2, addedAt = 0L),
+        )
+
+        // "Move down": song 1 (first) becomes last.
+        playlistDao.reorder(playlistId, listOf("2", "3", "1"))
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf("2", "3", "1"), withSongs?.songs?.map { it.id })
+        assertEquals(listOf(0, 1, 2), withSongs?.crossRefs?.sortedBy { it.position }?.map { it.position })
+    }
+
+    @Test
+    fun reorder_toIdenticalOrder_leavesPositionsUnchanged() = runTest {
+        songDao.upsertSongs(
+            listOf(buildSongEntity(id = "1", mediaStoreId = 1L), buildSongEntity(id = "2", mediaStoreId = 2L)),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+
+        playlistDao.reorder(playlistId, listOf("1", "2"))
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(listOf("1", "2"), withSongs?.songs?.map { it.id })
+    }
+
+    @Test
+    fun reorder_resultingPositionsAreContiguousFromZero() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L),
+                buildSongEntity(id = "2", mediaStoreId = 2L),
+                buildSongEntity(id = "3", mediaStoreId = 3L),
+                buildSongEntity(id = "4", mediaStoreId = 4L),
+            ),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        listOf("1", "2", "3", "4").forEachIndexed { index, songId ->
+            playlistDao.addSongToPlaylist(
+                PlaylistSongCrossRef(playlistId = playlistId, songId = songId, position = index, addedAt = 0L),
+            )
+        }
+
+        playlistDao.reorder(playlistId, listOf("4", "2", "1", "3"))
+
+        val positions = playlistDao.getPlaylistWithSongsUnordered(playlistId)?.crossRefs
+            ?.sortedBy { it.position }
+            ?.map { it.position }
+        assertEquals("reorder must leave positions contiguous, starting at 0", listOf(0, 1, 2, 3), positions)
+    }
+
+    // ── cascade: deleting a song removes it from every playlist ──────────────
+
+    @Test
+    fun deletingSong_cascadesRemovalFromPlaylistSongs() = runTest {
+        songDao.upsertSongs(
+            listOf(buildSongEntity(id = "1", mediaStoreId = 1L), buildSongEntity(id = "2", mediaStoreId = 2L)),
+        )
+        val playlistId = playlistDao.insertPlaylist(buildPlaylistEntity())
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "1", position = 0, addedAt = 0L),
+        )
+        playlistDao.addSongToPlaylist(
+            PlaylistSongCrossRef(playlistId = playlistId, songId = "2", position = 1, addedAt = 0L),
+        )
+
+        songDao.deleteByMediaStoreIds(listOf(1L))
+
+        val withSongs = playlistDao.getPlaylistWithSongs(playlistId)
+        assertEquals(
+            "deleting a song must cascade-remove its playlist_songs cross-ref rows",
+            listOf("2"),
+            withSongs?.songs?.map { it.id },
+        )
+        assertEquals(1, playlistDao.observePlaylistsWithCounts().first().first().songCount)
+    }
+
+    // ── observePlaylistsWithCounts: multiple playlists ───────────────────────
+
+    @Test
+    fun observePlaylistsWithCounts_multiplePlaylists_areOrderedAlphabeticallyByName() = runTest {
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "Zeta"))
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "Alpha"))
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "Mango"))
+
+        val names = playlistDao.observePlaylistsWithCounts().first().map { it.playlist.name }
+
+        assertEquals(listOf("Alpha", "Mango", "Zeta"), names)
+    }
 }

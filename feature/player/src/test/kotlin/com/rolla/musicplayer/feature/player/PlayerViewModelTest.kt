@@ -3,9 +3,11 @@ package com.rolla.musicplayer.feature.player
 import app.cash.turbine.test
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.coVerify
 import io.mockk.every
@@ -13,6 +15,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -68,11 +71,13 @@ class PlayerViewModelTest {
         every { observeFavourites() } returns favouritesFlow
     }
 
+    private val fakePlaylistRepository = FakePlaylistRepository()
+
     private lateinit var viewModel: PlayerViewModel
 
     @Before
     fun setUp() {
-        viewModel = PlayerViewModel(playbackController, songRepository)
+        viewModel = PlayerViewModel(playbackController, songRepository, fakePlaylistRepository)
     }
 
     // init ------------------------------------------------------------------------
@@ -512,6 +517,105 @@ class PlayerViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 0) { songRepository.toggleFavorite(any()) }
+    }
+
+    // userPlaylists -----------------------------------------------------------------
+
+    @Test
+    fun userPlaylists_emitsFromRepository() = runTest {
+        val playlists = listOf(
+            Playlist(id = 1L, name = "Road trip", songCount = 2, createdAt = 1L, updatedAt = 1L),
+        )
+
+        viewModel.userPlaylists.test {
+            assertEquals(emptyList<Playlist>(), awaitItem())
+
+            fakePlaylistRepository.emitPlaylists(playlists)
+
+            assertEquals(playlists, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // addCurrentSongToPlaylist -------------------------------------------------------
+
+    @Test
+    fun addCurrentSongToPlaylist_givenCurrentSong_callsRepositoryAddSongsWithCurrentSongId() = runTest {
+        val song = createTestSong(id = "song-11", title = "Here Comes the Sun")
+
+        viewModel.currentSong.test {
+            assertNull(awaitItem()) // initial
+            currentSongFlow.value = song
+            assertEquals(song, awaitItem())
+
+            viewModel.addCurrentSongToPlaylist(playlistId = 7L)
+            advanceUntilIdle()
+
+            assertEquals(
+                listOf(7L to listOf(song.id)),
+                fakePlaylistRepository.addSongsCalls,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun addCurrentSongToPlaylist_givenNoCurrentSong_isNoOp() = runTest {
+        viewModel.addCurrentSongToPlaylist(playlistId = 7L)
+        advanceUntilIdle()
+
+        assertTrue(fakePlaylistRepository.addSongsCalls.isEmpty())
+    }
+
+    // createPlaylistAndAddCurrentSong -------------------------------------------------
+
+    @Test
+    fun createPlaylistAndAddCurrentSong_createsPlaylistThenAddsCurrentSong() = runTest {
+        val song = createTestSong(id = "song-12", title = "Blackbird")
+
+        viewModel.currentSong.test {
+            assertNull(awaitItem()) // initial
+            currentSongFlow.value = song
+            assertEquals(song, awaitItem())
+
+            viewModel.createPlaylistAndAddCurrentSong(name = "My Mix")
+            advanceUntilIdle()
+
+            val newPlaylist = fakePlaylistRepository.observePlaylists().first().firstOrNull { it.name == "My Mix" }
+            assertTrue("A new playlist named 'My Mix' must have been created", newPlaylist != null)
+            assertEquals(
+                listOf(newPlaylist!!.id to listOf(song.id)),
+                fakePlaylistRepository.addSongsCalls,
+            )
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createPlaylistAndAddCurrentSong_givenBlankName_isNoOp() = runTest {
+        val song = createTestSong(id = "song-13", title = "Yesterday")
+
+        viewModel.currentSong.test {
+            assertNull(awaitItem()) // initial
+            currentSongFlow.value = song
+            assertEquals(song, awaitItem())
+
+            viewModel.createPlaylistAndAddCurrentSong(name = "   ")
+            advanceUntilIdle()
+
+            assertTrue(fakePlaylistRepository.observePlaylists().first().isEmpty())
+            assertTrue(fakePlaylistRepository.addSongsCalls.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createPlaylistAndAddCurrentSong_givenNoCurrentSong_isNoOp() = runTest {
+        viewModel.createPlaylistAndAddCurrentSong(name = "My Mix")
+        advanceUntilIdle()
+
+        assertTrue(fakePlaylistRepository.observePlaylists().first().isEmpty())
+        assertTrue(fakePlaylistRepository.addSongsCalls.isEmpty())
     }
 
     // test factory ----------------------------------------------------------------

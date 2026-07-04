@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.update
  * Call [emitSongs] to seed the song catalog (needed to resolve [PlaylistDao.observePlaylistSongs]
  * / [PlaylistDao.getPlaylistWithSongs] joins) without touching a real Room database.
  */
+// Mirrors PlaylistDao's shape one-to-one (which carries the same suppression): the fake must
+// implement every @Query primitive so the interface's @Transaction default bodies run unchanged.
+@Suppress("TooManyFunctions")
 class FakePlaylistDao : PlaylistDao {
 
     private val playlistsFlow = MutableStateFlow<List<PlaylistEntity>>(emptyList())
@@ -86,9 +89,37 @@ class FakePlaylistDao : PlaylistDao {
         crossRefs.forEach { addSongToPlaylist(it) }
     }
 
-    override suspend fun removeSongFromPlaylist(playlistId: Long, songId: String) {
+    // removeSongFromPlaylist and appendSongs are NOT overridden: their @Transaction default
+    // bodies in PlaylistDao compose the primitives below, so the fake exercises the same
+    // position-integrity logic (MAX+1 append, compact-on-remove) as the real DAO.
+
+    override suspend fun nextPosition(playlistId: Long): Int =
+        (
+            crossRefsFlow.value
+                .filter { it.playlistId == playlistId }
+                .maxOfOrNull { it.position } ?: -1
+            ) + 1
+
+    override suspend fun positionOf(playlistId: Long, songId: String): Int? =
+        crossRefsFlow.value
+            .firstOrNull { it.playlistId == playlistId && it.songId == songId }
+            ?.position
+
+    override suspend fun deleteCrossRef(playlistId: Long, songId: String) {
         crossRefsFlow.update { current ->
             current.filter { !(it.playlistId == playlistId && it.songId == songId) }
+        }
+    }
+
+    override suspend fun shiftPositionsAfter(playlistId: Long, removedPosition: Int) {
+        crossRefsFlow.update { current ->
+            current.map {
+                if (it.playlistId == playlistId && it.position > removedPosition) {
+                    it.copy(position = it.position - 1)
+                } else {
+                    it
+                }
+            }
         }
     }
 

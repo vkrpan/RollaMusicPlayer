@@ -79,6 +79,8 @@ import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
+import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import kotlinx.coroutines.flow.StateFlow
 
 @Suppress("LongMethod")
@@ -108,6 +110,9 @@ fun NowPlayingRoute(
             )
         }
     }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
     NowPlayingScreen(
         song = currentSong,
         isPlaying = isPlaying,
@@ -124,10 +129,36 @@ fun NowPlayingRoute(
         onToggleShuffle = onToggleShuffle,
         onCycleRepeat = onCycleRepeat,
         onToggleFavorite = onToggleFavorite,
+        onAddToPlaylist = { showAddToPlaylistSheet = true },
         sharedTransitionScope = sharedTransitionScope,
         animatedContentScope = animatedContentScope,
         modifier = modifier,
     )
+
+    if (showAddToPlaylistSheet && !showCreatePlaylistDialog) {
+        AddToPlaylistSheetHost(
+            userPlaylists = viewModel.userPlaylists,
+            onPlaylistSelected = { playlistId ->
+                viewModel.addCurrentSongToPlaylist(playlistId)
+                showAddToPlaylistSheet = false
+            },
+            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
+            onDismissRequest = { showAddToPlaylistSheet = false },
+        )
+    }
+
+    if (showCreatePlaylistDialog) {
+        PlaylistNameDialog(
+            title = "New playlist",
+            confirmLabel = "Create",
+            onConfirm = { name ->
+                viewModel.createPlaylistAndAddCurrentSong(name)
+                showCreatePlaylistDialog = false
+                showAddToPlaylistSheet = false
+            },
+            onDismiss = { showCreatePlaylistDialog = false },
+        )
+    }
 }
 
 @Suppress("LongParameterList")
@@ -148,6 +179,7 @@ fun NowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -173,6 +205,7 @@ fun NowPlayingScreen(
             onToggleShuffle = onToggleShuffle,
             onCycleRepeat = onCycleRepeat,
             onToggleFavorite = onToggleFavorite,
+            onAddToPlaylist = onAddToPlaylist,
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = animatedContentScope,
             modifier = Modifier.padding(innerPadding),
@@ -197,6 +230,7 @@ private fun NowPlayingContent(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     modifier: Modifier = Modifier,
@@ -246,6 +280,7 @@ private fun NowPlayingContent(
             NowPlayingActionRow(
                 isFavorite = isFavorite,
                 onToggleFavorite = onToggleFavorite,
+                onAddToPlaylist = onAddToPlaylist,
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(8.dp))
@@ -378,6 +413,7 @@ private fun NowPlayingArtwork(
 private fun NowPlayingActionRow(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -399,7 +435,7 @@ private fun NowPlayingActionRow(
                 },
             )
         }
-        IconButton(onClick = {}) {
+        IconButton(onClick = onAddToPlaylist) {
             Icon(
                 imageVector = Icons.Default.AddCircleOutline,
                 contentDescription = "Add to playlist",

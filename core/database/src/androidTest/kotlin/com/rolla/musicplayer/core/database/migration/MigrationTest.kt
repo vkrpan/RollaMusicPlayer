@@ -90,4 +90,121 @@ class MigrationTest {
 
         migratedDb.close()
     }
+
+    @Test
+    fun migrate1To2_preservesMultiplePreExistingSongRows() {
+        // Arrange: a v1 database with three pre-existing song rows (a batch, not just one).
+        helper.createDatabase(testDbName, 1).apply {
+            (1..3).forEach { index ->
+                execSQL(
+                    """
+                    INSERT INTO songs (
+                        id, media_store_id, title, artist, album, album_id, duration_ms,
+                        track_number, year, content_uri, artwork_uri, date_modified
+                    ) VALUES (
+                        '$index', $index, 'Song $index', 'Artist $index', 'Album $index', $index,
+                        180000, $index, 2024, 'content://media/external/audio/media/$index',
+                        'content://media/external/audio/albumart/$index', 1500000000000
+                    )
+                    """.trimIndent(),
+                )
+            }
+            close()
+        }
+
+        // Act
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 2, true, MIGRATION_1_2)
+
+        // Assert: all three rows survived the migration untouched.
+        migratedDb.query("SELECT COUNT(*) FROM songs").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(3, cursor.getInt(0))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM songs WHERE date_added = date_modified").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("date_added must be backfilled from date_modified for every row", 3, cursor.getInt(0))
+        }
+
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To2_onEmptyDatabase_succeedsWithoutPreExistingRows() {
+        // Arrange: a v1 database with no song rows at all — the migration must not assume any
+        // pre-existing data is present.
+        helper.createDatabase(testDbName, 1).apply { close() }
+
+        // Act
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 2, true, MIGRATION_1_2)
+
+        // Assert
+        migratedDb.query("SELECT COUNT(*) FROM songs").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM playlists").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
+        }
+
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To2_createsIndicesOnPlaylistSongsTable() {
+        // Arrange
+        helper.createDatabase(testDbName, 1).apply { close() }
+
+        // Act
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 2, true, MIGRATION_1_2)
+
+        // Assert: both indices declared on PlaylistSongCrossRef (playlist_id, song_id) were
+        // actually created by the migration SQL, not just present in the entity annotation.
+        val indexNames = mutableSetOf<String>()
+        migratedDb.query(
+            "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name = 'playlist_songs'",
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                indexNames += cursor.getString(cursor.getColumnIndexOrThrow("name"))
+            }
+        }
+
+        assertTrue(
+            "index_playlist_songs_playlist_id must exist after migration, found: $indexNames",
+            indexNames.contains("index_playlist_songs_playlist_id"),
+        )
+        assertTrue(
+            "index_playlist_songs_song_id must exist after migration, found: $indexNames",
+            indexNames.contains("index_playlist_songs_song_id"),
+        )
+
+        migratedDb.close()
+    }
+
+    @Test
+    fun migrate1To2_declaresCascadingForeignKeysOnPlaylistSongsTable() {
+        // Arrange
+        helper.createDatabase(testDbName, 1).apply { close() }
+
+        // Act
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 2, true, MIGRATION_1_2)
+
+        // Assert: both foreign keys (playlist_id -> playlists.id, song_id -> songs.id) exist with
+        // ON DELETE CASCADE, matching PlaylistSongCrossRef's @ForeignKey declarations.
+        val cascadeTargets = mutableSetOf<String>()
+        migratedDb.query("PRAGMA foreign_key_list(playlist_songs)").use { cursor ->
+            while (cursor.moveToNext()) {
+                val table = cursor.getString(cursor.getColumnIndexOrThrow("table"))
+                val onDelete = cursor.getString(cursor.getColumnIndexOrThrow("on_delete"))
+                if (onDelete.equals("CASCADE", ignoreCase = true)) {
+                    cascadeTargets += table
+                }
+            }
+        }
+
+        assertTrue("playlists FK must cascade on delete, found: $cascadeTargets", cascadeTargets.contains("playlists"))
+        assertTrue("songs FK must cascade on delete, found: $cascadeTargets", cascadeTargets.contains("songs"))
+
+        migratedDb.close()
+    }
 }

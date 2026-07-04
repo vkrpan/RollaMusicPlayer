@@ -167,6 +167,67 @@ class PlaylistsViewModelTest {
         }
     }
 
+    // ── createPlaylist ───────────────────────────────────────────────────────
+
+    @Test
+    fun createPlaylist_givenValidName_addsNewPlaylistViaRepository() = runTest {
+        viewModel.userPlaylists.test {
+            assertEquals(emptyList<Playlist>(), awaitItem())
+
+            viewModel.createPlaylist("My Mix")
+            advanceUntilIdle()
+
+            val playlists = awaitItem()
+            assertEquals(1, playlists.size)
+            assertEquals("My Mix", playlists.first().name)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun createPlaylist_givenBlankName_isNoOp() = runTest {
+        viewModel.userPlaylists.test {
+            assertEquals(emptyList<Playlist>(), awaitItem())
+
+            viewModel.createPlaylist("   ")
+            advanceUntilIdle()
+
+            expectNoEvents()
+        }
+    }
+
+    @Test
+    fun createPlaylist_givenNameWithSurroundingWhitespace_trimsBeforeCreating() = runTest {
+        viewModel.userPlaylists.test {
+            assertEquals(emptyList<Playlist>(), awaitItem())
+
+            viewModel.createPlaylist("  Road Trip  ")
+            advanceUntilIdle()
+
+            val playlists = awaitItem()
+            assertEquals("Road Trip", playlists.first().name)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun userPlaylists_givenMultiplePlaylists_reflectsAllOfThemInRepositoryOrder() = runTest {
+        val playlists = listOf(
+            Playlist(id = 1L, name = "Alpha", songCount = 1, createdAt = 1L, updatedAt = 1L),
+            Playlist(id = 2L, name = "Beta", songCount = 2, createdAt = 2L, updatedAt = 2L),
+            Playlist(id = 3L, name = "Gamma", songCount = 0, createdAt = 3L, updatedAt = 3L),
+        )
+
+        viewModel.userPlaylists.test {
+            assertEquals(emptyList<Playlist>(), awaitItem())
+
+            fakePlaylistRepository.emitPlaylists(playlists)
+
+            assertEquals(playlists, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
     private fun createTestSongs(count: Int): List<Song> = (1..count).map { index ->
         Song(
             id = "song-$index",

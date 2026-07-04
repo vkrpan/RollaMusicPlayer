@@ -1,4 +1,4 @@
-﻿@file:Suppress("FunctionNaming")
+@file:Suppress("FunctionNaming")
 
 package com.rolla.musicplayer.feature.library
 
@@ -33,7 +33,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,9 +45,13 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.permissions.MediaPermissionGate
+import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
+import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.SongListItem
+import kotlinx.coroutines.flow.StateFlow
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
@@ -59,22 +65,37 @@ fun LibraryRoute(
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
     val onSongClick = remember(viewModel) { viewModel::play }
+    val onAddSongToPlaylist = remember(viewModel) { viewModel::addSongToPlaylist }
+    val onCreatePlaylistAndAddSong = remember(viewModel) { viewModel::createPlaylistAndAddSong }
     MediaPermissionGate(onGranted = viewModel::onPermissionGranted) {
         LibraryScreen(
             songs = songs,
             scanState = scanState,
+            userPlaylists = viewModel.userPlaylists,
             onSongClick = onSongClick,
+            onAddSongToPlaylist = onAddSongToPlaylist,
+            onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
         )
     }
 }
 
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun LibraryScreen(
     songs: List<Song>,
     scanState: ScanState,
+    // Passed as a StateFlow (not a collected List) so the collection happens inside the
+    // conditionally-shown AddToPlaylistSheetHost — playlist churn while the sheet is closed
+    // then never invalidates this screen. Same pattern as NowPlayingScreen's positionMs.
+    userPlaylists: StateFlow<List<Playlist>>,
     onSongClick: (Song) -> Unit,
+    onAddSongToPlaylist: (String, Long) -> Unit,
+    onCreatePlaylistAndAddSong: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
+    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = { LibraryTopBar() },
         containerColor = MaterialTheme.colorScheme.background,
@@ -84,7 +105,34 @@ fun LibraryScreen(
             songs = songs,
             scanState = scanState,
             onSongClick = onSongClick,
+            onMoreClick = { song -> addToPlaylistSong = song },
             modifier = Modifier.padding(innerPadding),
+        )
+    }
+
+    val songPendingPlaylistPick = addToPlaylistSong
+    if (songPendingPlaylistPick != null && !showCreatePlaylistDialog) {
+        AddToPlaylistSheetHost(
+            userPlaylists = userPlaylists,
+            onPlaylistSelected = { playlistId ->
+                onAddSongToPlaylist(songPendingPlaylistPick.id, playlistId)
+                addToPlaylistSong = null
+            },
+            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
+            onDismissRequest = { addToPlaylistSong = null },
+        )
+    }
+
+    if (showCreatePlaylistDialog && songPendingPlaylistPick != null) {
+        PlaylistNameDialog(
+            title = "New playlist",
+            confirmLabel = "Create",
+            onConfirm = { name ->
+                onCreatePlaylistAndAddSong(name, songPendingPlaylistPick.id)
+                showCreatePlaylistDialog = false
+                addToPlaylistSong = null
+            },
+            onDismiss = { showCreatePlaylistDialog = false },
         )
     }
 }
@@ -122,6 +170,7 @@ private fun LibraryContent(
     songs: List<Song>,
     scanState: ScanState,
     onSongClick: (Song) -> Unit,
+    onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -136,7 +185,7 @@ private fun LibraryContent(
             when {
                 scanState is ScanState.Scanning -> ScanningContent()
                 songs.isEmpty() -> EmptySongsContent()
-                else -> SongListContent(songs = songs, onSongClick = onSongClick)
+                else -> SongListContent(songs = songs, onSongClick = onSongClick, onMoreClick = onMoreClick)
             }
         }
     }
@@ -244,11 +293,12 @@ private fun EmptySongsContent(modifier: Modifier = Modifier) {
 private fun SongListContent(
     songs: List<Song>,
     onSongClick: (Song) -> Unit,
+    onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier) {
         items(items = songs, key = { song -> song.id }) { song ->
-            SongListItem(song = song, onClick = { onSongClick(song) })
+            SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
         }
     }
 }

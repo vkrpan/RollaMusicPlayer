@@ -149,6 +149,126 @@ class PlaylistRepositoryImplTest {
         assertEquals(listOf("song-3", "song-1", "song-2"), songs.map { it.id })
     }
 
+    // ── edge cases: empty playlist, single item, no-op reorder, invalid ids ───
+
+    @Test
+    fun `observePlaylists_givenNoPlaylistsCreated_emitsEmptyList`() = runTest {
+        val playlists = repository.observePlaylists().first()
+
+        assertTrue("A repository with no created playlists must emit an empty list", playlists.isEmpty())
+    }
+
+    @Test
+    fun `observePlaylistSongs_forEmptyPlaylist_emitsEmptyList`() = runTest {
+        val playlistId = repository.createPlaylist("Empty Mix")
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+
+        assertTrue("A playlist with no songs added must emit an empty song list", songs.isEmpty())
+    }
+
+    @Test
+    fun `addSongs_givenEmptyIdList_isNoOpAndSongCountStaysZero`() = runTest {
+        val playlistId = repository.createPlaylist("Empty Mix")
+
+        repository.addSongs(playlistId, emptyList())
+
+        val playlists = repository.observePlaylists().first()
+        assertEquals(0, playlists.first { it.id == playlistId }.songCount)
+    }
+
+    @Test
+    fun `reorder_givenSingleSongPlaylist_leavesOrderUnchanged`() = runTest {
+        fakePlaylistDao.emitSongs(listOf(testSongEntity(id = "song-1")))
+        val playlistId = repository.createPlaylist("Solo")
+        repository.addSongs(playlistId, listOf("song-1"))
+
+        repository.reorder(playlistId, listOf("song-1"))
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+        assertEquals(listOf("song-1"), songs.map { it.id })
+    }
+
+    @Test
+    fun `reorder_toIdenticalOrder_isNoOp`() = runTest {
+        fakePlaylistDao.emitSongs(listOf(testSongEntity(id = "song-1"), testSongEntity(id = "song-2")))
+        val playlistId = repository.createPlaylist("Mix")
+        repository.addSongs(playlistId, listOf("song-1", "song-2"))
+
+        repository.reorder(playlistId, listOf("song-1", "song-2"))
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+        assertEquals(listOf("song-1", "song-2"), songs.map { it.id })
+    }
+
+    @Test
+    fun `reorder_withSongIdNotInPlaylist_ignoresUnknownIdGracefullyAndDoesNotThrow`() = runTest {
+        fakePlaylistDao.emitSongs(listOf(testSongEntity(id = "song-1"), testSongEntity(id = "song-2")))
+        val playlistId = repository.createPlaylist("Mix")
+        repository.addSongs(playlistId, listOf("song-1", "song-2"))
+
+        // "song-unknown" was never added to this playlist — must be dropped, not crash.
+        repository.reorder(playlistId, listOf("song-2", "song-unknown", "song-1"))
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+        assertEquals(listOf("song-2", "song-1"), songs.map { it.id })
+    }
+
+    @Test
+    fun `removeSong_givenNonExistentSongId_isNoOpAndDoesNotThrow`() = runTest {
+        fakePlaylistDao.emitSongs(listOf(testSongEntity(id = "song-1")))
+        val playlistId = repository.createPlaylist("Mix")
+        repository.addSongs(playlistId, listOf("song-1"))
+
+        repository.removeSong(playlistId, "does-not-exist")
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+        assertEquals(listOf("song-1"), songs.map { it.id })
+    }
+
+    @Test
+    fun `removeSong_fromEmptyPlaylist_isNoOpAndDoesNotThrow`() = runTest {
+        val playlistId = repository.createPlaylist("Empty Mix")
+
+        repository.removeSong(playlistId, "song-1")
+
+        assertTrue(repository.observePlaylistSongs(playlistId).first().isEmpty())
+    }
+
+    @Test
+    fun `addSongs_afterRemovingMiddleSong_appendsNewSongAfterRemainingSongs`() = runTest {
+        // Regression coverage: removeSong compacts the remaining positions (via
+        // PlaylistDao.shiftPositionsAfter) and addSongs appends via PlaylistDao.appendSongs, which
+        // derives the next position from MAX(position) + 1 rather than the raw row count. Together
+        // these guarantee a newly appended song can never collide with — or land before — an
+        // existing song's position, even right after a middle-of-playlist removal.
+        fakePlaylistDao.emitSongs(
+            listOf(
+                testSongEntity(id = "song-1"),
+                testSongEntity(id = "song-2"),
+                testSongEntity(id = "song-3"),
+                testSongEntity(id = "song-4"),
+            ),
+        )
+        val playlistId = repository.createPlaylist("Mix")
+        repository.addSongs(playlistId, listOf("song-1", "song-2", "song-3"))
+
+        repository.removeSong(playlistId, "song-2")
+        repository.addSongs(playlistId, listOf("song-4"))
+
+        val songs = repository.observePlaylistSongs(playlistId).first()
+        assertEquals(listOf("song-1", "song-3", "song-4"), songs.map { it.id })
+    }
+
+    @Test
+    fun `createPlaylist_calledMultipleTimes_assignsUniqueIds`() = runTest {
+        val firstId = repository.createPlaylist("First")
+        val secondId = repository.createPlaylist("Second")
+
+        assertTrue("Each created playlist must get a unique id", firstId != secondId)
+        assertEquals(2, repository.observePlaylists().first().size)
+    }
+
     // ── Test factories ────────────────────────────────────────────────────────
 
     @Suppress("LongParameterList")

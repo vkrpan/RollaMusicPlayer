@@ -3,6 +3,7 @@ package com.rolla.musicplayer.core.media
 import android.content.ComponentName
 import android.content.Context
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -64,6 +65,20 @@ class PlaybackController @Inject constructor(
         }
     }
 
+    fun playAll(songs: List<Song>, startIndex: Int = 0) {
+        val items = songs.map(::buildMediaItem)
+        val c = controller
+        if (c != null) {
+            startQueuePlayback(c, items, startIndex)
+        } else {
+            // Future not yet resolved — enqueue command; last tap wins if multiple queued.
+            controllerFuture?.addListener(
+                { controller?.let { startQueuePlayback(it, items, startIndex) } },
+                { command -> command.run() },
+            )
+        }
+    }
+
     private fun buildMediaItem(song: Song): MediaItem =
         MediaItem.Builder()
             .setMediaId(song.id)
@@ -80,6 +95,12 @@ class PlaybackController @Inject constructor(
 
     private fun startPlayback(c: MediaController, item: MediaItem) {
         c.setMediaItem(item)
+        c.prepare()
+        c.play()
+    }
+
+    private fun startQueuePlayback(c: MediaController, items: List<MediaItem>, startIndex: Int) {
+        c.setMediaItems(items, startIndex, C.TIME_UNSET)
         c.prepare()
         c.play()
     }

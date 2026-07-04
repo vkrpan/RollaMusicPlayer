@@ -1,7 +1,6 @@
 package com.rolla.musicplayer.core.data.repository
 
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
-import com.rolla.musicplayer.core.database.entity.PlaylistSongCrossRef
 import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.database.entity.toDomain
 import com.rolla.musicplayer.core.database.entity.toEntity
@@ -9,10 +8,13 @@ import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+// distinctUntilChanged() drops Room's content-identical re-emissions on unrelated table
+// invalidations — see the matching note in SongRepositoryImpl.
 class PlaylistRepositoryImpl @Inject constructor(
     private val playlistDao: PlaylistDao,
 ) : PlaylistRepository {
@@ -20,10 +22,12 @@ class PlaylistRepositoryImpl @Inject constructor(
     override fun observePlaylists(): Flow<List<Playlist>> =
         playlistDao.observePlaylistsWithCounts()
             .map { list -> list.map { it.playlist.toDomain(it.songCount) } }
+            .distinctUntilChanged()
 
     override fun observePlaylistSongs(playlistId: Long): Flow<List<Song>> =
         playlistDao.observePlaylistSongs(playlistId)
             .map { entities: List<SongEntity> -> entities.map { it.toDomain() } }
+            .distinctUntilChanged()
 
     override suspend fun createPlaylist(name: String): Long = withContext(Dispatchers.IO) {
         val now = System.currentTimeMillis()
@@ -47,19 +51,9 @@ class PlaylistRepositoryImpl @Inject constructor(
     }
 
     override suspend fun addSongs(playlistId: Long, songIds: List<String>) = withContext(Dispatchers.IO) {
-        // Only the current cross-ref count is needed here (to append after it), so the unordered
-        // projection is used directly rather than the position-sorted getPlaylistWithSongs wrapper.
-        val startIndex = playlistDao.getPlaylistWithSongsUnordered(playlistId)?.crossRefs?.size ?: 0
-        val now = System.currentTimeMillis()
-        val crossRefs = songIds.mapIndexed { index, songId ->
-            PlaylistSongCrossRef(
-                playlistId = playlistId,
-                songId = songId,
-                position = startIndex + index,
-                addedAt = now,
-            )
-        }
-        playlistDao.addSongsToPlaylist(crossRefs)
+        // Position assignment lives inside the DAO transaction (MAX(position) + 1 + insert as one
+        // unit) so concurrent appends can't race and removal gaps can't cause position collisions.
+        playlistDao.appendSongs(playlistId, songIds, addedAt = System.currentTimeMillis())
     }
 
     override suspend fun removeSong(playlistId: Long, songId: String) = withContext(Dispatchers.IO) {

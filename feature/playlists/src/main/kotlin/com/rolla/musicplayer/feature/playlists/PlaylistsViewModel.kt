@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.playlists
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
@@ -10,6 +11,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** Identifies one of the app's built-in, auto-populated smart playlists. */
@@ -19,6 +21,7 @@ enum class SmartPlaylistKind { RECENTLY_PLAYED, FAVOURITES, MOST_PLAYED, RECENTL
  * Display summary for a smart playlist card: a [kind] + label pulled from a [SongRepository]
  * flow, plus a small artwork preview (at most 4 songs) for a collage-style thumbnail.
  */
+@Immutable
 data class SmartPlaylistSummary(
     val kind: SmartPlaylistKind,
     val label: String,
@@ -33,7 +36,7 @@ data class SmartPlaylistSummary(
  */
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
-    playlistRepository: PlaylistRepository,
+    private val playlistRepository: PlaylistRepository,
     songRepository: SongRepository,
 ) : ViewModel() {
 
@@ -81,6 +84,12 @@ class PlaylistsViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
             initialValue = emptyList(),
         )
+
+    fun createPlaylist(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch { playlistRepository.createPlaylist(trimmed) }
+    }
 
     private companion object {
         const val PREVIEW_ARTWORK_LIMIT = 4

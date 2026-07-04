@@ -13,6 +13,10 @@ import com.rolla.musicplayer.core.database.relation.PlaylistWithSongs
 import com.rolla.musicplayer.core.database.relation.orderedByPosition
 import kotlinx.coroutines.flow.Flow
 
+// Room requires the position-integrity primitives (nextPosition/positionOf/deleteCrossRef/
+// shiftPositionsAfter) to be interface members so the @Transaction default bodies below can
+// compose them inside one transaction — they can't be extracted to extensions.
+@Suppress("TooManyFunctions")
 @Dao
 interface PlaylistDao {
 
@@ -64,8 +68,55 @@ interface PlaylistDao {
         crossRefs.forEach { addSongToPlaylist(it) }
     }
 
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM playlist_songs WHERE playlist_id = :playlistId")
+    suspend fun nextPosition(playlistId: Long): Int
+
+    /**
+     * Appends [songIds] to the end of the playlist. The next free position is derived from
+     * `MAX(position) + 1` — not the row count — inside the same transaction as the insert, so
+     * removals that left gaps can never produce two rows sharing a position, and two concurrent
+     * appends can never read the same start position. Re-adding an existing song REPLACEs its
+     * row (see [addSongToPlaylist]), moving it to the end rather than duplicating it.
+     */
+    @Transaction
+    suspend fun appendSongs(playlistId: Long, songIds: List<String>, addedAt: Long) {
+        val startPosition = nextPosition(playlistId)
+        addSongsToPlaylist(
+            songIds.mapIndexed { index, songId ->
+                PlaylistSongCrossRef(
+                    playlistId = playlistId,
+                    songId = songId,
+                    position = startPosition + index,
+                    addedAt = addedAt,
+                )
+            },
+        )
+    }
+
+    @Query("SELECT position FROM playlist_songs WHERE playlist_id = :playlistId AND song_id = :songId")
+    suspend fun positionOf(playlistId: Long, songId: String): Int?
+
     @Query("DELETE FROM playlist_songs WHERE playlist_id = :playlistId AND song_id = :songId")
-    suspend fun removeSongFromPlaylist(playlistId: Long, songId: String)
+    suspend fun deleteCrossRef(playlistId: Long, songId: String)
+
+    @Query(
+        """
+        UPDATE playlist_songs SET position = position - 1
+        WHERE playlist_id = :playlistId AND position > :removedPosition
+        """,
+    )
+    suspend fun shiftPositionsAfter(playlistId: Long, removedPosition: Int)
+
+    /**
+     * Removes a song and shifts every later row's position down by one in a single transaction,
+     * keeping positions contiguous `0..n-1`. No-op if the song isn't in the playlist.
+     */
+    @Transaction
+    suspend fun removeSongFromPlaylist(playlistId: Long, songId: String) {
+        val removedPosition = positionOf(playlistId, songId) ?: return
+        deleteCrossRef(playlistId, songId)
+        shiftPositionsAfter(playlistId, removedPosition)
+    }
 
     @Query(
         "UPDATE playlist_songs SET position = :position WHERE playlist_id = :playlistId AND song_id = :songId",

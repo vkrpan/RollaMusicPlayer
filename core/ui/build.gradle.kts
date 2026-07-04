@@ -10,11 +10,7 @@ android {
     }
 }
 
-composeCompiler {
-    stabilityConfigurationFile.set(
-        rootProject.layout.projectDirectory.file("config/compose/stability-configuration.conf"),
-    )
-}
+// Stability configuration is applied centrally by rolla.android.library.compose.
 
 dependencies {
     implementation(project(":core:model"))
@@ -23,6 +19,7 @@ dependencies {
     implementation(composeBom)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)

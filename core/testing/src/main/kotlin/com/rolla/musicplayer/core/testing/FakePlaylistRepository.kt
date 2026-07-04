@@ -23,6 +23,17 @@ class FakePlaylistRepository : PlaylistRepository {
 
     private var nextId = 1L
 
+    /**
+     * Records every [addSongs] invocation as `(playlistId, songIds)`, in call order.
+     *
+     * [addSongs] itself remains a no-op below (see its docstring) since the fake has no song
+     * catalog to resolve ids from — tests asserting on the resulting song list should use
+     * [emitPlaylistSongs] directly. This list exists purely so ViewModel tests can verify *that*
+     * `addSongs` was called with the expected arguments (e.g. from an "Add to playlist" action).
+     */
+    val addSongsCalls: List<Pair<Long, List<String>>> get() = _addSongsCalls
+    private val _addSongsCalls = mutableListOf<Pair<Long, List<String>>>()
+
     /** Replaces the current in-memory playlist list, triggering a new emission on the flow. */
     fun emitPlaylists(playlists: List<Playlist>) {
         playlistsFlow.value = playlists
@@ -59,6 +70,7 @@ class FakePlaylistRepository : PlaylistRepository {
     override suspend fun addSongs(playlistId: Long, songIds: List<String>) {
         // Fakes don't have a song catalog to resolve ids from; tests should use [emitPlaylistSongs]
         // directly to set up the expected end state instead of relying on id resolution here.
+        _addSongsCalls += playlistId to songIds
     }
 
     override suspend fun removeSong(playlistId: Long, songId: String) {

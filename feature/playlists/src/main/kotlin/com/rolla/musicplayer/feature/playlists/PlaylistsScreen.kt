@@ -4,6 +4,7 @@ package com.rolla.musicplayer.feature.playlists
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,7 +36,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -52,6 +55,7 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.metadata
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.model.Playlist
+import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.PlaylistRow
 
 private val SurfaceHorizontalMargin = 8.dp
@@ -68,6 +72,8 @@ private const val COLLAGE_QUADRANTS_PER_ROW = 2
 
 @Composable
 fun PlaylistsRoute(
+    onPlaylistClick: (Long) -> Unit,
+    onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
     val smartPlaylists by viewModel.smartPlaylists.collectAsStateWithLifecycle()
@@ -75,24 +81,47 @@ fun PlaylistsRoute(
     PlaylistsScreen(
         smartPlaylists = smartPlaylists,
         userPlaylists = userPlaylists,
+        onPlaylistClick = onPlaylistClick,
+        onSmartPlaylistClick = onSmartPlaylistClick,
+        onCreatePlaylist = remember(viewModel) { viewModel::createPlaylist },
     )
 }
 
+@Suppress("LongParameterList")
 @Composable
 fun PlaylistsScreen(
     smartPlaylists: List<SmartPlaylistSummary>,
     userPlaylists: List<Playlist>,
+    onPlaylistClick: (Long) -> Unit,
+    onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
+    onCreatePlaylist: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+
     Scaffold(
-        topBar = { PlaylistsTopBar() },
+        topBar = { PlaylistsTopBar(onCreateClick = { showCreateDialog = true }) },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) { innerPadding ->
         PlaylistsContent(
             smartPlaylists = smartPlaylists,
             userPlaylists = userPlaylists,
+            onPlaylistClick = onPlaylistClick,
+            onSmartPlaylistClick = onSmartPlaylistClick,
             modifier = Modifier.padding(innerPadding),
+        )
+    }
+
+    if (showCreateDialog) {
+        PlaylistNameDialog(
+            title = "New playlist",
+            confirmLabel = "Create",
+            onConfirm = { name ->
+                onCreatePlaylist(name)
+                showCreateDialog = false
+            },
+            onDismiss = { showCreateDialog = false },
         )
     }
 }
@@ -100,7 +129,10 @@ fun PlaylistsScreen(
 @Suppress("LongMethod")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlaylistsTopBar(modifier: Modifier = Modifier) {
+private fun PlaylistsTopBar(
+    onCreateClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     TopAppBar(
         title = {
             Text(
@@ -110,7 +142,7 @@ private fun PlaylistsTopBar(modifier: Modifier = Modifier) {
             )
         },
         actions = {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onCreateClick) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Create playlist",
@@ -137,6 +169,8 @@ private fun PlaylistsTopBar(modifier: Modifier = Modifier) {
 private fun PlaylistsContent(
     smartPlaylists: List<SmartPlaylistSummary>,
     userPlaylists: List<Playlist>,
+    onPlaylistClick: (Long) -> Unit,
+    onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -148,10 +182,10 @@ private fun PlaylistsContent(
     ) {
         LazyColumn(contentPadding = PaddingValues(vertical = ContentVerticalPadding)) {
             item {
-                SmartPlaylistRow(smartPlaylists = smartPlaylists)
+                SmartPlaylistRow(smartPlaylists = smartPlaylists, onSmartPlaylistClick = onSmartPlaylistClick)
             }
             items(items = userPlaylists, key = { it.id }) { playlist ->
-                PlaylistRow(playlist = playlist, onClick = {})
+                PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
             }
         }
     }
@@ -160,6 +194,7 @@ private fun PlaylistsContent(
 @Composable
 private fun SmartPlaylistRow(
     smartPlaylists: List<SmartPlaylistSummary>,
+    onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
@@ -168,7 +203,7 @@ private fun SmartPlaylistRow(
         horizontalArrangement = Arrangement.spacedBy(FeatureCardGap),
     ) {
         items(items = smartPlaylists, key = { it.kind }) { summary ->
-            SmartPlaylistCard(summary = summary)
+            SmartPlaylistCard(summary = summary, onClick = { onSmartPlaylistClick(summary.kind) })
         }
     }
 }
@@ -176,9 +211,10 @@ private fun SmartPlaylistRow(
 @Composable
 private fun SmartPlaylistCard(
     summary: SmartPlaylistSummary,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.width(FeatureCardSize)) {
+    Column(modifier = modifier.width(FeatureCardSize).clickable(onClick = onClick)) {
         SmartPlaylistArtwork(previewArtworkUris = summary.previewArtworkUris)
         Spacer(modifier = Modifier.height(FeatureCardTextGap))
         Text(
@@ -311,6 +347,9 @@ private fun PreviewPlaylistsScreen() {
         PlaylistsScreen(
             smartPlaylists = previewSmartPlaylists(),
             userPlaylists = previewUserPlaylists(),
+            onPlaylistClick = {},
+            onSmartPlaylistClick = {},
+            onCreatePlaylist = {},
         )
     }
 }

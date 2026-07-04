@@ -2,8 +2,10 @@ package com.rolla.musicplayer.feature.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
@@ -19,6 +21,7 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
     private val songRepository: SongRepository,
+    private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
     val currentSong: StateFlow<Song?> = playbackController.currentSong
@@ -46,6 +49,10 @@ class PlayerViewModel @Inject constructor(
         song != null && favourites.any { it.id == song.id }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), false)
 
+    /** User-created playlists, exposed for the shared "Add to playlist" bottom sheet. */
+    val userPlaylists: StateFlow<List<Playlist>> = playlistRepository.observePlaylists()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), emptyList())
+
     init {
         playbackController.connect()
     }
@@ -61,6 +68,25 @@ class PlayerViewModel @Inject constructor(
         val song = currentSong.value ?: return
         viewModelScope.launch {
             songRepository.toggleFavorite(song.id)
+        }
+    }
+
+    /** Adds the currently playing song to an existing playlist. Safe no-op if nothing is playing. */
+    fun addCurrentSongToPlaylist(playlistId: Long) {
+        val song = currentSong.value ?: return
+        viewModelScope.launch {
+            playlistRepository.addSongs(playlistId, listOf(song.id))
+        }
+    }
+
+    /** Creates a new playlist with [name] and adds the currently playing song to it. */
+    fun createPlaylistAndAddCurrentSong(name: String) {
+        val song = currentSong.value ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val id = playlistRepository.createPlaylist(trimmed)
+            playlistRepository.addSongs(id, listOf(song.id))
         }
     }
 }

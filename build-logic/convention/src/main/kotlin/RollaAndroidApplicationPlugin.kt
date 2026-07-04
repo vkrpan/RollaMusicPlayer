@@ -3,6 +3,7 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
+import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
 
 class RollaAndroidApplicationPlugin : Plugin<Project> {
     override fun apply(target: Project) {
@@ -12,6 +13,12 @@ class RollaAndroidApplicationPlugin : Plugin<Project> {
                 apply("org.jetbrains.kotlin.android")
                 apply("org.jetbrains.kotlin.plugin.compose")
                 apply("rolla.static.analysis")
+            }
+            extensions.configure<ComposeCompilerGradlePluginExtension> {
+                // Marks :core:model classes as stable — see the comment in the file itself.
+                stabilityConfigurationFile.set(
+                    rootProject.layout.projectDirectory.file("config/compose/stability-configuration.conf"),
+                )
             }
             extensions.configure<ApplicationExtension> {
                 compileSdk = 34
