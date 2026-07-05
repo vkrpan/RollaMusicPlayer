@@ -111,6 +111,17 @@ class EqualizerRepositoryTest {
     }
 
     @Test
+    fun `deletePreset with id zero is a no-op`() = runTest {
+        val userId = repository.savePreset("Keep Me Too", listOf(0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+        repository.deletePreset(0L)
+
+        val presets = repository.observePresets().first()
+        assertEquals(BUILT_IN_EQUALIZER_PRESETS.size + 1, presets.size)
+        assertTrue(presets.any { it.id == userId })
+    }
+
+    @Test
     fun `deletePreset with a user id removes only that preset`() = runTest {
         val keepId = repository.savePreset("Keep", listOf(0, 0, 0, 0, 0, 0, 0, 0, 0))
         val removeId = repository.savePreset("Remove", listOf(0, 0, 0, 0, 0, 0, 0, 0, 0))

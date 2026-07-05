@@ -55,4 +55,18 @@ class EqualizerPreferencesCodecTest {
     fun roundTrip_emptyList_preservesEmptyList() {
         assertTrue(decodeGainsMillibel(encodeGainsMillibel(emptyList())).isEmpty())
     }
+
+    @Test
+    fun roundTrip_shortMinAndMaxValues_preservesValues() {
+        val gains = listOf(Short.MIN_VALUE, Short.MAX_VALUE, 0)
+
+        assertEquals(gains, decodeGainsMillibel(encodeGainsMillibel(gains)))
+    }
+
+    @Test
+    fun decodeGainsMillibel_tokenOutsideShortRange_treatsWholeValueAsCorrupt() {
+        // 40000 parses fine as an Int but overflows Short.MAX_VALUE (32767) -- toShortOrNull must
+        // reject it the same way a non-numeric token is rejected, not wrap/truncate it.
+        assertTrue(decodeGainsMillibel("300,40000,100").isEmpty())
+    }
 }

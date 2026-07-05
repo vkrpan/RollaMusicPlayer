@@ -84,6 +84,24 @@ class EqualizerControllerTest {
     }
 
     @Test
+    fun `re-attach releases the previous effect exactly once`() {
+        val first = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        val second = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        var creations = 0
+        val factory = FakeDeviceEqualizerFactory { _, _ ->
+            creations += 1
+            if (creations == 1) first else second
+        }
+        val controller = EqualizerController(factory)
+
+        controller.attach(SESSION_ID_A)
+        controller.attach(SESSION_ID_B)
+
+        assertEquals(1, first.releaseCallCount)
+        assertEquals(0, second.releaseCallCount)
+    }
+
+    @Test
     fun `factory throwing leaves the controller detached without propagating`() {
         val factory = FakeDeviceEqualizerFactory { _, _ ->
             throw UnsupportedOperationException("no equalizer effect on this device")
@@ -93,6 +111,24 @@ class EqualizerControllerTest {
         controller.attach(SESSION_ID_A)
 
         assertNull(controller.capabilities())
+    }
+
+    @Test
+    fun `factory throwing leaves every subsequent operation a safe no-op`() {
+        val factory = FakeDeviceEqualizerFactory { _, _ ->
+            throw UnsupportedOperationException("no equalizer effect on this device")
+        }
+        val controller = EqualizerController(factory)
+
+        controller.attach(SESSION_ID_A)
+
+        // None of these should throw, and none should have any observable effect -- the
+        // controller has nothing attached to forward them to.
+        controller.setEnabled(true)
+        controller.setGainForFrequency(1000, 500)
+
+        assertNull(controller.capabilities())
+        assertEquals(0, controller.currentGainForFrequency(1000).toInt())
     }
 
     @Test
@@ -149,6 +185,30 @@ class EqualizerControllerTest {
         controller.attach(SESSION_ID_A)
 
         controller.setGainForFrequency(1000, -5000)
+
+        assertEquals(DEVICE_RANGE[0], controller.currentGainForFrequency(1000))
+    }
+
+    @Test
+    fun `gain exactly at device max is applied unclamped`() {
+        val fake = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        val factory = FakeDeviceEqualizerFactory { _, _ -> fake }
+        val controller = EqualizerController(factory)
+        controller.attach(SESSION_ID_A)
+
+        controller.setGainForFrequency(1000, DEVICE_RANGE[1])
+
+        assertEquals(DEVICE_RANGE[1], controller.currentGainForFrequency(1000))
+    }
+
+    @Test
+    fun `gain exactly at device min is applied unclamped`() {
+        val fake = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        val factory = FakeDeviceEqualizerFactory { _, _ -> fake }
+        val controller = EqualizerController(factory)
+        controller.attach(SESSION_ID_A)
+
+        controller.setGainForFrequency(1000, DEVICE_RANGE[0])
 
         assertEquals(DEVICE_RANGE[0], controller.currentGainForFrequency(1000))
     }
@@ -223,6 +283,40 @@ class EqualizerControllerTest {
         assertNull(controller.capabilities())
         assertEquals(0, controller.currentGainForFrequency(1000).toInt())
         assertFalse(fake.enabled)
+    }
+
+    @Test
+    fun `effect dying mid-operation detaches the controller without propagating`() {
+        val fake = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        val factory = FakeDeviceEqualizerFactory { _, _ -> fake }
+        val controller = EqualizerController(factory)
+        controller.attach(SESSION_ID_A)
+
+        // The system invalidates the native effect underneath the controller; the next operation
+        // throws IllegalStateException inside the effect. The controller must swallow it, release
+        // the dead effect, and detach so everything afterward is a safe no-op.
+        fake.deadEffect = true
+        controller.setGainForFrequency(1000, 500)
+
+        assertEquals(1, fake.releaseCallCount)
+        assertNull(controller.capabilities())
+        controller.setEnabled(true)
+        assertEquals(0, controller.currentGainForFrequency(1000).toInt())
+    }
+
+    @Test
+    fun `release swallows an already-invalidated effect's failure and still detaches`() {
+        val fake = FakeDeviceEqualizer(numberOfBands = 5, range = DEVICE_RANGE) { 0 }
+        val factory = FakeDeviceEqualizerFactory { _, _ -> fake }
+        val controller = EqualizerController(factory)
+        controller.attach(SESSION_ID_A)
+
+        fake.throwFromRelease = true
+        controller.release()
+
+        assertNull(controller.capabilities())
+        // Detached for real: a second release must not reach the dead effect again.
+        controller.release()
     }
 
     @Test

@@ -14,6 +14,10 @@ class FakeDeviceEqualizer(
     override val bandLevelRange: ShortArray = range
 
     override var enabled: Boolean = false
+        set(value) {
+            failIfDead()
+            field = value
+        }
 
     val getBandCalls = mutableListOf<Int>()
     val setBandLevelCalls = mutableListOf<Pair<Short, Short>>()
@@ -21,22 +25,47 @@ class FakeDeviceEqualizer(
     var released = false
         private set
 
+    /** Number of times [release] has actually been invoked on this instance. */
+    var releaseCallCount = 0
+        private set
+
+    /**
+     * When true, every effect operation throws [IllegalStateException], mirroring a native effect
+     * the system has released/revoked underneath the controller. [release] stays functional so
+     * tests can assert the controller cleans the dead effect up.
+     */
+    var deadEffect = false
+
+    /** When true, [release] itself throws, mirroring releasing an already-invalidated effect. */
+    var throwFromRelease = false
+
     private val bandLevels = mutableMapOf<Short, Short>()
 
     override fun getBand(frequencyMilliHz: Int): Short {
+        failIfDead()
         getBandCalls += frequencyMilliHz
         return bandForMilliHz(frequencyMilliHz)
     }
 
-    override fun getBandLevel(band: Short): Short = bandLevels[band] ?: 0
+    override fun getBandLevel(band: Short): Short {
+        failIfDead()
+        return bandLevels[band] ?: 0
+    }
 
     override fun setBandLevel(band: Short, levelMillibel: Short) {
+        failIfDead()
         setBandLevelCalls += band to levelMillibel
         bandLevels[band] = levelMillibel
     }
 
     override fun release() {
+        if (throwFromRelease) error("effect already invalidated by the system")
         released = true
+        releaseCallCount += 1
+    }
+
+    private fun failIfDead() {
+        if (deadEffect) error("effect released/revoked by the system")
     }
 }
 

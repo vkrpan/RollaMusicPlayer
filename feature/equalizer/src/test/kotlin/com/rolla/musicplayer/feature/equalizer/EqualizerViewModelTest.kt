@@ -291,6 +291,22 @@ class EqualizerViewModelTest {
     }
 
     @Test
+    fun saveCurrentAsPreset_trimsLeadingAndTrailingWhitespaceFromName() = runTest {
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        repository.observePresets().test {
+            awaitItem() // presets before saving
+
+            viewModel.saveCurrentAsPreset("  Padded Name  ")
+
+            val saved = awaitItem().firstOrNull { it.name == "Padded Name" }
+            assertTrue("Preset name must be trimmed before being persisted", saved != null)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun saveCurrentAsPreset_givenBlankName_isNoOp() = runTest {
         val viewModel = newViewModel()
         advanceUntilIdle()

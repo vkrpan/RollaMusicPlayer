@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.core.media
 
+import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -14,12 +15,16 @@ import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
@@ -40,7 +45,18 @@ class PlaybackService : MediaSessionService() {
     private lateinit var mediaSession: MediaSession
 
     private val supervisorJob = SupervisorJob()
-    private val serviceScope = CoroutineScope(supervisorJob + Dispatchers.Default)
+
+    // Defense-in-depth: an uncaught exception in a root serviceScope coroutine would otherwise hit
+    // the thread's default handler and kill the whole process. Background playback bookkeeping
+    // (position ticker, play-count recording, equalizer session binding) should never be able to
+    // take playback down — log and drop instead. SupervisorJob already keeps sibling coroutines
+    // alive; this handler covers the escaped exception itself.
+    private val serviceExceptionHandler = CoroutineExceptionHandler { _, throwable ->
+        Log.e(TAG, "PlaybackService background work failed", throwable)
+    }
+    private val serviceScope = CoroutineScope(supervisorJob + Dispatchers.Default + serviceExceptionHandler)
+
+    private var equalizerBindJob: Job? = null
 
     private val playbackTracker = PlaybackTracker()
 
@@ -112,6 +128,13 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         player.removeListener(playerListener)
+        // Stop the session-binding collector BEFORE releasing the effect, and wait for it:
+        // cancelAndJoin lets an in-flight attach run to its next suspension point, so no new
+        // native effect can be created after the release below (an attach that slipped in
+        // afterward would leak an AudioEffect nobody ever releases). The wait is bounded — the
+        // collector body is one native effect creation, one DataStore read, and a few native
+        // writes.
+        runBlocking { equalizerBindJob?.cancelAndJoin() }
         // Release the equalizer effect while its audio session still exists (i.e. before the
         // player that owns that session is torn down).
         equalizerSessionManager.release()
@@ -131,7 +154,7 @@ class PlaybackService : MediaSessionService() {
     // collectLatest cancels any still-running attach/apply if the id changes again before it
     // finishes.
     private fun bindEqualizerToAudioSession() {
-        serviceScope.launch {
+        equalizerBindJob = serviceScope.launch {
             playbackStateHolder.audioSessionId.collectLatest { audioSessionId ->
                 equalizerSessionManager.attachAndApplyPersisted(audioSessionId)
             }
@@ -164,6 +187,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     companion object {
+        private const val TAG = "PlaybackService"
         private const val POSITION_POLL_INTERVAL_MS = 1_000L
     }
 }
