@@ -21,4 +21,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+
+    // Offline, on-device ID3v2 / Vorbis comment / MP4 atom tag read-write.
+    // No network stack: pulls in only okio (local I/O) at runtime — verified via
+    // `:feature:tageditor:dependencies`. See build-tooling-agent report.
+    implementation(libs.jaudiotagger)
 }
