@@ -83,10 +83,11 @@ import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import kotlinx.coroutines.flow.StateFlow
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "LongParameterList")
 @Composable
 fun NowPlayingRoute(
     onNavigateUp: () -> Unit,
+    onEqualizerClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope,
     viewModel: PlayerViewModel = hiltViewModel(),
@@ -122,6 +123,7 @@ fun NowPlayingRoute(
         repeatMode = repeatMode,
         isFavorite = isFavorite,
         onNavigateUp = onNavigateUp,
+        onEqualizerClick = onEqualizerClick,
         onTogglePlayPause = onTogglePlayPause,
         onPrevious = onPrevious,
         onNext = onNext,
@@ -161,7 +163,7 @@ fun NowPlayingRoute(
     }
 }
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun NowPlayingScreen(
     song: Song?,
@@ -172,6 +174,7 @@ fun NowPlayingScreen(
     repeatMode: RepeatMode,
     isFavorite: Boolean,
     onNavigateUp: () -> Unit,
+    onEqualizerClick: () -> Unit,
     onTogglePlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
@@ -188,7 +191,12 @@ fun NowPlayingScreen(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0),
-        topBar = { NowPlayingTopBar(onNavigateUp = onNavigateUp) },
+        topBar = {
+            NowPlayingTopBar(
+                onNavigateUp = onNavigateUp,
+                onEqualizerClick = onEqualizerClick,
+            )
+        },
     ) { innerPadding ->
         NowPlayingContent(
             song = song,
@@ -330,7 +338,11 @@ private fun NowPlayingTitleArtist(title: String, artist: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NowPlayingTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
+private fun NowPlayingTopBar(
+    onNavigateUp: () -> Unit,
+    onEqualizerClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     TopAppBar(
         title = {},
         navigationIcon = {
@@ -342,7 +354,7 @@ private fun NowPlayingTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modi
                 )
             }
         },
-        actions = { NowPlayingTopBarActions() },
+        actions = { NowPlayingTopBarActions(onEqualizerClick = onEqualizerClick) },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.background,
         ),
@@ -351,7 +363,7 @@ private fun NowPlayingTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modi
 }
 
 @Composable
-private fun NowPlayingTopBarActions() {
+private fun NowPlayingTopBarActions(onEqualizerClick: () -> Unit) {
     IconButton(onClick = {}) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.VolumeUp,
@@ -359,7 +371,7 @@ private fun NowPlayingTopBarActions() {
             tint = MaterialTheme.colorScheme.onSurface,
         )
     }
-    IconButton(onClick = {}) {
+    IconButton(onClick = onEqualizerClick) {
         Icon(
             imageVector = Icons.Default.Equalizer,
             contentDescription = "Equalizer",

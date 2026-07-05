@@ -11,6 +11,9 @@ data object Library : Route
 data object NowPlaying : Route
 
 @Serializable
+data object Equalizer : Route
+
+@Serializable
 data object Playlists : Route
 
 @Serializable

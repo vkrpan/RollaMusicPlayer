@@ -37,12 +37,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.LibraryRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
+import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
 import com.rolla.musicplayer.navigation.NowPlaying
 import com.rolla.musicplayer.navigation.PlaylistDetail
@@ -167,9 +169,21 @@ private fun AppNavGraph(
         composable<NowPlaying> {
             NowPlayingRoute(
                 onNavigateUp = { navController.navigateUp() },
+                onEqualizerClick = {
+                    navController.navigate(Equalizer) {
+                        launchSingleTop = true
+                    }
+                },
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = this,
             )
+        }
+        // Equalizer is a leaf pushed on top of whichever screen opened it (today: Now Playing;
+        // later: Settings too). Back = navigateUp() only — pops Equalizer and returns to the
+        // caller. No popUpTo here: that would hard-code "always return to X" and break the
+        // future Settings entry point. launchSingleTop above guards double-taps of the icon.
+        composable<Equalizer> {
+            EqualizerRoute(onNavigateUp = { navController.navigateUp() })
         }
         composable<Playlists> {
             PlaylistsRoute(
