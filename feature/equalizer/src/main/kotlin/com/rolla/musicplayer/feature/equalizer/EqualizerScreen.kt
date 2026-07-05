@@ -1,12 +1,26 @@
-@file:Suppress("FunctionNaming")
+// TooManyFunctions: this file's private composables are already split as small and single-purpose
+// as the screen's structure allows (top bar / content / card / row / column / slider / chip grid /
+// dialog, each a distinct visual unit); the file-level threshold (20) is a few functions below what
+// this One-UI-style screen's layout actually needs, most recently pushed over by adding the
+// isReducedMotion() motion-preference helper (see VerticalGainSlider's KDoc).
+@file:Suppress("FunctionNaming", "TooManyFunctions")
 
 package com.rolla.musicplayer.feature.equalizer
 
 import android.content.res.Configuration
+import android.provider.Settings
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -39,6 +53,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -79,6 +95,20 @@ private val BandColumnSpacing = 8.dp
 private val BandLabelSpacing = 4.dp
 private val SliderTrackHeight = 220.dp
 private const val SLIDER_ROTATION_DEGREES = 270f
+
+// Gain-slider motion specs (ui-style-guide.md §9: 200-300ms, spring for interactive elements).
+// Calm, non-bouncy settle -- a preset swap should read as the whole EQ curve confidently
+// resolving into its new shape, not bouncing past it; same spring family as
+// NowPlayingTransitionKey.artworkBoundsTransform and PlaylistDetailScreen's drag-lift specs.
+internal val GainValueSpring: FiniteAnimationSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMedium,
+)
+private const val DRAGGED_THUMB_SCALE = 1.3f
+private val ThumbScaleSpring: FiniteAnimationSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMedium,
+)
 
 private val ChipSpacing = 12.dp
 private val PresetChipMinHeight = 48.dp
@@ -275,6 +305,14 @@ private fun EqualizerSlidersCard(
         Column(modifier = Modifier.padding(CardPadding)) {
             EnabledToggleRow(enabled = enabled, onSetEnabled = onSetEnabled)
             Spacer(Modifier.height(CardSectionSpacing))
+            EqualizerResponseCurve(
+                gainsMillibel = gainsMillibel,
+                minGainMillibel = minGainMillibel,
+                maxGainMillibel = maxGainMillibel,
+                enabled = enabled,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(CardSectionSpacing))
             EqualizerBandsRow(
                 enabled = enabled,
                 gainsMillibel = gainsMillibel,
@@ -381,8 +419,18 @@ private fun EqualizerBandColumn(
  * unrotated [Slider] measures with the caller's height as its track length and the caller's width
  * as its thickness, then [graphicsLayer] rotates the result back into a vertical orientation
  * around its top-left corner.
+ *
+ * Motion (ui-style-guide.md §9): the slider never renders [gainMillibel] directly. Instead it
+ * renders [displayedValue], an [Animatable] driven from [gainMillibel] + live drag state --
+ * `snapTo` while the thumb is actively dragged (zero lag, tracks the finger 1:1), `animateTo` with
+ * [GainValueSpring] the rest of the time. That "rest of the time" case is what makes a preset chip
+ * selection -- which rewrites all nine bands' [gainMillibel] at once from the caller -- read as the
+ * whole EQ curve springing into its new shape instead of jumping. [onGainChange] still reports the
+ * slider's raw per-frame value upward unchanged; [EqualizerViewModel] debounces persistence, so
+ * per-frame calls here are expected, not a perf problem.
  */
 @Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VerticalGainSlider(
     gainMillibel: Short,
@@ -391,19 +439,59 @@ private fun VerticalGainSlider(
     onGainChange: (Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val reducedMotion = isReducedMotion()
+    val interactionSource = remember { MutableInteractionSource() }
+    val isDragged by interactionSource.collectIsDraggedAsState()
+
+    val displayedValue = remember { Animatable(gainMillibel.toFloat()) }
+    LaunchedEffect(gainMillibel, isDragged, reducedMotion) {
+        if (isDragged || reducedMotion) {
+            displayedValue.snapTo(gainMillibel.toFloat())
+        } else {
+            displayedValue.animateTo(gainMillibel.toFloat(), GainValueSpring)
+        }
+    }
+
+    // Thumb-scale micro-interaction while dragging. `thumbScale` is read only inside the
+    // graphicsLayer lambda passed to SliderDefaults.Thumb below (never destructured with `by`
+    // here), so this per-frame scale animation never invalidates/recomposes the slider itself --
+    // only the thumb's own draw layer repaints. Reduced motion disables the scale outright (stays
+    // at 1f) rather than snapping it instantly, per ui-style-guide.md §9.
+    val thumbScale = animateFloatAsState(
+        targetValue = if (isDragged && !reducedMotion) DRAGGED_THUMB_SCALE else 1f,
+        animationSpec = if (reducedMotion) snap() else ThumbScaleSpring,
+        label = "gainThumbScale",
+    )
+
+    val sliderColors = SliderDefaults.colors(
+        thumbColor = MaterialTheme.colorScheme.primary,
+        activeTrackColor = MaterialTheme.colorScheme.primary,
+        inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
+        disabledThumbColor = MaterialTheme.colorScheme.sliderInactiveTrack,
+        disabledActiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
+        disabledInactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
+    )
+
     Slider(
-        value = gainMillibel.toFloat(),
+        value = displayedValue.value,
         onValueChange = { onGainChange(it.roundToInt().toShort()) },
         valueRange = valueRange,
         enabled = enabled,
-        colors = SliderDefaults.colors(
-            thumbColor = MaterialTheme.colorScheme.primary,
-            activeTrackColor = MaterialTheme.colorScheme.primary,
-            inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-            disabledThumbColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-            disabledActiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-            disabledInactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-        ),
+        interactionSource = interactionSource,
+        colors = sliderColors,
+        thumb = {
+            // Rotation-invariant: scaleX == scaleY, so this reads correctly under the 270-degree
+            // rotation applied to the whole slider below without any offset compensation.
+            SliderDefaults.Thumb(
+                interactionSource = interactionSource,
+                colors = sliderColors,
+                enabled = enabled,
+                modifier = Modifier.graphicsLayer {
+                    scaleX = thumbScale.value
+                    scaleY = thumbScale.value
+                },
+            )
+        },
         modifier = modifier
             .graphicsLayer {
                 rotationZ = SLIDER_ROTATION_DEGREES
@@ -423,6 +511,24 @@ private fun VerticalGainSlider(
                 }
             },
     )
+}
+
+// Third private copy of this exact helper in the codebase (see PlaylistDetailScreen.kt and
+// feature:player's NowPlayingTransitionKey.kt) -- a rule-of-three candidate for extraction into a
+// shared :core:ui (or :core:designsystem) motion util, left as-is this pass per scope.
+// internal (not private) so EqualizerResponseCurve.kt -- which mirrors this same
+// gains-driven-motion behavior for the decorative response curve -- can reuse it instead of
+// duplicating the Settings.Global lookup.
+@Composable
+internal fun isReducedMotion(): Boolean {
+    val context = LocalContext.current
+    return remember {
+        Settings.Global.getFloat(
+            context.contentResolver,
+            Settings.Global.ANIMATOR_DURATION_SCALE,
+            1f,
+        ) == 0f
+    }
 }
 
 private fun gainLabel(gainMillibel: Short): String {
