@@ -198,8 +198,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-**Status**: Phase 2 Complete — Core Playback Implemented
-**Last Updated**: 2026-07-01
+**Status**: Core Playback, Playlists, and Equalizer shipped (Phases 2 and 4 complete; Phase 5 equalizer half complete)
+**Last Updated**: 2026-07-05
 
 ### What's shipped (on `main`)
 
@@ -218,13 +218,14 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 | `:feature:player` — Now Playing + Mini-player | `286867f`, `066306b` | Full Now Playing screen, persistent mini-player pill, shared-element artwork transition (spring physics, reduced-motion aware), `PlayerViewModel`, `MiniPlayerViewModel` |
 | Navigation | `c0c507d` | Type-safe `@Serializable` routes, `SharedTransitionLayout` wiring |
 | Audit fixes | `066306b` | artworkUri pipeline fixed, `ProcessLifecycleOwner` release, recomposition scope (position ticks scoped to seekbar only), stable lambdas, `PlayPauseButton` accessibility, `hasSong` StateFlow |
-| Unit tests | `066306b` | 44 tests: `PlayerViewModelTest` (29) + `MiniPlayerViewModelTest` (15), Turbine + MockK |
+| `:feature:playlists` — playlists | `c532e58`…`55c4b01` | Smart playlists (Recently played / Favourites / Most played), user playlists, playlist detail with key-based drag-and-drop reorder (reduced-motion aware), add-to-playlist sheet, play-count tracking + favourite toggle, transactional DAO position integrity (append/remove/compact), Room v2 migration |
+| Equalizer — `:core:media` engine + `:feature:equalizer` UI | `524f6e1`…`58b22e9` | `EqualizerController` (audiofx wrapper: nearest-band mapping for the 9 target frequencies, bandLevelRange clamping, thread-safe + exception-contained), service lifecycle binding (attach/re-apply persisted state on session-id change, guaranteed release on destroy), active state in DataStore + named presets in Room (DB v3, tested migration), 9 vertical spring sliders + preset chip grid + gains-driven response curve (real `Visualizer` rejected — requires RECORD_AUDIO, conflicts with privacy positioning), `Equalizer` route wired from Now Playing |
+| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), and equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter) |
 
 ### What remains
 
 - **Phase 3**: `:feature:search`, album/artist detail screens, artwork caching polish
-- **Phase 4**: `:feature:playlists` — create/edit/reorder, drag-and-drop
-- **Phase 5**: `:feature:equalizer` (8-band, presets), `:feature:tageditor` (ID3 read/write, batch)
+- **Phase 5**: `:feature:tageditor` (ID3 read/write, batch) — equalizer half is done
 - **Phase 6**: `:feature:widget` (Glance home screen widget), UI/UX polish
 - **Phase 7**: Comprehensive testing, baseline profile, release prep
 
@@ -233,7 +234,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 1. Implement album artwork caching in `:core:data`
 2. Build `:feature:search` — local search across songs/albums/artists
 3. Add album detail and artist detail screens to `:feature:library`
-4. Implement `:feature:playlists` with drag-and-drop reordering
+4. Implement `:feature:tageditor` — ID3 read/write with scoped-storage consent
+5. When `:feature:settings` lands, add its Equalizer entry point (nav is ready: `Equalizer` route pops back to any caller)
 
 ## Notes
 
