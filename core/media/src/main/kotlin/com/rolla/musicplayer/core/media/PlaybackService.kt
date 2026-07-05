@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.rolla.musicplayer.core.data.repository.SongRepository
+import com.rolla.musicplayer.core.media.equalizer.EqualizerSessionManager
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
@@ -17,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -30,6 +32,9 @@ class PlaybackService : MediaSessionService() {
 
     @Inject
     lateinit var songRepository: SongRepository
+
+    @Inject
+    lateinit var equalizerSessionManager: EqualizerSessionManager
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
@@ -100,16 +105,37 @@ class PlaybackService : MediaSessionService() {
         player.addListener(playerListener)
         mediaSession = MediaSession.Builder(this, player).build()
         startPositionTicker()
+        bindEqualizerToAudioSession()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
 
     override fun onDestroy() {
         player.removeListener(playerListener)
+        // Release the equalizer effect while its audio session still exists (i.e. before the
+        // player that owns that session is torn down).
+        equalizerSessionManager.release()
         mediaSession.release()
         player.release()
         supervisorJob.cancel()
         super.onDestroy()
+    }
+
+    // serviceScope runs on Dispatchers.Default, so the DataStore read (EqualizerRepository) and
+    // the effect attach/apply (EqualizerController) never execute on the player's callback
+    // thread (main) — onAudioSessionIdChanged above only writes to the StateFlow, it never calls
+    // into the equalizer directly. StateFlow semantics do the rest: collectLatest immediately
+    // receives the *current* id (covering the value pushed above before this collector starts),
+    // an ordinary track change that keeps the same session id is deduplicated by the StateFlow
+    // and never re-triggers attach (the previously attached effect just survives it), and
+    // collectLatest cancels any still-running attach/apply if the id changes again before it
+    // finishes.
+    private fun bindEqualizerToAudioSession() {
+        serviceScope.launch {
+            playbackStateHolder.audioSessionId.collectLatest { audioSessionId ->
+                equalizerSessionManager.attachAndApplyPersisted(audioSessionId)
+            }
+        }
     }
 
     private fun buildPlayer(): ExoPlayer =
