@@ -26,4 +26,7 @@ dependencies {
     // No network stack: pulls in only okio (local I/O) at runtime — verified via
     // `:feature:tageditor:dependencies`. See build-tooling-agent report.
     implementation(libs.jaudiotagger)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
