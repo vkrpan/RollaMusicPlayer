@@ -44,7 +44,9 @@ import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
+import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
+import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
 import com.rolla.musicplayer.navigation.NowPlaying
@@ -179,6 +181,18 @@ private fun AppNavGraph(
                         }
                     }
                 },
+                onEditTagsForSelection = { songs ->
+                    // Same defensive toLongOrNull() reasoning as onEditTagsClick above, applied
+                    // per-song via mapNotNull; a song whose id doesn't parse is dropped from the
+                    // batch rather than crashing. If every id in the selection fails to parse,
+                    // don't navigate at all -- an empty-list BatchTagEditor has nothing to edit.
+                    val songIds = songs.mapNotNull { it.id.toLongOrNull() }
+                    if (songIds.isNotEmpty()) {
+                        navController.navigate(BatchTagEditor(songIds = songIds)) {
+                            launchSingleTop = true
+                        }
+                    }
+                },
             )
         }
         composable<NowPlaying> {
@@ -219,6 +233,17 @@ private fun AppNavGraph(
         // destination. launchSingleTop above guards double-taps of the "Edit tags" option.
         composable<TagEditor> {
             TagEditorRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // BatchTagEditor is a leaf editor pushed on top of Library (its only entry point today,
+        // reached via the multi-select "Edit tags" action). Same back-behavior shape as TagEditor
+        // above: Cancel / back arrow / system back / a fully-succeeded save all resolve through
+        // this one onNavigateUp() -- navigateUp() only, no popUpTo -- so it always pops back to
+        // Library rather than a hard-coded destination. LibraryScreen already clears the
+        // multi-select set itself before this navigate() call fires, so Library is never
+        // re-entered still in selection mode. launchSingleTop above guards double-taps of the
+        // selection toolbar's "Edit tags" action.
+        composable<BatchTagEditor> {
+            BatchTagEditorRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
 }

@@ -24,3 +24,6 @@ data class SmartPlaylist(val kind: String) : Route
 
 @Serializable
 data class TagEditor(val songId: Long) : Route
+
+@Serializable
+data class BatchTagEditor(val songIds: List<Long>) : Route

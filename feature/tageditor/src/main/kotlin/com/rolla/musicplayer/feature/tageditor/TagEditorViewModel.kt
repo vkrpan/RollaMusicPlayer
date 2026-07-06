@@ -22,10 +22,6 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
-/** One editable field of [SongTags], used by [TagEditorViewModel.onFieldChanged]. */
-enum class TagField { TITLE, ARTIST, ALBUM, ALBUM_ARTIST, GENRE, YEAR, TRACK_NUMBER, COMPOSER }
-
-private const val MAX_YEAR_DIGITS = 4
 private const val DENIED_MESSAGE = "Changes weren't saved — permission declined."
 private const val GENERIC_FAILURE_MESSAGE = "Couldn't save changes. Please try again."
 private const val SONG_NOT_FOUND_MESSAGE = "Song not found."
@@ -304,18 +300,6 @@ class TagEditorViewModel @Inject constructor(
             null
         }
     }
-}
-
-private fun validateYear(year: String): String? = when {
-    year.isBlank() -> null
-    year.length > MAX_YEAR_DIGITS || !year.all { it.isDigit() } -> "Year must be blank or up to 4 digits."
-    else -> null
-}
-
-private fun validateTrackNumber(trackNumber: String): String? = when {
-    trackNumber.isBlank() -> null
-    !trackNumber.all { it.isDigit() } -> "Track number must be blank or digits only."
-    else -> null
 }
 
 private fun SongTags.withField(field: TagField, value: String): SongTags = when (field) {

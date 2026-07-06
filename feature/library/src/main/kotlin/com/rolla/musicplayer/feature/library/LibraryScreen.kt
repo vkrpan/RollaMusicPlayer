@@ -2,6 +2,7 @@
 
 package com.rolla.musicplayer.feature.library
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
@@ -34,6 +36,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -41,6 +44,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,6 +71,18 @@ private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
 private val ControlButtonSize = 44.dp
 private val ControlIconSize = 22.dp
+private val MinTouchTarget = 48.dp
+
+/**
+ * Saves the multi-select song-id set as a plain [List] -- a bare [Set] is not directly
+ * Bundle-saveable. `listSaver` always returns `Saver<Original, Any>` (its list-element type
+ * parameter is erased from the public return type), so this property is typed `Saver<Set<String>,
+ * Any>` rather than `Saver<Set<String>, List<String>>`.
+ */
+private val SelectedSongIdsSaver: Saver<Set<String>, Any> = listSaver(
+    save = { it.toList() },
+    restore = { it.toSet() },
+)
 
 @Composable
 fun LibraryRoute(
@@ -73,6 +91,9 @@ fun LibraryRoute(
     // defaulted (rather than required) means :app keeps compiling against the existing,
     // argument-less `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
     onEditTagsClick: (Song) -> Unit = {},
+    // Default no-op: wired by navigation-agent once the BatchTagEditor route lands -- same
+    // rationale as onEditTagsClick above.
+    onEditTagsForSelection: (List<Song>) -> Unit = {},
 ) {
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -88,6 +109,7 @@ fun LibraryRoute(
             onAddSongToPlaylist = onAddSongToPlaylist,
             onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
             onEditTagsClick = onEditTagsClick,
+            onEditTagsForSelection = onEditTagsForSelection,
         )
     }
 }
@@ -106,21 +128,57 @@ fun LibraryScreen(
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
     // Default no-op: wired by navigation-agent once the TagEditor route lands.
     onEditTagsClick: (Song) -> Unit = {},
+    // Default no-op: wired by navigation-agent once the BatchTagEditor route lands.
+    onEditTagsForSelection: (List<Song>) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var optionsSheetSong by remember { mutableStateOf<Song?>(null) }
     var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
+    // Long-press-to-select: screen-local UI state, not business logic, so it lives here rather
+    // than in LibraryViewModel (see ui-builder scope). Selection mode is *derived* from this set
+    // being non-empty rather than tracked as a separate boolean, so clearing the last selected
+    // song automatically exits selection mode with no extra bookkeeping.
+    var selectedSongIds by rememberSaveable(stateSaver = SelectedSongIdsSaver) {
+        mutableStateOf(emptySet<String>())
+    }
+    val selectionModeActive = selectedSongIds.isNotEmpty()
+    val onToggleSelection: (Song) -> Unit = { song ->
+        selectedSongIds = if (song.id in selectedSongIds) {
+            selectedSongIds - song.id
+        } else {
+            selectedSongIds + song.id
+        }
+    }
+
+    BackHandler(enabled = selectionModeActive) { selectedSongIds = emptySet() }
+
     Scaffold(
-        topBar = { LibraryTopBar() },
+        topBar = {
+            if (selectionModeActive) {
+                LibrarySelectionTopBar(
+                    selectedCount = selectedSongIds.size,
+                    onClose = { selectedSongIds = emptySet() },
+                    onEditTagsClick = {
+                        onEditTagsForSelection(songs.filter { it.id in selectedSongIds })
+                        selectedSongIds = emptySet()
+                    },
+                )
+            } else {
+                LibraryTopBar()
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) { innerPadding ->
         LibraryContent(
             songs = songs,
             scanState = scanState,
+            selectionModeActive = selectionModeActive,
+            selectedSongIds = selectedSongIds,
             onSongClick = onSongClick,
+            onToggleSelection = onToggleSelection,
             onMoreClick = { song -> optionsSheetSong = song },
             modifier = Modifier.padding(innerPadding),
         )
@@ -197,11 +255,64 @@ private fun LibraryTopBar(modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * Replaces [LibraryTopBar] for as long as the Songs list has an active multi-select (see
+ * LibraryScreen's `selectionModeActive`): a close action clears the selection outright, while
+ * "Edit tags" hands the currently-selected songs off to the batch tag editor and then also clears
+ * the selection (see LibraryScreen's `onEditTagsClick` lambda passed to this composable).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LibrarySelectionTopBar(
+    selectedCount: Int,
+    onClose: () -> Unit,
+    onEditTagsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    TopAppBar(
+        title = {
+            Text(
+                text = "$selectedCount selected",
+                style = MaterialTheme.typography.screenTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Exit selection mode",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+        },
+        actions = { EditTagsAction(onClick = onEditTagsClick) },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
+        modifier = modifier,
+    )
+}
+
+/** The selection top bar's one action: hands the current selection off to the batch tag editor. */
+@Composable
+private fun EditTagsAction(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    TextButton(onClick = onClick, modifier = modifier.heightIn(min = MinTouchTarget)) {
+        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "Edit tags", color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+@Suppress("LongParameterList")
 @Composable
 private fun LibraryContent(
     songs: List<Song>,
     scanState: ScanState,
+    selectionModeActive: Boolean,
+    selectedSongIds: Set<String>,
     onSongClick: (Song) -> Unit,
+    onToggleSelection: (Song) -> Unit,
     onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -217,7 +328,14 @@ private fun LibraryContent(
             when {
                 scanState is ScanState.Scanning -> ScanningContent()
                 songs.isEmpty() -> EmptySongsContent()
-                else -> SongListContent(songs = songs, onSongClick = onSongClick, onMoreClick = onMoreClick)
+                else -> SongListContent(
+                    songs = songs,
+                    selectionModeActive = selectionModeActive,
+                    selectedSongIds = selectedSongIds,
+                    onSongClick = onSongClick,
+                    onToggleSelection = onToggleSelection,
+                    onMoreClick = onMoreClick,
+                )
             }
         }
     }
@@ -322,15 +440,26 @@ private fun EmptySongsContent(modifier: Modifier = Modifier) {
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun SongListContent(
     songs: List<Song>,
+    selectionModeActive: Boolean,
+    selectedSongIds: Set<String>,
     onSongClick: (Song) -> Unit,
+    onToggleSelection: (Song) -> Unit,
     onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier) {
         items(items = songs, key = { song -> song.id }) { song ->
-            SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
+            SongListItem(
+                song = song,
+                onClick = { if (selectionModeActive) onToggleSelection(song) else onSongClick(song) },
+                onMoreClick = { onMoreClick(song) },
+                selected = song.id in selectedSongIds,
+                selectionModeActive = selectionModeActive,
+                onLongClick = { onToggleSelection(song) },
+            )
         }
     }
 }
