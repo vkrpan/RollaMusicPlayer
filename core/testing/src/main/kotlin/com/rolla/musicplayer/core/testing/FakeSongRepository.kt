@@ -5,6 +5,7 @@ import com.rolla.musicplayer.core.model.Song
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * In-memory fake implementation of [SongRepository].
@@ -23,6 +24,9 @@ class FakeSongRepository : SongRepository {
     }
 
     override fun observeSongs(): Flow<List<Song>> = songsFlow.asStateFlow()
+
+    override fun observeSong(songId: String): Flow<Song?> =
+        songsFlow.map { songs -> songs.firstOrNull { it.id == songId } }
 
     override suspend fun toggleFavorite(songId: String) {
         // Song has no isFavorite field of its own (see model-vocabulary / this phase's scope) —

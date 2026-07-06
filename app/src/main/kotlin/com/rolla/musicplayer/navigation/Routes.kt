@@ -21,3 +21,6 @@ data class PlaylistDetail(val playlistId: Long) : Route
 
 @Serializable
 data class SmartPlaylist(val kind: String) : Route
+
+@Serializable
+data class TagEditor(val songId: Long) : Route

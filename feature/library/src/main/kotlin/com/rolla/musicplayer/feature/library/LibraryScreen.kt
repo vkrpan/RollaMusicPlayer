@@ -2,19 +2,23 @@
 
 package com.rolla.musicplayer.feature.library
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
@@ -26,11 +30,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,10 +47,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
+import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.permissions.MediaPermissionGate
@@ -61,6 +69,10 @@ private val ControlIconSize = 22.dp
 @Composable
 fun LibraryRoute(
     viewModel: LibraryViewModel = hiltViewModel(),
+    // Default no-op: wired by navigation-agent once the TagEditor route lands. Keeping this
+    // defaulted (rather than required) means :app keeps compiling against the existing,
+    // argument-less `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
+    onEditTagsClick: (Song) -> Unit = {},
 ) {
     val songs by viewModel.songs.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -75,6 +87,7 @@ fun LibraryRoute(
             onSongClick = onSongClick,
             onAddSongToPlaylist = onAddSongToPlaylist,
             onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
+            onEditTagsClick = onEditTagsClick,
         )
     }
 }
@@ -91,8 +104,11 @@ fun LibraryScreen(
     onSongClick: (Song) -> Unit,
     onAddSongToPlaylist: (String, Long) -> Unit,
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
+    // Default no-op: wired by navigation-agent once the TagEditor route lands.
+    onEditTagsClick: (Song) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    var optionsSheetSong by remember { mutableStateOf<Song?>(null) }
     var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
     var showCreatePlaylistDialog by remember { mutableStateOf(false) }
 
@@ -105,8 +121,24 @@ fun LibraryScreen(
             songs = songs,
             scanState = scanState,
             onSongClick = onSongClick,
-            onMoreClick = { song -> addToPlaylistSong = song },
+            onMoreClick = { song -> optionsSheetSong = song },
             modifier = Modifier.padding(innerPadding),
+        )
+    }
+
+    val songPendingOptions = optionsSheetSong
+    if (songPendingOptions != null) {
+        SongOptionsSheet(
+            song = songPendingOptions,
+            onAddToPlaylistClick = {
+                optionsSheetSong = null
+                addToPlaylistSong = songPendingOptions
+            },
+            onEditTagsClick = {
+                optionsSheetSong = null
+                onEditTagsClick(songPendingOptions)
+            },
+            onDismissRequest = { optionsSheetSong = null },
         )
     }
 
@@ -300,5 +332,70 @@ private fun SongListContent(
         items(items = songs, key = { song -> song.id }) { song ->
             SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
         }
+    }
+}
+
+/**
+ * Per-song overflow menu, shown from [SongListItem]'s trailing "more options" button. Replaces
+ * a plain jump-straight-into-add-to-playlist behavior with a small options list so a second
+ * destructive-free action (edit tags) has room to live alongside it -- same
+ * [ModalBottomSheet]-over-[LazyColumn] shape as the shared `AddToPlaylistSheet` in `:core:ui`,
+ * kept private/feature-local here since its two rows are Library-specific, not reused elsewhere.
+ */
+@Suppress("LongMethod")
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SongOptionsSheet(
+    song: Song,
+    onAddToPlaylistClick: () -> Unit,
+    onEditTagsClick: () -> Unit,
+    onDismissRequest: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val sheetState = rememberModalBottomSheetState()
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        modifier = modifier,
+    ) {
+        Column {
+            Text(
+                text = song.title,
+                style = MaterialTheme.typography.songTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            SongOptionRow(
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                label = "Add to playlist",
+                onClick = onAddToPlaylistClick,
+            )
+            SongOptionRow(
+                icon = Icons.Default.Edit,
+                label = "Edit tags",
+                onClick = onEditTagsClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SongOptionRow(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }

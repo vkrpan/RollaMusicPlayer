@@ -44,12 +44,14 @@ import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
+import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
 import com.rolla.musicplayer.navigation.NowPlaying
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Playlists
 import com.rolla.musicplayer.navigation.SmartPlaylist
+import com.rolla.musicplayer.navigation.TagEditor
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -164,7 +166,20 @@ private fun AppNavGraph(
         modifier = modifier,
     ) {
         composable<Library> {
-            LibraryRoute()
+            LibraryRoute(
+                onEditTagsClick = { song ->
+                    // Song.id is the MediaStore row id, a numeric String by construction, so
+                    // toLongOrNull() should never actually return null here -- this is defensive
+                    // per navigation-conventions.md (never crash on a malformed id), not a path
+                    // expected to trigger. A null id silently no-ops rather than crashing.
+                    val songId = song.id.toLongOrNull()
+                    if (songId != null) {
+                        navController.navigate(TagEditor(songId = songId)) {
+                            launchSingleTop = true
+                        }
+                    }
+                },
+            )
         }
         composable<NowPlaying> {
             NowPlayingRoute(
@@ -196,6 +211,14 @@ private fun AppNavGraph(
         }
         composable<SmartPlaylist> {
             PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Library;
+        // later: possibly Now Playing or Search). Back arrow / Cancel / system back and a
+        // successful save all resolve through the same onNavigateUp() -- navigateUp() only, no
+        // popUpTo here, so it always pops back to its actual caller rather than a hard-coded
+        // destination. launchSingleTop above guards double-taps of the "Edit tags" option.
+        composable<TagEditor> {
+            TagEditorRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
 }

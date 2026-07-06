@@ -22,6 +22,11 @@ class SongRepositoryImpl @Inject constructor(
             .map { entities -> entities.map { it.toDomain() } }
             .distinctUntilChanged()
 
+    override fun observeSong(songId: String): Flow<Song?> =
+        songDao.observeSong(songId)
+            .map { entity -> entity?.toDomain() }
+            .distinctUntilChanged()
+
     override suspend fun toggleFavorite(songId: String) = withContext(Dispatchers.IO) {
         songDao.toggleFavorite(songId)
     }

@@ -6,6 +6,9 @@ import kotlinx.coroutines.flow.Flow
 interface SongRepository {
     fun observeSongs(): Flow<List<Song>>
 
+    /** The song with [songId], or `null` when no such song exists (e.g. removed by a re-scan). */
+    fun observeSong(songId: String): Flow<Song?>
+
     /** Flips the favorite flag on the given song. */
     suspend fun toggleFavorite(songId: String)
 

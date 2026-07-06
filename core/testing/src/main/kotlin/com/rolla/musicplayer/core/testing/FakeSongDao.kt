@@ -26,6 +26,9 @@ class FakeSongDao : SongDao {
 
     override fun observeAllSongs(): Flow<List<SongEntity>> = songsFlow.asStateFlow()
 
+    override fun observeSong(songId: String): Flow<SongEntity?> =
+        songsFlow.map { songs -> songs.firstOrNull { it.id == songId } }
+
     override suspend fun upsertSongs(songs: List<SongEntity>) {
         songsFlow.update { current ->
             val updated = current.toMutableList()

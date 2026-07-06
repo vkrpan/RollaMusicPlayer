@@ -12,6 +12,9 @@ interface SongDao {
     @Query("SELECT * FROM songs ORDER BY title ASC")
     fun observeAllSongs(): Flow<List<SongEntity>>
 
+    @Query("SELECT * FROM songs WHERE id = :songId")
+    fun observeSong(songId: String): Flow<SongEntity?>
+
     @Upsert
     suspend fun upsertSongs(songs: List<SongEntity>)
 
