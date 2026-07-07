@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.rolla.musicplayer.core.database.MusicDatabase
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
+import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.dao.SongDao
 import com.rolla.musicplayer.core.database.migration.MIGRATION_1_2
 import com.rolla.musicplayer.core.database.migration.MIGRATION_2_3
@@ -34,4 +35,7 @@ object DatabaseModule {
 
     @Provides
     fun provideEqualizerPresetDao(database: MusicDatabase): EqualizerPresetDao = database.equalizerPresetDao()
+
+    @Provides
+    fun provideSearchDao(database: MusicDatabase): SearchDao = database.searchDao()
 }

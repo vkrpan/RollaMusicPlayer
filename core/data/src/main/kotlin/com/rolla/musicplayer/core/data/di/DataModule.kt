@@ -2,6 +2,8 @@ package com.rolla.musicplayer.core.data.di
 
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.PlaylistRepositoryImpl
+import com.rolla.musicplayer.core.data.repository.SearchRepository
+import com.rolla.musicplayer.core.data.repository.SearchRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.data.repository.SongRepositoryImpl
 import dagger.Binds
@@ -21,4 +23,8 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSearchRepository(impl: SearchRepositoryImpl): SearchRepository
 }

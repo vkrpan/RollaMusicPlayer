@@ -6,6 +6,7 @@ import androidx.room.TypeConverters
 import com.rolla.musicplayer.core.database.converter.ShortListConverter
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
+import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.dao.SongDao
 import com.rolla.musicplayer.core.database.entity.EqualizerPresetEntity
 import com.rolla.musicplayer.core.database.entity.PlaylistEntity
@@ -30,6 +31,10 @@ abstract class MusicDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
 
     abstract fun equalizerPresetDao(): EqualizerPresetDao
+
+    // A new DAO getter over the existing `songs` table — not a schema change, so this does NOT
+    // require a version bump or migration (see SearchDao's KDoc for the full rationale).
+    abstract fun searchDao(): SearchDao
 
     companion object {
         const val DATABASE_NAME = "music_database"
