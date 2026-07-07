@@ -1,2 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required ONLY for the legacy direct-write tag-save path on API 24-28, where no
+         scoped-storage consent API exists (MediaWriteRequester requests it at the point of use).
+         maxSdkVersion=28 guarantees the app never even holds it on API 29+, where
+         MediaStore.createWriteRequest / RecoverableSecurityException are the write gates. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+</manifest>

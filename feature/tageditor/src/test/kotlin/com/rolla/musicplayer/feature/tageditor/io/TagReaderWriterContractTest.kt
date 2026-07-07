@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
 import com.rolla.musicplayer.feature.tageditor.SongTags
+import com.rolla.musicplayer.feature.tageditor.TagField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.jaudiotagger.audio.AudioFileIO
@@ -93,6 +94,20 @@ abstract class TagReaderWriterContractTest {
         val readBack = reader.read(file)
 
         assertEquals(partiallyCleared, readBack)
+    }
+
+    @Test
+    fun writeFields_fieldOmittedFromMap_leavesItUntouchedRatherThanClearingIt() = runTest {
+        // Batch-editor style partial write: only ARTIST is "applied" -- every other field is
+        // entirely absent from the map (not merely blank), which must leave it exactly as it
+        // was, distinct from write()'s "blank means clear" contract exercised above.
+        val file = newFixtureFile()
+        writer.write(file, ALL_FIELDS)
+
+        writer.writeFields(file, mapOf(TagField.ARTIST to "Batch Artist"))
+        val readBack = reader.read(file)
+
+        assertEquals(ALL_FIELDS.copy(artist = "Batch Artist"), readBack)
     }
 
     @Test

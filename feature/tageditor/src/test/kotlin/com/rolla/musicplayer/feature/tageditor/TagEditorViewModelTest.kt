@@ -444,6 +444,63 @@ class TagEditorViewModelTest {
         coVerify(exactly = 0) { songFileResolver.persistEditedCopy(any(), any()) }
     }
 
+    @Test
+    fun onConsentDenied_duringApi29Recovery_doesNotRetryPersistAndStaysOpenWithMessage() = runTest {
+        val viewModel = loadedViewModel()
+        viewModel.sdkIntProvider = { API_29 }
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        viewModel.onSaveClick()
+
+        val recoverableException = mockk<RecoverableSecurityException>()
+        coEvery { tagWriter.write(editableCopy, any()) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song, editableCopy) } throws recoverableException
+
+        viewModel.onConsentGranted()
+        advanceUntilIdle()
+        assertEquals(recoverableException, viewModel.uiState.value.recoveryRequest)
+
+        // Declining the recovery prompt must not retry the persist that just failed, and must not
+        // be confused with a fresh initial-consent decline (there is no consentRequest here).
+        viewModel.onConsentDenied()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
+        coVerify(exactly = 0) { tagSaveFinalizer.onSongsSaved(any()) }
+        val state = viewModel.uiState.value
+        assertNull(state.recoveryRequest)
+        assertEquals(false, state.isSaving)
+        assertEquals("Changes weren't saved — permission declined.", state.message)
+        assertEquals(false, state.isClosed)
+        assertEquals(false, state.isSaved)
+    }
+
+    // ── save: finalizer ordering ──────────────────────────────────────────
+
+    @Test
+    fun onConsentGranted_finalizerRunsBeforeIsSavedAndIsClosedFlip() = runTest {
+        val viewModel = loadedViewModel()
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        viewModel.onSaveClick()
+
+        coEvery { tagWriter.write(editableCopy, any()) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song, editableCopy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(editableCopy) } just Runs
+        var isSavedDuringFinalize: Boolean? = null
+        var isClosedDuringFinalize: Boolean? = null
+        coEvery { tagSaveFinalizer.onSongsSaved(listOf(song)) } coAnswers {
+            isSavedDuringFinalize = viewModel.uiState.value.isSaved
+            isClosedDuringFinalize = viewModel.uiState.value.isClosed
+        }
+
+        viewModel.onConsentGranted()
+        advanceUntilIdle()
+
+        assertEquals(false, isSavedDuringFinalize)
+        assertEquals(false, isClosedDuringFinalize)
+        assertTrue(viewModel.uiState.value.isSaved)
+        assertTrue(viewModel.uiState.value.isClosed)
+    }
+
     // ── save: generic IO failure ─────────────────────────────────────────
 
     @Test

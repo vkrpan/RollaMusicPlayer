@@ -306,6 +306,51 @@ class BatchTagEditorViewModelTest {
         coVerify(exactly = 0) { songFileResolver.createEditableCopy(any()) }
     }
 
+    @Test
+    fun onConsentGranted_multipleFieldsApplied_onlyAppliedFieldsWritten_unappliedTypedValueExcluded() = runTest {
+        fakeSongRepository.emit(listOf(song1))
+        val copy = editableCopyFor(song1)
+        val expectedFields = mapOf(TagField.TITLE to "New Title", TagField.GENRE to "Jazz")
+        coEvery { songFileResolver.createEditableCopy(song1) } returns copy
+        coEvery { tagWriter.writeFields(copy, expectedFields) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song1, copy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(copy) } just Runs
+
+        val viewModel = newViewModel(songIds = listOf(1L))
+        viewModel.onFieldValueChanged(TagField.TITLE, "New Title")
+        viewModel.onFieldApplyToggled(TagField.TITLE, true)
+        viewModel.onFieldValueChanged(TagField.GENRE, "Jazz")
+        viewModel.onFieldApplyToggled(TagField.GENRE, true)
+        // Typed but never applied -- must be entirely absent from the write map, not written blank.
+        viewModel.onFieldValueChanged(TagField.ARTIST, "Should Not Be Written")
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        grantConsent(viewModel)
+
+        coVerify(exactly = 1) { tagWriter.writeFields(copy, expectedFields) }
+        assertTrue(viewModel.uiState.value.isClosed)
+    }
+
+    @Test
+    fun onConsentGranted_finalizerRunsBeforeIsClosedFlipsOnFullSuccess() = runTest {
+        val songs = listOf(song1, song2, song3)
+        fakeSongRepository.emit(songs)
+        val fields = mapOf(TagField.TITLE to "New Title")
+        stubSuccessfulBatch(songs, fields)
+        lateinit var viewModel: BatchTagEditorViewModel
+        var isClosedDuringFinalize: Boolean? = null
+        coEvery { tagSaveFinalizer.onSongsSaved(songs) } coAnswers {
+            isClosedDuringFinalize = viewModel.uiState.value.isClosed
+        }
+
+        viewModel = newViewModel()
+        applyTitleAndSave(viewModel)
+        grantConsent(viewModel)
+
+        assertEquals(false, isClosedDuringFinalize)
+        assertTrue(viewModel.uiState.value.isClosed)
+    }
+
     // -- save: per-file failure continues --------------------------------------
 
     @Test

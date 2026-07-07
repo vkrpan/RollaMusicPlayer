@@ -4,6 +4,7 @@ package com.rolla.musicplayer.feature.tageditor
 
 import android.content.res.Configuration
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -127,12 +128,21 @@ fun BatchTagEditorRoute(
         }
     }
 
+    // Leaving mid-batch would cancel viewModelScope between per-song writes: files already
+    // rewritten on disk would never reach TagSaveFinalizer, silently desyncing the library. So
+    // while isSaving, system back is swallowed and Cancel/top-bar-back no-op; the isClosed effect
+    // above remains the only exit.
+    BackHandler(enabled = uiState.isSaving) {}
+    val navigateUpUnlessSaving = remember(viewModel, onNavigateUp) {
+        { if (!viewModel.uiState.value.isSaving) onNavigateUp() }
+    }
+
     BatchTagEditorScreen(
         uiState = uiState,
         onFieldValueChanged = remember(viewModel) { viewModel::onFieldValueChanged },
         onFieldApplyToggled = remember(viewModel) { viewModel::onFieldApplyToggled },
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
-        onNavigateUp = onNavigateUp,
+        onNavigateUp = navigateUpUnlessSaving,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
         modifier = modifier,
     )
@@ -424,6 +434,7 @@ private fun BatchSaveProgress(progress: BatchProgress, modifier: Modifier = Modi
     }
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun SaveCancelRow(
     canSave: Boolean,
@@ -435,6 +446,7 @@ private fun SaveCancelRow(
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(ButtonSpacing)) {
         OutlinedButton(
             onClick = onCancelClick,
+            enabled = !isSaving,
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = MinTouchTarget),

@@ -4,6 +4,7 @@ package com.rolla.musicplayer.feature.tageditor
 
 import android.content.res.Configuration
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -137,6 +138,15 @@ fun TagEditorRoute(
         }
     }
 
+    // Leaving mid-save would cancel viewModelScope and skip TagSaveFinalizer for a file whose
+    // bytes may already be rewritten on disk -- the library would silently go stale. So while
+    // isSaving, system back is swallowed and Cancel/top-bar-back no-op; the isClosed effect above
+    // remains the only exit.
+    BackHandler(enabled = uiState.isSaving) {}
+    val navigateUpUnlessSaving = remember(viewModel, onNavigateUp) {
+        { if (!viewModel.uiState.value.isSaving) onNavigateUp() }
+    }
+
     TagEditorScreen(
         uiState = uiState,
         onFieldChanged = remember(viewModel) { viewModel::onFieldChanged },
@@ -148,7 +158,7 @@ fun TagEditorRoute(
             }
         },
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
-        onNavigateUp = onNavigateUp,
+        onNavigateUp = navigateUpUnlessSaving,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
         modifier = modifier,
     )
@@ -470,6 +480,7 @@ private fun TagTextField(
     )
 }
 
+@Suppress("LongMethod")
 @Composable
 private fun SaveCancelRow(
     canSave: Boolean,
@@ -481,6 +492,7 @@ private fun SaveCancelRow(
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(ButtonSpacing)) {
         OutlinedButton(
             onClick = onCancelClick,
+            enabled = !isSaving,
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = MinTouchTarget),

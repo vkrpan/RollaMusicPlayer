@@ -1,8 +1,10 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
+import android.Manifest
 import android.app.Activity
 import android.app.RecoverableSecurityException
 import android.content.ContentResolver
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -15,6 +17,7 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 
 /**
  * Gates a tag-edit file write behind Android's scoped-storage write-consent flow, per SDK level.
@@ -26,25 +29,31 @@ import androidx.compose.ui.platform.LocalContext
  *
  * Intended call sequence for a single edit or a batch of edits:
  * 1. `ensureWritable(uris, onGranted = { ... }, onDenied = { ... })` -- on API 30+ this shows ONE
- *    system consent sheet covering every uri in the batch; on API <=29 there is no pre-flight
- *    consent API, so [onGranted] fires immediately and the real gate is the write attempt itself.
+ *    system consent sheet covering every uri in the batch; on API 29 there is no pre-flight
+ *    consent API, so [onGranted] fires immediately and the real gate is the write attempt itself;
+ *    on API <=28 the gate is the legacy WRITE_EXTERNAL_STORAGE permission, requested here if not
+ *    already held (see step 4).
  * 2. From inside `onGranted`, the caller performs the write(s). Never write outside this callback.
  * 3. On API 29 specifically, that write can still throw [RecoverableSecurityException] (the
  *    pre-flight step above could not have prevented this, since no such pre-flight exists on Q).
  *    Catch it at the write site and call `recoverAndRetry(exception, onGranted = { retry the same
  *    write }, onDenied = { ... })`.
- * 4. On API <=28, [ensureWritable] invoking `onGranted` immediately means a direct write --
- *    callers rely on the separately-granted (runtime, maxSdk=28) WRITE_EXTERNAL_STORAGE
- *    permission for this to succeed; that permission is permissions-agent's concern, not this
- *    class's.
+ * 4. On API <=28 the direct write requires the legacy (runtime, maxSdk=28)
+ *    WRITE_EXTERNAL_STORAGE permission, declared in this module's own manifest. [ensureWritable]
+ *    IS the consent gate for it: if the permission is not yet held, it launches the system
+ *    permission dialog and only invokes [onGranted] on a grant -- so "never write before consent"
+ *    holds on every SDK level, just with three different system prompts (permission dialog <=28,
+ *    RecoverableSecurityException recovery on 29, createWriteRequest sheet on 30+).
  *
  * Instances are created via [rememberMediaWriteRequester] and are not meant to be constructed
- * directly outside of tests -- the constructor takes an already-built [ActivityResultLauncher] so
+ * directly outside of tests -- the constructor takes already-built [ActivityResultLauncher]s so
  * this class stays a plain, launcher-injected object rather than an Activity/Fragment-coupled one.
  */
 class MediaWriteRequester internal constructor(
     private val resolver: ContentResolver,
     private val launcher: ActivityResultLauncher<IntentSenderRequest>,
+    private val permissionLauncher: ActivityResultLauncher<String>,
+    private val hasLegacyWritePermission: () -> Boolean,
 ) {
 
     private var pendingOnGranted: (() -> Unit)? = null
@@ -59,18 +68,28 @@ class MediaWriteRequester internal constructor(
      * - **API 30+ (R)**: launches `MediaStore.createWriteRequest(resolver, uris)`; the system
      *   result [Activity.RESULT_OK] invokes [onGranted], anything else (including
      *   `RESULT_CANCELED`, i.e. the user declined) invokes [onDenied] and nothing is written.
-     * - **API 29 (Q) and below**: no pre-flight write-request API exists, so [onGranted] is
-     *   invoked immediately and synchronously -- [onDenied] is never called from this branch.
-     *   On API 29 the subsequent write attempt itself is the real gate and can still throw
-     *   [RecoverableSecurityException]; see [recoverAndRetry]. On API <=28 the write just
-     *   requires the (separately granted) storage permission.
+     * - **API 29 (Q)**: no pre-flight write-request API exists, so [onGranted] is invoked
+     *   immediately and synchronously -- the subsequent write attempt itself is the real gate
+     *   and can still throw [RecoverableSecurityException]; see [recoverAndRetry].
+     * - **API <=28**: the direct write requires the legacy WRITE_EXTERNAL_STORAGE runtime
+     *   permission. Already held -> [onGranted] immediately; otherwise the system permission
+     *   dialog is launched and its result routes to [onGranted]/[onDenied] -- a write is never
+     *   attempted without the permission (it would only throw a non-recoverable
+     *   [SecurityException] at the write site).
      */
     fun ensureWritable(uris: List<Uri>, onGranted: () -> Unit, onDenied: () -> Unit) {
-        if (supportsPreflightWriteRequest()) {
-            requestPreflightConsent(uris, onGranted, onDenied)
-        } else {
-            onGranted()
+        when {
+            supportsPreflightWriteRequest() -> requestPreflightConsent(uris, onGranted, onDenied)
+            requiresLegacyWritePermission() && !hasLegacyWritePermission() ->
+                requestLegacyWritePermission(onGranted, onDenied)
+            else -> onGranted()
         }
+    }
+
+    private fun requestLegacyWritePermission(onGranted: () -> Unit, onDenied: () -> Unit) {
+        pendingOnGranted = onGranted
+        pendingOnDenied = onDenied
+        permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
     }
 
     @RequiresApi(Build.VERSION_CODES.R)
@@ -119,7 +138,34 @@ class MediaWriteRequester internal constructor(
             onDenied?.invoke()
         }
     }
+
+    /**
+     * Callback target for the WRITE_EXTERNAL_STORAGE permission launcher used by the API <=28
+     * branch of [ensureWritable]. Same consume-and-clear contract as [onActivityResult]: exactly
+     * one of the pending callbacks fires, and a stale callback can never fire twice.
+     */
+    internal fun onPermissionResult(granted: Boolean) {
+        val onGranted = pendingOnGranted
+        val onDenied = pendingOnDenied
+        pendingOnGranted = null
+        pendingOnDenied = null
+        if (granted) {
+            onGranted?.invoke()
+        } else {
+            onDenied?.invoke()
+        }
+    }
 }
+
+/**
+ * True on API levels (<=28) where writing another app's media file requires the legacy
+ * WRITE_EXTERNAL_STORAGE runtime permission rather than a scoped-storage consent flow. Extracted
+ * as a pure `Int -> Boolean` for the same JVM-testability reason as [supportsPreflightWriteRequest];
+ * API 29 is deliberately outside both: it needs no permission up front, its gate is the
+ * [RecoverableSecurityException] thrown by the write itself.
+ */
+internal fun requiresLegacyWritePermission(sdkInt: Int = Build.VERSION.SDK_INT): Boolean =
+    sdkInt <= Build.VERSION_CODES.P
 
 /**
  * Pure SDK-branch decision extracted out of [MediaWriteRequester.ensureWritable]: true once the
@@ -154,11 +200,25 @@ internal fun supportsPreflightWriteRequest(sdkInt: Int = Build.VERSION.SDK_INT):
  */
 @Composable
 fun rememberMediaWriteRequester(): MediaWriteRequester {
-    val resolver = LocalContext.current.contentResolver
+    val context = LocalContext.current
     lateinit var requester: MediaWriteRequester
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult(),
     ) { result -> requester.onActivityResult(result.resultCode) }
-    return remember(resolver, launcher) { MediaWriteRequester(resolver, launcher) }
-        .also { requester = it }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted -> requester.onPermissionResult(granted) }
+    return remember(context, launcher, permissionLauncher) {
+        MediaWriteRequester(
+            resolver = context.contentResolver,
+            launcher = launcher,
+            permissionLauncher = permissionLauncher,
+            hasLegacyWritePermission = {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                ) == PackageManager.PERMISSION_GRANTED
+            },
+        )
+    }.also { requester = it }
 }
