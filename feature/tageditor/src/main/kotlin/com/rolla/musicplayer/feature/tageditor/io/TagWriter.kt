@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
+import android.os.Build
 import com.rolla.musicplayer.feature.tageditor.SongTags
 import com.rolla.musicplayer.feature.tageditor.TagField
 import kotlinx.coroutines.CoroutineDispatcher
@@ -8,6 +9,8 @@ import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.Tag
 import org.jaudiotagger.tag.TagOptionSingleton
+import org.jaudiotagger.tag.images.ArtworkFactory
+import org.jaudiotagger.tag.reference.PictureTypes
 import java.io.File
 import javax.inject.Inject
 
@@ -61,6 +64,51 @@ class TagWriter @Inject constructor(
         val audioFile = AudioFileIO.read(file)
         val tag = audioFile.tagOrCreateAndSetDefault
         fields.forEach { (field, value) -> tag.setFieldIfNotBlank(field.toFieldKey(), value) }
+        audioFile.commit()
+    }
+
+    /**
+     * Replaces the file's embedded artwork (front cover) with [artwork]'s bytes and commits.
+     * All existing artwork fields are deleted first so the file ends up with exactly one cover
+     * -- some files in the wild carry several APIC frames, and "replace" leaving stale extras
+     * behind would show a different image in players that read a different frame.
+     *
+     * The artwork object is populated field-by-field ([org.jaudiotagger.tag.images.Artwork.setBinaryData]
+     * etc.) rather than via `ArtworkFactory.createArtworkFromFile` -- the picked image arrives as
+     * bytes from a content uri, not a [File]. Same in-place commit strategy
+     * (isPreserveFileIdentity) as [writeFields], for the same reason.
+     *
+     * FLAC/Vorbis-comment's own [Tag.setField] implementation for an [org.jaudiotagger.tag.images.Artwork]
+     * unconditionally calls `Artwork.setImageFromData()` first, to (re)derive width/height before
+     * building the picture block -- regardless of how the artwork's fields were populated above.
+     * The `Artwork` implementation `ArtworkFactory.getNew()` returns depends on
+     * `TagOptionSingleton.isAndroid`: left at its default `false`, that method decodes through
+     * `java.awt.image.BufferedImage`/`javax.imageio` -- neither of which exists on Android, so
+     * embedding artwork into a FLAC file would throw `NoClassDefFoundError` on a real device. With
+     * `isAndroid` set, the same method decodes through `android.graphics.BitmapFactory` instead,
+     * which is what real Android needs (MP3/MP4 never call `setImageFromData()`, so this has no
+     * effect on them either way). `Build.VERSION.SDK_INT` reads 0 in a plain JVM unit test (there
+     * is no Robolectric dependency in this module, and `BitmapFactory` has no real decoder
+     * off-device -- see `TagReaderWriterContractTest`'s KDoc), so this only flips on when actually
+     * running on a device, leaving the JVM test environment on the desktop-friendly default, where
+     * `java.awt`/`javax.imageio` genuinely exist and this same FLAC round trip keeps passing for real.
+     */
+    suspend fun writeArtwork(file: File, artwork: PickedArtwork) = withContext(ioDispatcher) {
+        TagOptionSingleton.getInstance().isPreserveFileIdentity = true
+        TagOptionSingleton.getInstance().isAndroid = Build.VERSION.SDK_INT != 0
+        val audioFile = AudioFileIO.read(file)
+        val tag = audioFile.tagOrCreateAndSetDefault
+        val embedded = ArtworkFactory.getNew().apply {
+            binaryData = artwork.bytes
+            mimeType = artwork.mimeType
+            pictureType = PictureTypes.DEFAULT_ID
+            width = artwork.width
+            height = artwork.height
+            // FLAC's picture block serializes the description unconditionally -- null would NPE.
+            description = ""
+        }
+        tag.deleteArtworkField()
+        tag.setField(embedded)
         audioFile.commit()
     }
 }

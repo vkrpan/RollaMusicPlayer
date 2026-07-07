@@ -4,10 +4,12 @@ import com.rolla.musicplayer.feature.tageditor.SongTags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.jaudiotagger.audio.AudioFileIO
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 
@@ -21,6 +23,18 @@ private val ALL_FIELDS = SongTags(
     trackNumber = "3",
     composer = "Fixture Composer",
 )
+
+// A real, structurally-valid 1x1 PNG (signature + IHDR/IDAT/IEND), so format-sniffing writers
+// (mp4's covr type flag in particular) recognize it. PNG_B appends one trailing byte after IEND:
+// still a valid PNG by signature (all any tag writer inspects) but byte-distinct from PNG_A, which
+// is what makes "replace, don't append" observable.
+private val PNG_A: ByteArray = Base64.getDecoder().decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+)
+private val PNG_B: ByteArray = PNG_A + byteArrayOf(0)
+
+private fun pickedArtwork(bytes: ByteArray): PickedArtwork =
+    PickedArtwork(bytes = bytes, mimeType = "image/png", width = 1, height = 1)
 
 /**
  * Shared contract exercised against every audio format [TagReader]/[TagWriter] must support.
@@ -92,5 +106,39 @@ abstract class TagReaderWriterContractTest {
         assertEquals(before.sampleRate, after.sampleRate)
         assertEquals(before.trackLength, after.trackLength)
         assertEquals(before.bitRate, after.bitRate)
+    }
+
+    // ── artwork ───────────────────────────────────────────────────────────
+
+    @Test
+    fun writeArtwork_onUntaggedFile_embedsExactBytes() = runTest {
+        val file = newFixtureFile()
+
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+
+        val embedded = AudioFileIO.read(file).tag.firstArtwork
+        assertArrayEquals(PNG_A, embedded.binaryData)
+    }
+
+    @Test
+    fun writeArtwork_again_replacesTheCoverRatherThanAppendingASecondOne() = runTest {
+        val file = newFixtureFile()
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+
+        writer.writeArtwork(file, pickedArtwork(PNG_B))
+
+        val tag = AudioFileIO.read(file).tag
+        assertEquals(1, tag.artworkList.size)
+        assertArrayEquals(PNG_B, tag.firstArtwork.binaryData)
+    }
+
+    @Test
+    fun writeArtwork_afterFieldWrite_leavesEveryTextFieldIntact() = runTest {
+        val file = newFixtureFile()
+        writer.write(file, ALL_FIELDS)
+
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+
+        assertEquals(ALL_FIELDS, reader.read(file))
     }
 }

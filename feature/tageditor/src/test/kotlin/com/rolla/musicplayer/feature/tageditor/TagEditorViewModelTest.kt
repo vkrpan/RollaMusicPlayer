@@ -7,6 +7,8 @@ import app.cash.turbine.test
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeSongRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import com.rolla.musicplayer.feature.tageditor.io.ArtworkLoader
+import com.rolla.musicplayer.feature.tageditor.io.PickedArtwork
 import com.rolla.musicplayer.feature.tageditor.io.SongFileResolver
 import com.rolla.musicplayer.feature.tageditor.io.TagReader
 import com.rolla.musicplayer.feature.tageditor.io.TagWriter
@@ -54,6 +56,7 @@ class TagEditorViewModelTest {
     private val songFileResolver: SongFileResolver = mockk()
     private val tagReader: TagReader = mockk()
     private val tagWriter: TagWriter = mockk()
+    private val artworkLoader: ArtworkLoader = mockk()
     private val tagSaveFinalizer: TagSaveFinalizer = mockk(relaxed = true)
 
     private val song = testSong()
@@ -75,6 +78,7 @@ class TagEditorViewModelTest {
         songFileResolver = songFileResolver,
         tagReader = tagReader,
         tagWriter = tagWriter,
+        artworkLoader = artworkLoader,
         tagSaveFinalizer = tagSaveFinalizer,
     ).also { createdViewModels += it }
 
@@ -203,6 +207,73 @@ class TagEditorViewModelTest {
         assertEquals(false, viewModel.uiState.value.canSave)
     }
 
+    // ── artwork picking ──────────────────────────────────────────────────
+
+    @Test
+    fun onArtworkPicked_validImage_previewsItAndEnablesSave() = runTest {
+        val viewModel = loadedViewModel()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns pickedArtwork()
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(PICKED_IMAGE_URI, state.pendingArtworkUri)
+        assertTrue(state.isDirty)
+        assertTrue(state.canSave)
+    }
+
+    @Test
+    fun onArtworkPicked_unusableImage_showsMessageAndStaysClean() = runTest {
+        val viewModel = loadedViewModel()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns null
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("Couldn't use that image as artwork.", state.message)
+        assertNull(state.pendingArtworkUri)
+        assertEquals(false, state.isDirty)
+        assertEquals(false, state.canSave)
+    }
+
+    @Test
+    fun onArtworkPicked_whileSaving_isIgnored() = runTest {
+        val viewModel = loadedViewModel()
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        viewModel.onSaveClick() // isSaving = true; consent not yet resolved.
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+
+        coVerify(exactly = 0) { artworkLoader.load(any()) }
+        assertNull(viewModel.uiState.value.pendingArtworkUri)
+    }
+
+    @Test
+    fun onArtworkPicked_thenSave_writesFieldsThenEmbedsArtworkIntoTheSameCopy() = runTest {
+        val viewModel = loadedViewModel()
+        val artwork = pickedArtwork()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns artwork
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+        viewModel.onSaveClick()
+
+        coEvery { tagWriter.write(editableCopy, any()) } just Runs
+        coEvery { tagWriter.writeArtwork(editableCopy, artwork) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song, editableCopy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(editableCopy) } just Runs
+
+        viewModel.onConsentGranted()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { tagWriter.write(editableCopy, any()) }
+        coVerify(exactly = 1) { tagWriter.writeArtwork(editableCopy, artwork) }
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
+        assertTrue(viewModel.uiState.value.isSaved)
+    }
+
     // ── save: consent request ─────────────────────────────────────────────
 
     @Test
@@ -256,6 +327,8 @@ class TagEditorViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { tagWriter.write(editableCopy, match { it.title == "New Title" }) }
+        // No artwork was picked, so none is embedded.
+        coVerify(exactly = 0) { tagWriter.writeArtwork(any(), any()) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
         coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(editableCopy) }
         // The successful save re-indexes exactly the saved song (MediaStore notify + targeted
@@ -432,6 +505,10 @@ class TagEditorViewModelTest {
 }
 
 private const val API_29 = 29
+private const val PICKED_IMAGE_URI = "content://media/picker/0/com.android.providers.media.photopicker/media/42"
+
+private fun pickedArtwork(): PickedArtwork =
+    PickedArtwork(bytes = byteArrayOf(1, 2, 3), mimeType = "image/png", width = 1, height = 1)
 
 private fun testSong(): Song = Song(
     id = SONG_ID,

@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.feature.tageditor.io.ArtworkLoader
+import com.rolla.musicplayer.feature.tageditor.io.PickedArtwork
 import com.rolla.musicplayer.feature.tageditor.io.SongFileResolver
 import com.rolla.musicplayer.feature.tageditor.io.TagReader
 import com.rolla.musicplayer.feature.tageditor.io.TagWriter
@@ -26,6 +28,7 @@ private const val DENIED_MESSAGE = "Changes weren't saved — permission decline
 private const val GENERIC_FAILURE_MESSAGE = "Couldn't save changes. Please try again."
 private const val SONG_NOT_FOUND_MESSAGE = "Song not found."
 private const val READ_FAILURE_MESSAGE = "Couldn't read tags for this file."
+private const val ARTWORK_LOAD_FAILURE_MESSAGE = "Couldn't use that image as artwork."
 
 /**
  * Tag editor screen UI state.
@@ -57,6 +60,13 @@ data class TagEditorUiState(
     val songTitle: String = "",
     val artistName: String = "",
     val artworkUri: String? = null,
+    /**
+     * Local image uri the user picked as replacement artwork, once it has been validated by
+     * `ArtworkLoader` -- non-null means "there is artwork waiting to be written on Save", and the
+     * header previews this uri instead of [artworkUri]. Cleared only by leaving the screen; like
+     * field edits, an artwork pick is discarded by Cancel and committed by Save.
+     */
+    val pendingArtworkUri: String? = null,
     val tags: SongTags = SongTags(),
     val yearError: String? = null,
     val trackNumberError: String? = null,
@@ -116,6 +126,15 @@ data class TagEditorUiState(
  * `supportsPreflightWriteRequest`. It is `internal` so `TagEditorViewModelTest` (same module) can
  * override it; Hilt never sees it since it is a plain property, not a constructor parameter.
  *
+ * ## Artwork replacement
+ * [onArtworkPicked] receives a LOCAL image uri from the screen's PhotoPicker launcher, validates
+ * and loads it via [ArtworkLoader] (bad picks surface as a message, never a crash), and holds the
+ * loaded bytes privately until Save -- an artwork pick alone marks the state dirty exactly like a
+ * field edit, and rides the same consent-then-write flow: [writeAndPersist] writes the fields and
+ * then embeds the pending artwork into the same editable copy before the single persist. Cancel
+ * discards it along with everything else. Batch mode intentionally has no artwork support --
+ * embedding one identical image across N files is rarely what a user wants from a batch edit.
+ *
  * ## After a successful save
  * [TagSaveFinalizer.onSongsSaved] runs after the persist succeeds and BEFORE
  * [TagEditorUiState.isSaved]/[TagEditorUiState.isClosed] are set: it notifies MediaStore of the
@@ -126,13 +145,16 @@ data class TagEditorUiState(
  * best-effort: a re-index failure never turns the already-successful file write into a
  * user-facing save error (see [TagSaveFinalizer]'s KDoc).
  */
+// concern; bundling them into a holder object only to satisfy the count would obscure the DI graph.
 @HiltViewModel
+@Suppress("LongParameterList") // Hilt constructor injection: each collaborator is a distinct IO
 class TagEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val songRepository: SongRepository,
     private val songFileResolver: SongFileResolver,
     private val tagReader: TagReader,
     private val tagWriter: TagWriter,
+    private val artworkLoader: ArtworkLoader,
     private val tagSaveFinalizer: TagSaveFinalizer,
 ) : ViewModel() {
 
@@ -146,6 +168,7 @@ class TagEditorViewModel @Inject constructor(
     private var loadedSong: Song? = null
     private var loadedTags: SongTags? = null
     private var editableCopy: File? = null
+    private var pendingArtwork: PickedArtwork? = null
 
     init {
         viewModelScope.launch { loadSong() }
@@ -160,6 +183,32 @@ class TagEditorViewModel @Inject constructor(
                 yearError = validateYear(updatedTags.year),
                 trackNumberError = validateTrackNumber(updatedTags.trackNumber),
             ).recomputeSaveState(loadedTags)
+        }
+    }
+
+    /**
+     * Receives a LOCAL image uri from the screen's PhotoPicker launcher and loads it as pending
+     * artwork -- written only on Save, alongside the field edits. An unusable pick (unreadable,
+     * not an image, oversized -- see [ArtworkLoader]) surfaces as a message and changes nothing.
+     * Ignored while a save is in flight or when the baseline never loaded (no trustworthy state
+     * to edit -- same gate [TagEditorUiState.canSave] applies to field edits).
+     */
+    fun onArtworkPicked(imageUri: String) {
+        if (_uiState.value.isSaving || _uiState.value.loadFailed || loadedTags == null) return
+        viewModelScope.launch {
+            val artwork = try {
+                artworkLoader.load(imageUri)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                null
+            }
+            if (artwork == null) {
+                _uiState.update { it.copy(message = ARTWORK_LOAD_FAILURE_MESSAGE) }
+            } else {
+                pendingArtwork = artwork
+                _uiState.update { it.copy(pendingArtworkUri = imageUri).recomputeSaveState(loadedTags) }
+            }
         }
     }
 
@@ -245,6 +294,7 @@ class TagEditorViewModel @Inject constructor(
         }
         try {
             tagWriter.write(copy, _uiState.value.tags)
+            pendingArtwork?.let { artwork -> tagWriter.writeArtwork(copy, artwork) }
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
@@ -324,13 +374,14 @@ private fun SongTags.withField(field: TagField, value: String): SongTags = when 
 
 /**
  * Recomputes [TagEditorUiState.isDirty]/[TagEditorUiState.canSave] against [loadedTags] (the
- * baseline captured right after a successful load): called after every field edit and once
- * right after a successful load completes.
+ * baseline captured right after a successful load): called after every field edit, after a
+ * validated artwork pick, and once right after a successful load completes. A pending artwork
+ * pick counts as dirty exactly like a field edit -- it too is only written on Save.
  */
 private fun TagEditorUiState.recomputeSaveState(loadedTags: SongTags?): TagEditorUiState {
     // dirty is only ever true when loadedTags is non-null (see the condition below), so it alone
     // is sufficient to gate canSave -- no separate "loadedTags != null" check is needed here.
-    val dirty = loadedTags != null && tags != loadedTags
+    val dirty = loadedTags != null && (tags != loadedTags || pendingArtworkUri != null)
     val hasErrors = yearError != null || trackNumberError != null
     return copy(isDirty = dirty, canSave = dirty && !hasErrors && !isSaving && !loadFailed)
 }

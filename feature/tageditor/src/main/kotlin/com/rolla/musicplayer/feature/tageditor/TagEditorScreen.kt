@@ -4,6 +4,9 @@ package com.rolla.musicplayer.feature.tageditor
 
 import android.content.res.Configuration
 import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,6 +103,12 @@ fun TagEditorRoute(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val requester = rememberMediaWriteRequester()
 
+    // System PhotoPicker (falls back to the document picker pre-13): LOCAL images only, per the
+    // offline contract -- there is no online artwork search anywhere in the app.
+    val artworkPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) viewModel.onArtworkPicked(uri.toString())
+    }
+
     LaunchedEffect(uiState.consentRequest) {
         val uris = uiState.consentRequest
         if (uris != null) {
@@ -131,6 +140,13 @@ fun TagEditorRoute(
     TagEditorScreen(
         uiState = uiState,
         onFieldChanged = remember(viewModel) { viewModel::onFieldChanged },
+        onChangeArtworkClick = remember(artworkPicker) {
+            {
+                artworkPicker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            }
+        },
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
         onNavigateUp = onNavigateUp,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
@@ -143,6 +159,7 @@ fun TagEditorRoute(
 fun TagEditorScreen(
     uiState: TagEditorUiState,
     onFieldChanged: (TagField, String) -> Unit,
+    onChangeArtworkClick: () -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     onDismissMessage: () -> Unit,
@@ -169,6 +186,7 @@ fun TagEditorScreen(
             else -> TagEditorContent(
                 uiState = uiState,
                 onFieldChanged = onFieldChanged,
+                onChangeArtworkClick = onChangeArtworkClick,
                 onSaveClick = onSaveClick,
                 onNavigateUp = onNavigateUp,
                 modifier = Modifier.padding(innerPadding),
@@ -231,11 +249,12 @@ private fun ErrorContent(onNavigateUp: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
-@Suppress("LongMethod")
+@Suppress("LongMethod", "LongParameterList")
 @Composable
 private fun TagEditorContent(
     uiState: TagEditorUiState,
     onFieldChanged: (TagField, String) -> Unit,
+    onChangeArtworkClick: () -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
@@ -248,9 +267,12 @@ private fun TagEditorContent(
     ) {
         Spacer(Modifier.height(CaptionSpacing))
         TagEditorHeaderCard(
-            artworkUri = uiState.artworkUri,
+            // A validated pending pick previews immediately; it is only written to the file on Save.
+            artworkUri = uiState.pendingArtworkUri ?: uiState.artworkUri,
             songTitle = uiState.songTitle,
             artistName = uiState.artistName,
+            onChangeArtworkClick = onChangeArtworkClick,
+            changeArtworkEnabled = !uiState.isSaving,
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(SectionSpacing))
@@ -274,16 +296,19 @@ private fun TagEditorContent(
 }
 
 /**
- * Read-only context at the top of the form: the song's artwork, title, and artist -- these are
- * never editable here (the editable [SongTags] fields below have no artwork/identity field of
- * their own; see [SongTags]'s KDoc on why artwork is intentionally excluded from this model).
+ * Context at the top of the form: the song's artwork (current, or the pending replacement pick),
+ * title, and artist. Title/artist are never editable here; artwork IS -- "Change artwork" opens
+ * the system PhotoPicker for a LOCAL image, which is embedded into the file on Save (see
+ * [SongTags]'s KDoc on why artwork lives outside the text-field model).
  */
-@Suppress("LongMethod")
+@Suppress("LongMethod", "LongParameterList")
 @Composable
 private fun TagEditorHeaderCard(
     artworkUri: String?,
     songTitle: String,
     artistName: String,
+    onChangeArtworkClick: () -> Unit,
+    changeArtworkEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -304,7 +329,15 @@ private fun TagEditorHeaderCard(
                     .size(ArtworkSize)
                     .clip(MaterialTheme.shapes.extraLarge),
             )
-            Spacer(Modifier.height(SectionSpacing))
+            Spacer(Modifier.height(CaptionSpacing))
+            OutlinedButton(
+                onClick = onChangeArtworkClick,
+                enabled = changeArtworkEnabled,
+                modifier = Modifier.heightIn(min = MinTouchTarget),
+            ) {
+                Text("Change artwork")
+            }
+            Spacer(Modifier.height(CaptionSpacing))
             Text(
                 text = songTitle,
                 style = MaterialTheme.typography.songTitle,
@@ -512,6 +545,7 @@ private fun PreviewTagEditorScreen() {
         TagEditorScreen(
             uiState = previewUiState(),
             onFieldChanged = { _, _ -> },
+            onChangeArtworkClick = {},
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
@@ -528,6 +562,7 @@ private fun PreviewTagEditorScreenValidationError() {
         TagEditorScreen(
             uiState = previewValidationErrorUiState(),
             onFieldChanged = { _, _ -> },
+            onChangeArtworkClick = {},
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
