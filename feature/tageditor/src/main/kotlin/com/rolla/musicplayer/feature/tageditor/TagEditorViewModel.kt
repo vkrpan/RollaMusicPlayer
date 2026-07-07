@@ -116,10 +116,15 @@ data class TagEditorUiState(
  * `supportsPreflightWriteRequest`. It is `internal` so `TagEditorViewModelTest` (same module) can
  * override it; Hilt never sees it since it is a plain property, not a constructor parameter.
  *
- * No library re-scan/re-index happens after a successful save in this step, deliberately: the
- * scanner's known `@Upsert` favourites/play-count wipe would erase per-song user state on every
- * tag edit, so re-indexing the saved song's row (or triggering a targeted re-sync) is deferred
- * until that scanner bug is fixed, rather than wired in now.
+ * ## After a successful save
+ * [TagSaveFinalizer.onSongsSaved] runs after the persist succeeds and BEFORE
+ * [TagEditorUiState.isSaved]/[TagEditorUiState.isClosed] are set: it notifies MediaStore of the
+ * changed file, targeted-re-syncs the song's Room row (the indexer's merge preserves
+ * favourite/play-count state), and refreshes the now-playing metadata if this song is current.
+ * Ordering it before the close cue is deliberate -- the work runs in [viewModelScope], so closing
+ * the screen first would cancel it mid-flight and return the user to a stale library list. It is
+ * best-effort: a re-index failure never turns the already-successful file write into a
+ * user-facing save error (see [TagSaveFinalizer]'s KDoc).
  */
 @HiltViewModel
 class TagEditorViewModel @Inject constructor(
@@ -128,6 +133,7 @@ class TagEditorViewModel @Inject constructor(
     private val songFileResolver: SongFileResolver,
     private val tagReader: TagReader,
     private val tagWriter: TagWriter,
+    private val tagSaveFinalizer: TagSaveFinalizer,
 ) : ViewModel() {
 
     private val songId: String = checkNotNull(savedStateHandle.get<Long>("songId")) { "songId is required" }.toString()
@@ -262,7 +268,7 @@ class TagEditorViewModel @Inject constructor(
     private suspend fun persistAndFinish(song: Song, copy: File) {
         try {
             songFileResolver.persistEditedCopy(song, copy)
-            finishSaved(copy)
+            finishSaved(song, copy)
         } catch (e: CancellationException) {
             throw e
         } catch (e: RecoverableSecurityException) {
@@ -276,9 +282,12 @@ class TagEditorViewModel @Inject constructor(
         }
     }
 
-    private suspend fun finishSaved(copy: File) {
+    private suspend fun finishSaved(song: Song, copy: File) {
         songFileResolver.deleteEditableCopy(copy)
         editableCopy = null
+        // Re-index + now-playing refresh must finish before isClosed tears this scope down --
+        // see this class's "After a successful save" KDoc section.
+        tagSaveFinalizer.onSongsSaved(listOf(song))
         _uiState.update { it.copy(isSaving = false, isSaved = true, isClosed = true) }
     }
 

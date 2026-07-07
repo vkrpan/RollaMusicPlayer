@@ -111,8 +111,14 @@ private data class WriteCollaborators(val songFileResolver: SongFileResolver, va
  * `sdkIntProvider` is the same `Build.VERSION.SDK_INT` test seam [TagEditorViewModel] uses, for the
  * same reason (API 29 cannot be simulated in a plain JVM unit test).
  *
- * No library re-scan/re-index happens after a successful save here either, for the same reason
- * documented on [TagEditorViewModel]: re-indexing would currently wipe favourites/play-count.
+ * ## After the batch completes
+ * `finishBatch` hands every song that actually succeeded (tracked in `succeededSongs` as the loop
+ * goes, including recovery-granted retries) to [TagSaveFinalizer.onSongsSaved] BEFORE publishing
+ * the terminal state -- one MediaStore notification + one targeted re-sync for the whole batch,
+ * plus a now-playing refresh for any edited song that is loaded. Same ordering rationale as
+ * [TagEditorViewModel]: the work runs in [viewModelScope], so closing the screen first would
+ * cancel it and return the user to a stale library. Failed/declined songs are excluded -- their
+ * files were never changed, so there is nothing to re-index. Best-effort, per [TagSaveFinalizer].
  */
 @HiltViewModel
 class BatchTagEditorViewModel @Inject constructor(
@@ -120,6 +126,7 @@ class BatchTagEditorViewModel @Inject constructor(
     private val songRepository: SongRepository,
     private val songFileResolver: SongFileResolver,
     private val tagWriter: TagWriter,
+    private val tagSaveFinalizer: TagSaveFinalizer,
 ) : ViewModel() {
 
     private val songIds: List<Long> = savedStateHandle.songIds()
@@ -137,6 +144,7 @@ class BatchTagEditorViewModel @Inject constructor(
     private var totalCount = 0
     private var succeededCount = 0
     private var failedCount = 0
+    private val succeededSongs = mutableListOf<Song>()
     private var pendingRecovery: PendingRecovery? = null
     private var activeEditableCopy: File? = null
 
@@ -177,6 +185,7 @@ class BatchTagEditorViewModel @Inject constructor(
             totalCount = songs.size
             succeededCount = 0
             failedCount = 0
+            succeededSongs.clear()
             _uiState.update { it.copy(consentRequest = songs.map(Song::contentUri)) }
         }
     }
@@ -228,7 +237,9 @@ class BatchTagEditorViewModel @Inject constructor(
         _uiState.update { it.copy(recoveryRequest = null) }
         viewModelScope.launch {
             val succeeded = retryPersist(songFileResolver, recovery.song, recovery.copy)
+            songFileResolver.deleteEditableCopy(recovery.copy)
             clearActiveCopy(recovery.copy)
+            if (succeeded) succeededSongs += recovery.song
             recordDone(succeeded)
             runBatch(recovery.resumeIndex)
         }
@@ -269,18 +280,19 @@ class BatchTagEditorViewModel @Inject constructor(
                 _uiState.update { it.copy(recoveryRequest = outcome.exception) }
                 return
             }
-            finishSong(outcome)
+            finishSong(song, outcome)
             index++
         }
         finishBatch()
     }
 
     /** Cleans up and records the done-count for a [SongWriteOutcome] that is NOT [SongWriteOutcome.NeedsRecovery]. */
-    private suspend fun finishSong(outcome: SongWriteOutcome) {
+    private suspend fun finishSong(song: Song, outcome: SongWriteOutcome) {
         when (outcome) {
             is SongWriteOutcome.Succeeded -> {
                 songFileResolver.deleteEditableCopy(outcome.copy)
                 clearActiveCopy(outcome.copy)
+                succeededSongs += song
                 recordDone(succeeded = true)
             }
             is SongWriteOutcome.Failed -> {
@@ -305,7 +317,10 @@ class BatchTagEditorViewModel @Inject constructor(
     }
 
     /** Reaches a terminal state once every resolved song has been attempted. */
-    private fun finishBatch() {
+    private suspend fun finishBatch() {
+        // Re-index + now-playing refresh for everything that was actually written, BEFORE the
+        // terminal state can tear this scope down -- see "After the batch completes" in the KDoc.
+        tagSaveFinalizer.onSongsSaved(succeededSongs.toList())
         val failed = failedCount
         val total = totalCount
         _uiState.update {
@@ -320,6 +335,7 @@ class BatchTagEditorViewModel @Inject constructor(
         totalCount = 0
         succeededCount = 0
         failedCount = 0
+        succeededSongs.clear()
     }
 }
 

@@ -105,6 +105,28 @@ class PlaybackController @Inject constructor(
         c.play()
     }
 
+    /**
+     * Refreshes [song]'s metadata everywhere playback knows about it, after its tags were edited:
+     * every queue entry whose media id matches is replaced via [MediaController.replaceMediaItem]
+     * -- the rebuilt item keeps the same uri, so Media3 updates it in place without interrupting
+     * playback -- and, if [song] is the current track, [PlaybackStateHolder.currentSong] is
+     * refreshed directly so the mini-player/now-playing UI re-renders the new tags immediately
+     * (the service's own transition callback echoes the same values shortly after). A no-op when
+     * no controller is connected and the song isn't current.
+     */
+    fun updateSongMetadata(song: Song) {
+        if (playbackStateHolder.currentSong.value?.id == song.id) {
+            playbackStateHolder.setCurrentSong(song)
+        }
+        val c = controller ?: return
+        val item = buildMediaItem(song)
+        for (index in 0 until c.mediaItemCount) {
+            if (c.getMediaItemAt(index).mediaId == song.id) {
+                c.replaceMediaItem(index, item)
+            }
+        }
+    }
+
     fun togglePlayPause() {
         controller?.let { if (it.isPlaying) it.pause() else it.play() }
     }

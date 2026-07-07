@@ -60,6 +60,7 @@ class BatchTagEditorViewModelTest {
     private val fakeSongRepository = FakeSongRepository()
     private val songFileResolver: SongFileResolver = mockk()
     private val tagWriter: TagWriter = mockk()
+    private val tagSaveFinalizer: TagSaveFinalizer = mockk(relaxed = true)
 
     private val song1 = testSong("1")
     private val song2 = testSong("2")
@@ -78,6 +79,7 @@ class BatchTagEditorViewModelTest {
             songRepository = fakeSongRepository,
             songFileResolver = songFileResolver,
             tagWriter = tagWriter,
+            tagSaveFinalizer = tagSaveFinalizer,
         ).also { createdViewModels += it }
 
     /** Stubs a clean, all-succeed write+persist+delete cycle for every song in [songs]. */
@@ -149,6 +151,7 @@ class BatchTagEditorViewModelTest {
             songRepository = fakeSongRepository,
             songFileResolver = songFileResolver,
             tagWriter = tagWriter,
+            tagSaveFinalizer = tagSaveFinalizer,
         ).also { createdViewModels += it }
 
         assertEquals(3, viewModel.uiState.value.songCount)
@@ -284,6 +287,8 @@ class BatchTagEditorViewModelTest {
         // song1 starts with no prior progress; song2/song3 start after 1 and 2 prior completions.
         assertEquals(listOf(null, BatchProgress(1, 3), BatchProgress(2, 3)), progressSnapshots)
         songs.forEach { song -> verifyFullyWritten(song, fields) }
+        // One re-index for the whole batch, carrying every song that was actually written.
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(songs) }
         val state = viewModel.uiState.value
         assertNull(state.progress)
         assertTrue(state.isClosed)
@@ -323,6 +328,8 @@ class BatchTagEditorViewModelTest {
         coVerify(exactly = 0) { songFileResolver.persistEditedCopy(song2, any()) }
         coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(editableCopyFor(song2)) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song3, editableCopyFor(song3)) }
+        // Only the songs whose files actually changed are re-indexed -- song2 was never written.
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song1, song3)) }
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaving)
         assertEquals(false, state.isClosed)
@@ -357,6 +364,8 @@ class BatchTagEditorViewModelTest {
 
         coVerify(exactly = 2) { songFileResolver.persistEditedCopy(song2, any()) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song3, any()) }
+        // song2's recovered retry counts as written, in completion order.
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song1, song2, song3)) }
         val state = viewModel.uiState.value
         assertNull(state.recoveryRequest)
         assertTrue(state.isClosed)
@@ -381,6 +390,8 @@ class BatchTagEditorViewModelTest {
 
         coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(editableCopyFor(song2)) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song3, editableCopyFor(song3)) }
+        // The recovery-declined song2 was never written, so it is excluded from the re-index.
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song1, song3)) }
         val state = viewModel.uiState.value
         assertNull(state.recoveryRequest)
         assertEquals(false, state.isClosed)
@@ -411,6 +422,7 @@ class BatchTagEditorViewModelTest {
 
         coVerify(exactly = 0) { songFileResolver.createEditableCopy(any()) }
         coVerify(exactly = 0) { tagWriter.writeFields(any(), any()) }
+        coVerify(exactly = 0) { tagSaveFinalizer.onSongsSaved(any()) }
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaving)
         assertEquals("Changes weren't saved — permission declined.", state.message)

@@ -23,6 +23,23 @@ class MediaScanner @Inject constructor(
         )?.use { cursor -> readSongs(cursor) } ?: emptyList()
     }
 
+    /**
+     * Scoped scan used for a targeted re-sync of specific MediaStore rows (e.g. right after the tag
+     * editor writes tags and re-indexes just the files it touched). Same projection/mapping as
+     * [scan], filtered to [mediaStoreIds] via a parameterized `_ID IN (...)` selection — ids are
+     * always passed as `selectionArgs`, never concatenated into the selection string.
+     */
+    internal suspend fun scan(mediaStoreIds: List<Long>): List<ScannedSong> = withContext(Dispatchers.IO) {
+        if (mediaStoreIds.isEmpty()) return@withContext emptyList()
+        context.contentResolver.query(
+            MediaStoreColumns.COLLECTION,
+            MediaStoreColumns.PROJECTION,
+            MediaStoreColumns.selectionForIds(mediaStoreIds.size),
+            mediaStoreIds.map { it.toString() }.toTypedArray(),
+            MediaStoreColumns.SORT_ORDER,
+        )?.use { cursor -> readSongs(cursor) } ?: emptyList()
+    }
+
     private fun readSongs(cursor: Cursor): List<ScannedSong> {
         val cols = ColumnIndices.from(cursor)
         val results = mutableListOf<ScannedSong>()

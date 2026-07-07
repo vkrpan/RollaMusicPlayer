@@ -34,6 +34,14 @@ internal object MediaStoreColumns {
     val SELECTION: String = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
     val SORT_ORDER: String = "$TITLE COLLATE NOCASE ASC"
 
+    /**
+     * Selection for a targeted re-scan of specific rows (e.g. after the tag editor writes new tags
+     * to a known set of files). Placeholders are built from [count], not string-concatenated ids —
+     * the actual id values are always passed as `selectionArgs` by the caller.
+     */
+    fun selectionForIds(count: Int): String =
+        "$SELECTION AND $ID IN (${List(count) { "?" }.joinToString(",")})"
+
     /** Local content URI used to build per-album artwork URIs — no network involved. */
     val ALBUM_ART_URI: Uri = Uri.parse("content://media/external/audio/albumart")
 

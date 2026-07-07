@@ -16,7 +16,21 @@ internal data class ScannedSong(
     val dateModified: Long,
 )
 
-internal fun ScannedSong.toEntity(): SongEntity =
+/**
+ * Maps a freshly-scanned MediaStore row to the Room entity, merging in the user-state columns
+ * (favourite / play count / last played / date added) from [existing].
+ *
+ * Room's `@Upsert` replaces the *entire* row, so any upsert that builds a [SongEntity] straight
+ * from scan data alone silently wipes those columns back to their defaults for every row it
+ * touches. This is the single merge point both [LibraryIndexer.sync] and
+ * [LibraryIndexer.syncSongs] go through so that guarantee only needs to be correct once.
+ *
+ * [existing] is null only when MediaStore has never reported this row before — i.e. it is being
+ * indexed for the first time — in which case it gets `dateAdded = System.currentTimeMillis()`,
+ * which backs the "Recently added" smart playlist's ordering. When [existing] is non-null every
+ * user-state column is carried forward unchanged.
+ */
+internal fun ScannedSong.toEntity(existing: SongEntity?): SongEntity =
     SongEntity(
         id = mediaStoreId.toString(),
         mediaStoreId = mediaStoreId,
@@ -30,4 +44,8 @@ internal fun ScannedSong.toEntity(): SongEntity =
         contentUri = contentUri,
         artworkUri = artworkUri,
         dateModified = dateModified,
+        dateAdded = existing?.dateAdded ?: System.currentTimeMillis(),
+        isFavorite = existing?.isFavorite ?: false,
+        playCount = existing?.playCount ?: 0,
+        lastPlayed = existing?.lastPlayed,
     )

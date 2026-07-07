@@ -54,6 +54,7 @@ class TagEditorViewModelTest {
     private val songFileResolver: SongFileResolver = mockk()
     private val tagReader: TagReader = mockk()
     private val tagWriter: TagWriter = mockk()
+    private val tagSaveFinalizer: TagSaveFinalizer = mockk(relaxed = true)
 
     private val song = testSong()
     private val editableCopy = File("cache/tag_editor_edits/${SONG_ID}_edit.mp3")
@@ -74,6 +75,7 @@ class TagEditorViewModelTest {
         songFileResolver = songFileResolver,
         tagReader = tagReader,
         tagWriter = tagWriter,
+        tagSaveFinalizer = tagSaveFinalizer,
     ).also { createdViewModels += it }
 
     /** Emits [song], stubs a successful copy+read, and returns a constructed, loaded ViewModel. */
@@ -256,6 +258,9 @@ class TagEditorViewModelTest {
         coVerify(exactly = 1) { tagWriter.write(editableCopy, match { it.title == "New Title" }) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
         coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(editableCopy) }
+        // The successful save re-indexes exactly the saved song (MediaStore notify + targeted
+        // re-sync + now-playing refresh all live behind this one call).
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song)) }
 
         val state = viewModel.uiState.value
         assertTrue(state.isSaved)
@@ -287,6 +292,7 @@ class TagEditorViewModelTest {
 
         coVerify(exactly = 0) { tagWriter.write(any(), any()) }
         coVerify(exactly = 0) { songFileResolver.persistEditedCopy(any(), any()) }
+        coVerify(exactly = 0) { tagSaveFinalizer.onSongsSaved(any()) }
 
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaving)
@@ -402,6 +408,8 @@ class TagEditorViewModelTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(editableCopy) }
+        // A failed persist means the file on disk never changed -- nothing to re-index.
+        coVerify(exactly = 0) { tagSaveFinalizer.onSongsSaved(any()) }
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaved)
         assertEquals(false, state.isClosed)
