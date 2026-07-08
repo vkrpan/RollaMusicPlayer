@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.yield
 import javax.inject.Inject
 
@@ -58,6 +59,12 @@ private const val SEARCH_DEBOUNCE_MS = 300L
  * [SearchRepository.search] already runs its DB query and domain mapping on `Dispatchers.IO` (see
  * its implementation's `flowOn`), so no dispatcher hop is added here -- everything in this
  * pipeline besides that repository call is cheap, non-blocking flow bookkeeping.
+ *
+ * Recent-search history: [recentSearches] mirrors [SearchRepository.observeRecentSearches] for
+ * [SearchUiState.Idle] to render. A query is only ever recorded from [searchFlow]'s non-blank
+ * `onStart` block -- i.e. only once it has survived the debounce/distinctUntilChanged stage and
+ * actually committed to a search -- never from [onQueryChanged] directly, so raw keystrokes never
+ * pollute history.
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
@@ -84,6 +91,14 @@ class SearchViewModel @Inject constructor(
             initialValue = SearchUiState.Idle,
         )
 
+    /** Recent search history, most-recent-first, for [SearchUiState.Idle] to render. */
+    val recentSearches: StateFlow<List<String>> = searchRepository.observeRecentSearches()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
+            initialValue = emptyList(),
+        )
+
     /** Updates the in-flight query text and mirrors it into [savedStateHandle] for process death. */
     fun onQueryChanged(value: String) {
         _query.update { value }
@@ -95,12 +110,30 @@ class SearchViewModel @Inject constructor(
         playbackController.play(song)
     }
 
+    /** Re-runs a query tapped from the recent-searches list in [SearchUiState.Idle]. */
+    fun onRecentSearchClicked(query: String) {
+        onQueryChanged(query)
+    }
+
+    /** Clears all recorded recent-search history. */
+    fun onClearRecentSearches() {
+        viewModelScope.launch {
+            searchRepository.clearRecentSearches()
+        }
+    }
+
     private fun searchFlow(text: String) = if (text.isBlank()) {
         flowOf(SearchUiState.Idle)
     } else {
         searchRepository.search(text)
             .map { results -> results.toUiState() }
             .onStart {
+                // Recorded before the Loading emission, not after: by the time this query is in
+                // flight at all, it has already survived debounce/distinctUntilChanged and is
+                // committed to being searched, so history should reflect that immediately rather
+                // than depend on a collector observing Loading first. A pipeline restart
+                // re-recording the same query is harmless -- the repository dedupes to front.
+                searchRepository.recordRecentSearch(text)
                 emit(SearchUiState.Loading)
                 // StateFlow never suspends its producer on a value write, so without ceding the
                 // dispatcher here, a repository that resolves synchronously (as an in-memory fake

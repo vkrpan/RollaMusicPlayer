@@ -18,4 +18,21 @@ interface SearchRepository {
      * callers pass raw user input.
      */
     fun search(query: String): Flow<SearchResults>
+
+    /**
+     * Observes the user's recent search history, most-recent-first. Entirely local (Preferences
+     * DataStore) — see `:core:datastore`'s `RecentSearchesDataSource`. Emits `emptyList()` when
+     * nothing has been recorded yet.
+     */
+    fun observeRecentSearches(): Flow<List<String>>
+
+    /**
+     * Records [query] as the newest recent search. Blank (post-trim) input is ignored; an
+     * exact-match duplicate moves to the front instead of being duplicated; history is capped —
+     * see `RecentSearchesDataSource.record` for the exact semantics.
+     */
+    suspend fun recordRecentSearch(query: String)
+
+    /** Clears all recent search history. */
+    suspend fun clearRecentSearches()
 }

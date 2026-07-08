@@ -40,6 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -83,15 +84,19 @@ fun SearchRoute(
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
 
     SearchScreen(
         query = query,
         uiState = uiState,
+        recentSearches = recentSearches,
         onQueryChanged = remember(viewModel) { viewModel::onQueryChanged },
         onNavigateUp = onNavigateUp,
         onSongClick = remember(viewModel) { viewModel::play },
         onAlbumClick = onAlbumClick,
         onArtistClick = onArtistClick,
+        onRecentSearchClick = remember(viewModel) { viewModel::onRecentSearchClicked },
+        onClearRecentSearches = remember(viewModel) { viewModel::onClearRecentSearches },
         modifier = modifier,
     )
 }
@@ -101,11 +106,14 @@ fun SearchRoute(
 fun SearchScreen(
     query: String,
     uiState: SearchUiState,
+    recentSearches: List<String>,
     onQueryChanged: (String) -> Unit,
     onNavigateUp: () -> Unit,
     onSongClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (Long) -> Unit,
+    onRecentSearchClick: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // The keyboard must open the instant this screen appears, there is nothing else to do on a
@@ -132,9 +140,12 @@ fun SearchScreen(
     ) { innerPadding ->
         SearchContent(
             uiState = uiState,
+            recentSearches = recentSearches,
             onSongClick = onSongClick,
             onAlbumClick = onAlbumClick,
             onArtistClick = onArtistClick,
+            onRecentSearchClick = onRecentSearchClick,
+            onClearRecentSearches = onClearRecentSearches,
             modifier = Modifier.padding(innerPadding),
         )
     }
@@ -220,12 +231,16 @@ private fun SearchField(
     )
 }
 
+@Suppress("LongParameterList")
 @Composable
 private fun SearchContent(
     uiState: SearchUiState,
+    recentSearches: List<String>,
     onSongClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (Long) -> Unit,
+    onRecentSearchClick: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Surface(
@@ -236,7 +251,11 @@ private fun SearchContent(
         shape = MaterialTheme.shapes.large,
     ) {
         when (uiState) {
-            SearchUiState.Idle -> IdlePrompt()
+            SearchUiState.Idle -> IdleContent(
+                recentSearches = recentSearches,
+                onRecentSearchClick = onRecentSearchClick,
+                onClearRecentSearches = onClearRecentSearches,
+            )
             SearchUiState.Loading -> LoadingIndicator()
             SearchUiState.Empty -> NoResultsMessage()
             is SearchUiState.Results -> SearchResultsList(
@@ -249,7 +268,31 @@ private fun SearchContent(
     }
 }
 
-/** Idle state: nothing typed yet -- a plain, single-line "type to search" prompt. */
+/**
+ * Idle state: nothing typed yet. Renders the recent-search history when there is any -- see
+ * [RecentSearchesList] -- and falls back to the plain "type to search" prompt otherwise, e.g. on
+ * the very first launch before anything has ever been searched.
+ */
+@Composable
+private fun IdleContent(
+    recentSearches: List<String>,
+    onRecentSearchClick: (String) -> Unit,
+    onClearRecentSearches: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (recentSearches.isEmpty()) {
+        IdlePrompt(modifier = modifier)
+    } else {
+        RecentSearchesList(
+            recentSearches = recentSearches,
+            onRecentSearchClick = onRecentSearchClick,
+            onClearRecentSearches = onClearRecentSearches,
+            modifier = modifier,
+        )
+    }
+}
+
+/** Nothing typed yet and no recent-search history exists -- a plain "type to search" prompt. */
 @Composable
 private fun IdlePrompt(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -381,11 +424,14 @@ private fun PreviewSearchScreenResults() {
         SearchScreen(
             query = "queen",
             uiState = SearchUiState.Results(previewResults()),
+            recentSearches = emptyList(),
             onQueryChanged = {},
             onNavigateUp = {},
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
+            onRecentSearchClick = {},
+            onClearRecentSearches = {},
         )
     }
 }
@@ -399,11 +445,35 @@ private fun PreviewSearchScreenIdle() {
         SearchScreen(
             query = "",
             uiState = SearchUiState.Idle,
+            recentSearches = emptyList(),
             onQueryChanged = {},
             onNavigateUp = {},
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
+            onRecentSearchClick = {},
+            onClearRecentSearches = {},
+        )
+    }
+}
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Search - Idle With Recents - Light")
+@Preview(name = "Search - Idle With Recents - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun PreviewSearchScreenIdleWithRecents() {
+    RollaMusicPlayerTheme {
+        SearchScreen(
+            query = "",
+            uiState = SearchUiState.Idle,
+            recentSearches = listOf("queen", "bohemian rhapsody", "jazz"),
+            onQueryChanged = {},
+            onNavigateUp = {},
+            onSongClick = {},
+            onAlbumClick = {},
+            onArtistClick = {},
+            onRecentSearchClick = {},
+            onClearRecentSearches = {},
         )
     }
 }
@@ -417,11 +487,14 @@ private fun PreviewSearchScreenEmpty() {
         SearchScreen(
             query = "xyz123",
             uiState = SearchUiState.Empty,
+            recentSearches = emptyList(),
             onQueryChanged = {},
             onNavigateUp = {},
             onSongClick = {},
             onAlbumClick = {},
             onArtistClick = {},
+            onRecentSearchClick = {},
+            onClearRecentSearches = {},
         )
     }
 }

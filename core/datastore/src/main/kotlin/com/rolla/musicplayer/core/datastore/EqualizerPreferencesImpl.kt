@@ -15,15 +15,17 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * The single "settings" Preferences DataStore instance for this file.
+ * The single "settings" Preferences DataStore instance backing this whole module.
  *
- * Named "settings" (not "equalizer_prefs") because this same DataStore file will also back other
- * app settings per CLAUDE.md's storage strategy. Per the `by preferencesDataStore` delegate
- * contract, a given [Context] must only ever resolve one DataStore instance per file name — do
- * not declare a second `preferencesDataStore(name = "settings")` delegate anywhere else in the
- * codebase.
+ * Named "settings" (not "equalizer_prefs") because this same DataStore file also backs other app
+ * settings per CLAUDE.md's storage strategy -- currently equalizer active-state here and recent
+ * search history in [RecentSearchesDataSourceImpl]. Per the `by preferencesDataStore` delegate
+ * contract, a given [Context] must only ever resolve one DataStore instance per file name, so this
+ * is deliberately `internal` (not `private`) and must stay the ONLY
+ * `preferencesDataStore(name = "settings")` delegate anywhere in the codebase -- other files in
+ * this module reuse this same property instead of declaring their own.
  */
-private val Context.dataStore by preferencesDataStore(name = "settings")
+internal val Context.dataStore by preferencesDataStore(name = "settings")
 
 private object EqualizerPreferencesKeys {
     val ENABLED = booleanPreferencesKey("eq_enabled")

@@ -10,6 +10,7 @@ import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -257,5 +258,108 @@ class SearchViewModelTest {
         viewModel.play(sampleSong)
 
         verify(exactly = 1) { playbackController.play(sampleSong) }
+    }
+
+    // ── recent searches ──────────────────────────────────────────────────────
+
+    @Test
+    fun onQueryChanged_executedQuery_recordsRecentSearch() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.uiState.collect {} }
+        runCurrent()
+
+        viewModel.onQueryChanged("rock")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+
+        assertEquals(listOf("rock"), fakeSearchRepository.observeRecentSearches().first())
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun onQueryChanged_belowDebounceWindow_doesNotRecordRecentSearch() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.uiState.collect {} }
+        runCurrent()
+
+        viewModel.onQueryChanged("rock")
+        advanceTimeBy(DEBOUNCE_MS - 1)
+        runCurrent()
+
+        assertTrue(fakeSearchRepository.observeRecentSearches().first().isEmpty())
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun onQueryChanged_blankQuery_neverRecordsRecentSearch() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.uiState.collect {} }
+        runCurrent()
+
+        viewModel.onQueryChanged("   ")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+
+        assertTrue(fakeSearchRepository.observeRecentSearches().first().isEmpty())
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun onRecentSearchClicked_updatesQueryAndTriggersSearchAfterDebounce() = runTest(
+        mainDispatcherRule.testDispatcher,
+    ) {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(SearchUiState.Idle, awaitItem())
+
+            viewModel.onRecentSearchClicked("jazz")
+            assertEquals("jazz", viewModel.query.value)
+
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+
+            assertEquals(SearchUiState.Loading, awaitItem())
+            assertEquals(listOf("jazz"), fakeSearchRepository.searchedQueries)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun onClearRecentSearches_emptiesRecentSearches() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.uiState.collect {} }
+        runCurrent()
+
+        viewModel.onQueryChanged("rock")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+        assertEquals(listOf("rock"), fakeSearchRepository.observeRecentSearches().first())
+
+        viewModel.onClearRecentSearches()
+        runCurrent()
+
+        assertTrue(fakeSearchRepository.observeRecentSearches().first().isEmpty())
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun recentSearches_reflectsRepositoryEmissions() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.recentSearches.test {
+            assertEquals(emptyList<String>(), awaitItem())
+
+            fakeSearchRepository.recordRecentSearch("metal")
+
+            assertEquals(listOf("metal"), awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

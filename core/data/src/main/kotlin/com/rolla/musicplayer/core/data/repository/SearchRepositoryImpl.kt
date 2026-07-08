@@ -3,6 +3,7 @@ package com.rolla.musicplayer.core.data.repository
 import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.entity.toDomain
 import com.rolla.musicplayer.core.database.relation.toDomain
+import com.rolla.musicplayer.core.datastore.RecentSearchesDataSource
 import com.rolla.musicplayer.core.model.SearchResults
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -14,6 +15,7 @@ import javax.inject.Inject
 
 class SearchRepositoryImpl @Inject constructor(
     private val searchDao: SearchDao,
+    private val recentSearchesDataSource: RecentSearchesDataSource,
 ) : SearchRepository {
 
     override fun search(query: String): Flow<SearchResults> {
@@ -35,6 +37,12 @@ class SearchRepositoryImpl @Inject constructor(
             .flowOn(Dispatchers.IO)
             .distinctUntilChanged()
     }
+
+    override fun observeRecentSearches(): Flow<List<String>> = recentSearchesDataSource.recentSearches
+
+    override suspend fun recordRecentSearch(query: String) = recentSearchesDataSource.record(query)
+
+    override suspend fun clearRecentSearches() = recentSearchesDataSource.clear()
 }
 
 /**

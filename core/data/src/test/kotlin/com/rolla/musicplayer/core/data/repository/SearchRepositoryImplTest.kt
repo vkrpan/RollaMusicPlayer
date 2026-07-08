@@ -4,8 +4,13 @@ import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.database.relation.AlbumSearchRow
 import com.rolla.musicplayer.core.database.relation.ArtistSearchRow
+import com.rolla.musicplayer.core.datastore.RecentSearchesDataSource
 import io.mockk.Called
+import io.mockk.Runs
+import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.first
@@ -18,7 +23,8 @@ import org.junit.Test
 class SearchRepositoryImplTest {
 
     private val searchDao: SearchDao = mockk()
-    private val repository = SearchRepositoryImpl(searchDao)
+    private val recentSearchesDataSource: RecentSearchesDataSource = mockk()
+    private val repository = SearchRepositoryImpl(searchDao, recentSearchesDataSource)
 
     private fun stubDao(
         songs: List<SongEntity> = emptyList(),
@@ -99,5 +105,34 @@ class SearchRepositoryImplTest {
         val results = repository.search("zzz").first()
 
         assertTrue(results.isEmpty)
+    }
+
+    // ── recent searches (delegation to RecentSearchesDataSource) ────────────────
+
+    @Test
+    fun observeRecentSearches_delegatesToDataSource() = runTest {
+        every { recentSearchesDataSource.recentSearches } returns flowOf(listOf("rock", "jazz"))
+
+        val result = repository.observeRecentSearches().first()
+
+        assertEquals(listOf("rock", "jazz"), result)
+    }
+
+    @Test
+    fun recordRecentSearch_delegatesToDataSource() = runTest {
+        coEvery { recentSearchesDataSource.record(any()) } just Runs
+
+        repository.recordRecentSearch("rock")
+
+        coVerify { recentSearchesDataSource.record("rock") }
+    }
+
+    @Test
+    fun clearRecentSearches_delegatesToDataSource() = runTest {
+        coEvery { recentSearchesDataSource.clear() } just Runs
+
+        repository.clearRecentSearches()
+
+        coVerify { recentSearchesDataSource.clear() }
     }
 }
