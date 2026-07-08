@@ -198,8 +198,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-**Status**: Core Playback, Playlists, Equalizer, and Tag Editor shipped (Phases 2, 4, and 5 complete — custom tag system deferred)
-**Last Updated**: 2026-07-07
+**Status**: Core Playback, Playlists, Equalizer, Tag Editor, and Search shipped (Phases 2, 4, 5 complete — custom tag system deferred; Phase 3 search done, detail screens + artwork caching remain)
+**Last Updated**: 2026-07-08
 
 ### What's shipped (on `main`)
 
@@ -221,22 +221,22 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 | `:feature:playlists` — playlists | `c532e58`…`55c4b01` | Smart playlists (Recently played / Favourites / Most played), user playlists, playlist detail with key-based drag-and-drop reorder (reduced-motion aware), add-to-playlist sheet, play-count tracking + favourite toggle, transactional DAO position integrity (append/remove/compact), Room v2 migration |
 | Equalizer — `:core:media` engine + `:feature:equalizer` UI | `524f6e1`…`58b22e9` | `EqualizerController` (audiofx wrapper: nearest-band mapping for the 9 target frequencies, bandLevelRange clamping, thread-safe + exception-contained), service lifecycle binding (attach/re-apply persisted state on session-id change, guaranteed release on destroy), active state in DataStore + named presets in Room (DB v3, tested migration), 9 vertical spring sliders + preset chip grid + gains-driven response curve (real `Visualizer` rejected — requires RECORD_AUDIO, conflicts with privacy positioning), `Equalizer` route wired from Now Playing |
 | `:feature:tageditor` — tag editor | `546154d`…`98868cc` | Offline jaudiotagger fork (`com.github.Adonai`, local IO only) + `SongTags` model, `TagReader`/`TagWriter` (MP3/FLAC/M4A contract-tested against real fixture files), scoped-storage write consent per SDK (`createWriteRequest` 30+ / `RecoverableSecurityException` recovery 29 / legacy WRITE_EXTERNAL_STORAGE maxSdk=28 requested at point of use), single-song editor + batch editing (per-field apply toggles, per-song outcomes, partial-failure summaries), copy-through-cache write via `SongFileResolver`, post-save `TagSaveFinalizer` (MediaStore re-scan → targeted Room re-sync preserving user state → now-playing metadata refresh via `replaceMediaItem`), local-image artwork embedding (PhotoPicker, `isAndroid` flag for FLAC on-device decode), cancel/back guarded mid-save, long-press entry points in library |
-| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), and tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests, LibraryIndexer 8) |
+| `:feature:search` — library search | `8c22705`…`adc4577` | LIKE-based substring search over Room (deliberate FTS4 rejection — documented in `SearchDao`; wildcard-escaped, prefix-first relevance), grouped results Songs/Albums/Artists (albums/artists derived via `GROUP BY` over `songs` — no new tables; synthetic FNV-1a artist id documented as list-key-only), `SearchRepository` + `SearchResults` model, debounced (300ms) cancellable `SearchViewModel` (`flatMapLatest`, instant-Idle on blank, SavedStateHandle-seeded), SearchScreen (auto-focus field, IME-safe single-owner insets, sectioned results), shared `AlbumRow`/`ArtistRow` in `:core:ui`, `Search(query: String? = null)` route + library/playlists top-bar entries + `rollamusic://search` deep link, recent searches in DataStore (capped MRU 10, escaped codec, best-effort writes) |
+| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests, LibraryIndexer 8), and search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11) |
 
 ### What remains
 
-- **Phase 3**: `:feature:search`, album/artist detail screens, artwork caching polish
+- **Phase 3 leftover**: album/artist detail screens (search's album/artist taps are wired no-ops awaiting these routes; artist ids there must reconcile with search's synthetic FNV name-hash ids), artwork caching polish
 - **Phase 5 leftover**: custom tag system (deferred — not part of the shipped tag editor)
 - **Phase 6**: `:feature:widget` (Glance home screen widget), UI/UX polish
 - **Phase 7**: Comprehensive testing, baseline profile, release prep (note: `MediaWriteRequester`'s SDK branching has no direct unit tests — needs Robolectric or `mockkStatic`; covered indirectly via ViewModel consent tests)
 
 ## Next Steps
 
-1. Implement album artwork caching in `:core:data`
-2. Build `:feature:search` — local search across songs/albums/artists
-3. Add album detail and artist detail screens to `:feature:library`
+1. Build `:feature:settings` (PHASE6-SETTINGS.md exists) — include its Equalizer entry point (nav is ready: `Equalizer` route pops back to any caller)
+2. Add album detail and artist detail screens to `:feature:library` — then wire search's dormant `onAlbumClick`/`onArtistClick` (MainActivity `composable<Search>`)
+3. Implement album artwork caching in `:core:data`
 4. Build `:feature:widget` — Glance home screen widget (playback state is ready: tag edits already propagate via `PlaybackStateHolder`)
-5. When `:feature:settings` lands, add its Equalizer entry point (nav is ready: `Equalizer` route pops back to any caller)
 
 ## Notes
 
