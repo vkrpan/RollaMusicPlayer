@@ -74,6 +74,9 @@ private const val COLLAGE_QUADRANTS_PER_ROW = 2
 fun PlaylistsRoute(
     onPlaylistClick: (Long) -> Unit,
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
+    // Default no-op: wired by navigation-agent to the Search route -- same rationale as
+    // LibraryRoute's onSearchClick.
+    onSearchClick: () -> Unit = {},
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
     val smartPlaylists by viewModel.smartPlaylists.collectAsStateWithLifecycle()
@@ -83,6 +86,7 @@ fun PlaylistsRoute(
         userPlaylists = userPlaylists,
         onPlaylistClick = onPlaylistClick,
         onSmartPlaylistClick = onSmartPlaylistClick,
+        onSearchClick = onSearchClick,
         onCreatePlaylist = remember(viewModel) { viewModel::createPlaylist },
     )
 }
@@ -95,12 +99,14 @@ fun PlaylistsScreen(
     onPlaylistClick: (Long) -> Unit,
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     onCreatePlaylist: (String) -> Unit,
+    // Default no-op: wired by navigation-agent to the Search route.
+    onSearchClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { PlaylistsTopBar(onCreateClick = { showCreateDialog = true }) },
+        topBar = { PlaylistsTopBar(onCreateClick = { showCreateDialog = true }, onSearchClick = onSearchClick) },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) { innerPadding ->
@@ -131,6 +137,7 @@ fun PlaylistsScreen(
 @Composable
 private fun PlaylistsTopBar(
     onCreateClick: () -> Unit,
+    onSearchClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TopAppBar(
@@ -149,7 +156,7 @@ private fun PlaylistsTopBar(
                     tint = MaterialTheme.colorScheme.onSurface,
                 )
             }
-            IconButton(onClick = {}) {
+            IconButton(onClick = onSearchClick) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
             IconButton(onClick = {}) {

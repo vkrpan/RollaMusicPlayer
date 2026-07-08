@@ -87,6 +87,10 @@ private val SelectedSongIdsSaver: Saver<Set<String>, Any> = listSaver(
 @Composable
 fun LibraryRoute(
     viewModel: LibraryViewModel = hiltViewModel(),
+    // Default no-op: wired by navigation-agent to the Search route. Keeping this defaulted
+    // (rather than required) means :app keeps compiling against the existing, argument-less
+    // `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
+    onSearchClick: () -> Unit = {},
     // Default no-op: wired by navigation-agent once the TagEditor route lands. Keeping this
     // defaulted (rather than required) means :app keeps compiling against the existing,
     // argument-less `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
@@ -108,6 +112,7 @@ fun LibraryRoute(
             onSongClick = onSongClick,
             onAddSongToPlaylist = onAddSongToPlaylist,
             onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
+            onSearchClick = onSearchClick,
             onEditTagsClick = onEditTagsClick,
             onEditTagsForSelection = onEditTagsForSelection,
         )
@@ -126,6 +131,8 @@ fun LibraryScreen(
     onSongClick: (Song) -> Unit,
     onAddSongToPlaylist: (String, Long) -> Unit,
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
+    // Default no-op: wired by navigation-agent to the Search route.
+    onSearchClick: () -> Unit = {},
     // Default no-op: wired by navigation-agent once the TagEditor route lands.
     onEditTagsClick: (Song) -> Unit = {},
     // Default no-op: wired by navigation-agent once the BatchTagEditor route lands.
@@ -166,7 +173,7 @@ fun LibraryScreen(
                     },
                 )
             } else {
-                LibraryTopBar()
+                LibraryTopBar(onSearchClick = onSearchClick)
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -229,7 +236,7 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LibraryTopBar(modifier: Modifier = Modifier) {
+private fun LibraryTopBar(onSearchClick: () -> Unit, modifier: Modifier = Modifier) {
     TopAppBar(
         title = {
             Text(
@@ -239,7 +246,7 @@ private fun LibraryTopBar(modifier: Modifier = Modifier) {
             )
         },
         actions = {
-            IconButton(onClick = {}) {
+            IconButton(onClick = onSearchClick) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
             IconButton(onClick = {}) {

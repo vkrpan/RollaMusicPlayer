@@ -13,6 +13,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Deep link into Search (rollamusic://search[?query=...]), handled by the
+                 composable<Search> destination's navDeepLink<Search> in MainActivity's NavHost. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rollamusic" android:host="search" />
+            </intent-filter>
         </activity>
     </application>
 </manifest>

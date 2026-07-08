@@ -36,6 +36,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.LibraryRoute
@@ -44,6 +45,7 @@ import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
+import com.rolla.musicplayer.feature.search.SearchRoute
 import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
 import com.rolla.musicplayer.navigation.BatchTagEditor
@@ -52,6 +54,7 @@ import com.rolla.musicplayer.navigation.Library
 import com.rolla.musicplayer.navigation.NowPlaying
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Playlists
+import com.rolla.musicplayer.navigation.Search
 import com.rolla.musicplayer.navigation.SmartPlaylist
 import com.rolla.musicplayer.navigation.TagEditor
 import dagger.hilt.android.AndroidEntryPoint
@@ -169,6 +172,14 @@ private fun AppNavGraph(
     ) {
         composable<Library> {
             LibraryRoute(
+                // Search is reachable from both Library and Playlists top bars, so it never
+                // popUpTo's -- back / system back always pops it and returns to whichever of the
+                // two callers opened it. launchSingleTop guards double-taps of the search icon.
+                onSearchClick = {
+                    navController.navigate(Search()) {
+                        launchSingleTop = true
+                    }
+                },
                 onEditTagsClick = { song ->
                     // Song.id is the MediaStore row id, a numeric String by construction, so
                     // toLongOrNull() should never actually return null here -- this is defensive
@@ -218,6 +229,13 @@ private fun AppNavGraph(
             PlaylistsRoute(
                 onPlaylistClick = { id -> navController.navigate(PlaylistDetail(playlistId = id)) },
                 onSmartPlaylistClick = { kind -> navController.navigate(SmartPlaylist(kind = kind.name)) },
+                // Same explicit back behavior as Library's search entry point above: no popUpTo,
+                // launchSingleTop guards double-taps -- Search always pops back to Playlists here.
+                onSearchClick = {
+                    navController.navigate(Search()) {
+                        launchSingleTop = true
+                    }
+                },
             )
         }
         composable<PlaylistDetail> {
@@ -225,6 +243,22 @@ private fun AppNavGraph(
         }
         composable<SmartPlaylist> {
             PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // Search is reachable from two entry points (Library and Playlists top bars, wired
+        // above). No popUpTo here: navigateUp() always pops Search off and returns to whichever
+        // of the two actually opened it, rather than a hard-coded destination. launchSingleTop at
+        // each call site guards double-taps of the search icon.
+        composable<Search>(
+            deepLinks = listOf(navDeepLink<Search>(basePath = "rollamusic://search")),
+        ) {
+            SearchRoute(
+                onNavigateUp = { navController.navigateUp() },
+                // Album/artist detail screens haven't shipped yet (Phase 3). These no-ops
+                // activate once AlbumDetail/ArtistDetail routes land -- same convention as
+                // LibraryRoute's onEditTagsClick default before TagEditor existed.
+                onAlbumClick = {},
+                onArtistClick = {},
+            )
         }
         // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Library;
         // later: possibly Now Playing or Search). Back arrow / Cancel / system back and a

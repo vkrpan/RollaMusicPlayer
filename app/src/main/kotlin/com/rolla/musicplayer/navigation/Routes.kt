@@ -27,3 +27,9 @@ data class TagEditor(val songId: Long) : Route
 
 @Serializable
 data class BatchTagEditor(val songIds: List<Long>) : Route
+
+// Nullable-with-default per navigation-conventions.md: `query` becomes an optional query param
+// in both the type-safe route itself and the `navDeepLink<Search>` derived from it. A missing or
+// blank query never crashes -- SearchViewModel treats a null/blank query as its Idle state.
+@Serializable
+data class Search(val query: String? = null) : Route
