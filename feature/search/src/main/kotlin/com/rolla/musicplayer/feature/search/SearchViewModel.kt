@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.SearchRepository
+import com.rolla.musicplayer.core.media.PlaybackController
+import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
@@ -62,10 +64,15 @@ private const val SEARCH_DEBOUNCE_MS = 300L
 class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val savedStateHandle: SavedStateHandle,
+    private val playbackController: PlaybackController,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow(savedStateHandle.get<String>(QUERY_KEY).orEmpty())
     val query: StateFlow<String> = _query.asStateFlow()
+
+    init {
+        playbackController.connect()
+    }
 
     val uiState: StateFlow<SearchUiState> = _query
         .debounce { text -> if (text.isBlank()) 0L else SEARCH_DEBOUNCE_MS }
@@ -81,6 +88,11 @@ class SearchViewModel @Inject constructor(
     fun onQueryChanged(value: String) {
         _query.update { value }
         savedStateHandle[QUERY_KEY] = value
+    }
+
+    /** Starts playback of a song tapped from the Songs section of [uiState]'s results. */
+    fun play(song: Song) {
+        playbackController.play(song)
     }
 
     private fun searchFlow(text: String) = if (text.isBlank()) {

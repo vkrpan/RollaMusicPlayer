@@ -2,10 +2,13 @@ package com.rolla.musicplayer.feature.search
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.SearchResults
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeSearchRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -38,6 +41,10 @@ class SearchViewModelTest {
 
     private val fakeSearchRepository = FakeSearchRepository()
 
+    // Relaxed mock: connect() is called in SearchViewModel.init; we don't want to
+    // stub it manually in every test (same rationale as LibraryViewModelTest).
+    private val playbackController = mockk<PlaybackController>(relaxed = true)
+
     private val sampleSong = Song(
         id = "song-1",
         title = "Song 1",
@@ -57,7 +64,7 @@ class SearchViewModelTest {
         } else {
             SavedStateHandle()
         }
-        return SearchViewModel(fakeSearchRepository, savedStateHandle)
+        return SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController)
     }
 
     @Test
@@ -80,7 +87,7 @@ class SearchViewModelTest {
     @Test
     fun onQueryChanged_persistsValueToSavedStateHandle() = runTest(mainDispatcherRule.testDispatcher) {
         val savedStateHandle = SavedStateHandle()
-        val viewModel = SearchViewModel(fakeSearchRepository, savedStateHandle)
+        val viewModel = SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController)
 
         viewModel.onQueryChanged("metal")
 
@@ -239,5 +246,16 @@ class SearchViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // ── play ──────────────────────────────────────────────────────────────────
+
+    @Test
+    fun play_delegatesToPlaybackController() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.play(sampleSong)
+
+        verify(exactly = 1) { playbackController.play(sampleSong) }
     }
 }
