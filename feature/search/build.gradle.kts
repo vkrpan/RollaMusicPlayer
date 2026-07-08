@@ -12,6 +12,7 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":core:ui"))
     val composeBom = platform(libs.androidx.compose.bom)
@@ -21,4 +22,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
+    testImplementation(project(":core:testing"))
 }
