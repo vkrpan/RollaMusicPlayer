@@ -6,9 +6,12 @@ import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -101,7 +105,7 @@ fun SearchRoute(
     )
 }
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun SearchScreen(
     query: String,
@@ -128,6 +132,11 @@ fun SearchScreen(
         // closes, so the IME can never cover the tail of the results list -- there is no other
         // scrollable container here for a plain per-content imePadding to attach to usefully.
         modifier = modifier.imePadding(),
+        // The outer imePadding above is the ONE owner of the IME inset: excluding ime here
+        // guarantees Scaffold's innerPadding can never also reserve keyboard height (M3's
+        // default contentWindowInsets may include ime depending on version), which would
+        // squeeze the results list by twice the keyboard height.
+        contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             SearchTopBar(

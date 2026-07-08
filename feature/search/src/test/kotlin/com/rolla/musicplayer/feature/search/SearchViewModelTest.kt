@@ -2,15 +2,23 @@ package com.rolla.musicplayer.feature.search
 
 import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
+import com.rolla.musicplayer.core.data.repository.SearchRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.SearchResults
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeSearchRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import io.mockk.Runs
+import io.mockk.coEvery
+import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -24,6 +32,9 @@ import org.junit.Test
 private const val DEBOUNCE_MS = 300L
 
 private const val QUERY_KEY = "query"
+
+// Deliberately far longer than the debounce window -- see mockSearchRepository's KDoc.
+private const val SLOW_QUERY_DELAY_MS = 10_000L
 
 /**
  * Unit tests for [SearchViewModel].
@@ -150,6 +161,41 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun onQueryChanged_clearedBeforeDebounceElapses_abandonedQueryNeverSearchedOrRecorded() = runTest(
+        mainDispatcherRule.testDispatcher,
+    ) {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(SearchUiState.Idle, awaitItem())
+
+            viewModel.onQueryChanged("rock")
+            advanceTimeBy(DEBOUNCE_MS - 1)
+            runCurrent()
+
+            // Cleared before "rock"'s debounce window ever elapsed -- debounce() restarts its
+            // timer on this new value instead of letting the abandoned one through.
+            viewModel.onQueryChanged("")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+
+            // Still Idle -- the blank exemption maps to the same value already current, so
+            // stateIn's conflation means no new emission reaches this collector either.
+            expectNoEvents()
+            assertTrue(
+                "abandoned 'rock' query must never reach the repository",
+                fakeSearchRepository.searchedQueries.isEmpty(),
+            )
+            assertTrue(
+                "abandoned 'rock' query must never be recorded as a recent search",
+                fakeSearchRepository.observeRecentSearches().first().isEmpty(),
+            )
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun onQueryChanged_clearingToBlank_returnsToIdleImmediatelyWithoutWaitingForDebounce() = runTest(
         mainDispatcherRule.testDispatcher,
     ) {
@@ -169,6 +215,27 @@ class SearchViewModelTest {
 
             assertEquals(SearchUiState.Idle, awaitItem())
             assertEquals(listOf("rock"), fakeSearchRepository.searchedQueries)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun onQueryChanged_whitespaceOnlyQuery_treatedAsBlankEndToEnd() = runTest(mainDispatcherRule.testDispatcher) {
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(SearchUiState.Idle, awaitItem())
+
+            viewModel.onQueryChanged("   ")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+
+            // Whitespace-only text is blank: exempt from the debounce wait, never reaches the
+            // repository, and maps to the same Idle value already current -- no new emission.
+            expectNoEvents()
+            assertTrue(fakeSearchRepository.searchedQueries.isEmpty())
+            assertTrue(fakeSearchRepository.observeRecentSearches().first().isEmpty())
 
             cancelAndIgnoreRemainingEvents()
         }
@@ -225,6 +292,66 @@ class SearchViewModelTest {
 
             assertEquals(SearchUiState.Loading, awaitItem())
             assertEquals(SearchUiState.Empty, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /**
+     * A dedicated [SearchRepository] double, purely for
+     * [uiState_fasterQueryArrivesWhileSlowerSearchInFlight_flatMapLatestCancelsStaleSearch].
+     * [FakeSearchRepository] shares one results flow across every query, so it can't tell a slow
+     * "first query" apart from a fast "second query" -- this gives the two queries genuinely
+     * different response timing instead.
+     */
+    private fun mockSearchRepository(slowResults: SearchResults, fastResults: SearchResults): SearchRepository {
+        val repository = mockk<SearchRepository>()
+        every { repository.observeRecentSearches() } returns flowOf(emptyList())
+        coEvery { repository.recordRecentSearch(any()) } just Runs
+        every { repository.search("slow") } returns flow {
+            delay(SLOW_QUERY_DELAY_MS)
+            emit(slowResults)
+        }
+        every { repository.search("fast") } returns flowOf(fastResults)
+        return repository
+    }
+
+    private fun searchResultsWithSong(id: String) =
+        SearchResults(songs = listOf(sampleSong.copy(id = id)), albums = emptyList(), artists = emptyList())
+
+    @Test
+    fun uiState_fasterQueryArrivesWhileSlowerSearchInFlight_flatMapLatestCancelsStaleSearch() = runTest(
+        mainDispatcherRule.testDispatcher,
+    ) {
+        val fastResults = searchResultsWithSong(id = "fast-song")
+        val repository = mockSearchRepository(
+            slowResults = searchResultsWithSong(id = "slow-song"),
+            fastResults = fastResults,
+        )
+        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController)
+
+        viewModel.uiState.test {
+            assertEquals(SearchUiState.Idle, awaitItem())
+
+            viewModel.onQueryChanged("slow")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+            assertEquals(SearchUiState.Loading, awaitItem())
+
+            viewModel.onQueryChanged("fast")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+            // The "slow" query never got past Loading before being superseded, so this
+            // transition's own Loading emission is an equal value to what's already current --
+            // StateFlow conflates it away. The next distinct value collected is "fast"'s result.
+            assertEquals(SearchUiState.Results(fastResults), awaitItem())
+
+            // Advance well past the "slow" query's delay. If flatMapLatest hadn't cancelled its
+            // still in-flight collection when "fast" arrived, this is where a stale result would
+            // land and overwrite the newer one.
+            advanceTimeBy(SLOW_QUERY_DELAY_MS * 2)
+            runCurrent()
+            expectNoEvents()
 
             cancelAndIgnoreRemainingEvents()
         }

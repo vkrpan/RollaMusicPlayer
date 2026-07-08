@@ -7,6 +7,7 @@ import com.rolla.musicplayer.core.data.repository.SearchRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -115,10 +116,17 @@ class SearchViewModel @Inject constructor(
         onQueryChanged(query)
     }
 
-    /** Clears all recorded recent-search history. */
+    /** Clears all recorded recent-search history. Best-effort: a failed DataStore write is dropped. */
     fun onClearRecentSearches() {
         viewModelScope.launch {
-            searchRepository.clearRecentSearches()
+            try {
+                searchRepository.clearRecentSearches()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                // History is cosmetic; an IOException from DataStore (disk full) must not crash
+                // the process via viewModelScope's default handler.
+            }
         }
     }
 
@@ -133,7 +141,16 @@ class SearchViewModel @Inject constructor(
                 // committed to being searched, so history should reflect that immediately rather
                 // than depend on a collector observing Loading first. A pipeline restart
                 // re-recording the same query is harmless -- the repository dedupes to front.
-                searchRepository.recordRecentSearch(text)
+                // Best-effort: this onStart runs INSIDE the flow feeding uiState, so a failed
+                // DataStore write (disk full -> IOException) must never poison the search results
+                // pipeline -- the search itself proceeds without the history entry.
+                try {
+                    searchRepository.recordRecentSearch(text)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                    // Dropped deliberately; see above.
+                }
                 emit(SearchUiState.Loading)
                 // StateFlow never suspends its producer on a value write, so without ceding the
                 // dispatcher here, a repository that resolves synchronously (as an in-memory fake
