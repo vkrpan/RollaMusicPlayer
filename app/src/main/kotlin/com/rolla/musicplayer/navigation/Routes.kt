@@ -33,3 +33,16 @@ data class BatchTagEditor(val songIds: List<Long>) : Route
 // blank query never crashes -- SearchViewModel treats a null/blank query as its Idle state.
 @Serializable
 data class Search(val query: String? = null) : Route
+
+// Reachable from both Library and Playlists top-bar overflow menus.
+@Serializable
+data object Settings : Route
+
+// Prompt 6 fills these in with real content (app info / license list); for now they're minimal
+// placeholder screens in :feature:settings so the Settings -> About/Licenses navigation edges are
+// real and testable now. Single entry point: Settings only.
+@Serializable
+data object About : Route
+
+@Serializable
+data object Licenses : Route

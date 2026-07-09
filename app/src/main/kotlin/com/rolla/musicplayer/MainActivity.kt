@@ -51,15 +51,21 @@ import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
 import com.rolla.musicplayer.feature.search.SearchRoute
+import com.rolla.musicplayer.feature.settings.AboutRoute
+import com.rolla.musicplayer.feature.settings.LicensesRoute
+import com.rolla.musicplayer.feature.settings.SettingsRoute
 import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
+import com.rolla.musicplayer.navigation.About
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
+import com.rolla.musicplayer.navigation.Licenses
 import com.rolla.musicplayer.navigation.NowPlaying
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Playlists
 import com.rolla.musicplayer.navigation.Search
+import com.rolla.musicplayer.navigation.Settings
 import com.rolla.musicplayer.navigation.SmartPlaylist
 import com.rolla.musicplayer.navigation.TagEditor
 import dagger.hilt.android.AndroidEntryPoint
@@ -252,6 +258,15 @@ private fun AppNavGraph(
                         launchSingleTop = true
                     }
                 },
+                // Settings is reachable from both Library and Playlists top-bar overflow menus
+                // (wired below too). No popUpTo here: navigateUp() (from Settings itself) always
+                // pops back to whichever of the two actually opened it, rather than a hard-coded
+                // destination. launchSingleTop guards double-taps of the overflow menu's item.
+                onSettingsClick = {
+                    navController.navigate(Settings) {
+                        launchSingleTop = true
+                    }
+                },
                 onEditTagsClick = { song ->
                     // Song.id is the MediaStore row id, a numeric String by construction, so
                     // toLongOrNull() should never actually return null here -- this is defensive
@@ -290,10 +305,10 @@ private fun AppNavGraph(
                 animatedContentScope = this,
             )
         }
-        // Equalizer is a leaf pushed on top of whichever screen opened it (today: Now Playing;
-        // later: Settings too). Back = navigateUp() only — pops Equalizer and returns to the
-        // caller. No popUpTo here: that would hard-code "always return to X" and break the
-        // future Settings entry point. launchSingleTop above guards double-taps of the icon.
+        // Equalizer is a leaf pushed on top of whichever screen opened it (today: Now Playing and
+        // Settings, both wired). Back = navigateUp() only — pops Equalizer and returns to the
+        // caller. No popUpTo here: that would hard-code "always return to X" and break the second
+        // entry point. launchSingleTop at each call site guards double-taps of the icon/row.
         composable<Equalizer> {
             EqualizerRoute(onNavigateUp = { navController.navigateUp() })
         }
@@ -305,6 +320,13 @@ private fun AppNavGraph(
                 // launchSingleTop guards double-taps -- Search always pops back to Playlists here.
                 onSearchClick = {
                     navController.navigate(Search()) {
+                        launchSingleTop = true
+                    }
+                },
+                // Same explicit back behavior as Library's onSettingsClick above: no popUpTo,
+                // launchSingleTop guards double-taps -- Settings always pops back to Playlists here.
+                onSettingsClick = {
+                    navController.navigate(Settings) {
                         launchSingleTop = true
                     }
                 },
@@ -350,6 +372,49 @@ private fun AppNavGraph(
         // selection toolbar's "Edit tags" action.
         composable<BatchTagEditor> {
             BatchTagEditorRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // Settings is reachable from both Library's and Playlists' top-bar overflow menus (wired
+        // above). No popUpTo here: navigateUp() always pops Settings and returns to whichever of
+        // the two actually opened it, rather than a hard-coded destination. launchSingleTop at
+        // each call site guards double-taps of the overflow menu's "Settings" item.
+        composable<Settings> {
+            SettingsRoute(
+                onNavigateUp = { navController.navigateUp() },
+                onEqualizerClick = {
+                    navController.navigate(Equalizer) {
+                        launchSingleTop = true
+                    }
+                },
+                // Rescan hasn't shipped yet (Prompt 6 wires it to the media scanner). Same
+                // dormant-callback convention as SearchRoute's onAlbumClick/onArtistClick above.
+                onRescanClick = {},
+                // Privacy sub-screen hasn't shipped yet (Prompt 6). Same dormant-callback
+                // convention as onRescanClick above.
+                onPrivacyClick = {},
+                onAboutClick = {
+                    navController.navigate(About) {
+                        launchSingleTop = true
+                    }
+                },
+                onLicensesClick = {
+                    navController.navigate(Licenses) {
+                        launchSingleTop = true
+                    }
+                },
+            )
+        }
+        // About is a leaf reachable only from Settings' "About" row (today). navigateUp()-only,
+        // no popUpTo -- always pops back to Settings. launchSingleTop above guards double-taps of
+        // the row. Content itself is a Prompt 6 placeholder -- see AboutScreen.kt.
+        composable<About> {
+            AboutRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // Licenses is a leaf reachable only from Settings' "Open-source licenses" row (today).
+        // Same back-behavior shape as About above: navigateUp()-only, no popUpTo -- always pops
+        // back to Settings. launchSingleTop above guards double-taps of the row. Content itself
+        // is a Prompt 6 placeholder -- see LicensesScreen.kt.
+        composable<Licenses> {
+            LicensesRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
 }

@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,6 +79,9 @@ fun PlaylistsRoute(
     // Default no-op: wired by navigation-agent to the Search route -- same rationale as
     // LibraryRoute's onSearchClick.
     onSearchClick: () -> Unit = {},
+    // Default no-op: wired by navigation-agent to the Settings route -- same rationale as
+    // LibraryRoute's onSettingsClick.
+    onSettingsClick: () -> Unit = {},
     viewModel: PlaylistsViewModel = hiltViewModel(),
 ) {
     val smartPlaylists by viewModel.smartPlaylists.collectAsStateWithLifecycle()
@@ -87,11 +92,12 @@ fun PlaylistsRoute(
         onPlaylistClick = onPlaylistClick,
         onSmartPlaylistClick = onSmartPlaylistClick,
         onSearchClick = onSearchClick,
+        onSettingsClick = onSettingsClick,
         onCreatePlaylist = remember(viewModel) { viewModel::createPlaylist },
     )
 }
 
-@Suppress("LongParameterList")
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun PlaylistsScreen(
     smartPlaylists: List<SmartPlaylistSummary>,
@@ -101,12 +107,20 @@ fun PlaylistsScreen(
     onCreatePlaylist: (String) -> Unit,
     // Default no-op: wired by navigation-agent to the Search route.
     onSearchClick: () -> Unit = {},
+    // Default no-op: wired by navigation-agent to the Settings route.
+    onSettingsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var showCreateDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = { PlaylistsTopBar(onCreateClick = { showCreateDialog = true }, onSearchClick = onSearchClick) },
+        topBar = {
+            PlaylistsTopBar(
+                onCreateClick = { showCreateDialog = true },
+                onSearchClick = onSearchClick,
+                onSettingsClick = onSettingsClick,
+            )
+        },
         containerColor = MaterialTheme.colorScheme.background,
         modifier = modifier,
     ) { innerPadding ->
@@ -138,6 +152,7 @@ fun PlaylistsScreen(
 private fun PlaylistsTopBar(
     onCreateClick: () -> Unit,
     onSearchClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TopAppBar(
@@ -159,17 +174,39 @@ private fun PlaylistsTopBar(
             IconButton(onClick = onSearchClick) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
-            IconButton(onClick = {}) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+            PlaylistsOverflowMenu(onSettingsClick = onSettingsClick)
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         modifier = modifier,
     )
+}
+
+/**
+ * TopAppBar overflow (kebab) menu: today its only item opens Settings -- same shape as Library's
+ * `LibraryOverflowMenu`. Kept as its own composable so the `expanded` state lives next to the
+ * button/menu pair it controls.
+ */
+@Composable
+private fun PlaylistsOverflowMenu(onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Settings") },
+                onClick = {
+                    expanded = false
+                    onSettingsClick()
+                },
+            )
+        }
+    }
 }
 
 @Composable

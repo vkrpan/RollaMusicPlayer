@@ -26,6 +26,8 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
@@ -91,6 +93,9 @@ fun LibraryRoute(
     // (rather than required) means :app keeps compiling against the existing, argument-less
     // `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
     onSearchClick: () -> Unit = {},
+    // Default no-op: wired by navigation-agent to the Settings route -- same rationale as
+    // onSearchClick above.
+    onSettingsClick: () -> Unit = {},
     // Default no-op: wired by navigation-agent once the TagEditor route lands. Keeping this
     // defaulted (rather than required) means :app keeps compiling against the existing,
     // argument-less `LibraryRoute()` call site in MainActivity until that nav wiring step lands.
@@ -113,6 +118,7 @@ fun LibraryRoute(
             onAddSongToPlaylist = onAddSongToPlaylist,
             onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
             onSearchClick = onSearchClick,
+            onSettingsClick = onSettingsClick,
             onEditTagsClick = onEditTagsClick,
             onEditTagsForSelection = onEditTagsForSelection,
         )
@@ -133,6 +139,8 @@ fun LibraryScreen(
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
     // Default no-op: wired by navigation-agent to the Search route.
     onSearchClick: () -> Unit = {},
+    // Default no-op: wired by navigation-agent to the Settings route.
+    onSettingsClick: () -> Unit = {},
     // Default no-op: wired by navigation-agent once the TagEditor route lands.
     onEditTagsClick: (Song) -> Unit = {},
     // Default no-op: wired by navigation-agent once the BatchTagEditor route lands.
@@ -173,7 +181,7 @@ fun LibraryScreen(
                     },
                 )
             } else {
-                LibraryTopBar(onSearchClick = onSearchClick)
+                LibraryTopBar(onSearchClick = onSearchClick, onSettingsClick = onSettingsClick)
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -236,7 +244,11 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LibraryTopBar(onSearchClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun LibraryTopBar(
+    onSearchClick: () -> Unit,
+    onSettingsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     TopAppBar(
         title = {
             Text(
@@ -249,17 +261,39 @@ private fun LibraryTopBar(onSearchClick: () -> Unit, modifier: Modifier = Modifi
             IconButton(onClick = onSearchClick) {
                 Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
-            IconButton(onClick = {}) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More options",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+            LibraryOverflowMenu(onSettingsClick = onSettingsClick)
         },
         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         modifier = modifier,
     )
+}
+
+/**
+ * TopAppBar overflow (kebab) menu: today its only item opens Settings. Kept as its own composable
+ * (rather than inline in [LibraryTopBar]'s `actions`) so the `expanded` state lives next to the
+ * button/menu pair it controls.
+ */
+@Composable
+private fun LibraryOverflowMenu(onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        IconButton(onClick = { expanded = true }) {
+            Icon(
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text("Settings") },
+                onClick = {
+                    expanded = false
+                    onSettingsClick()
+                },
+            )
+        }
+    }
 }
 
 /**
