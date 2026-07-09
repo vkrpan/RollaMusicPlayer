@@ -38,11 +38,12 @@ data class Search(val query: String? = null) : Route
 @Serializable
 data object Settings : Route
 
-// Prompt 6 fills these in with real content (app info / license list); for now they're minimal
-// placeholder screens in :feature:settings so the Settings -> About/Licenses navigation edges are
-// real and testable now. Single entry point: Settings only.
+// Settings sub-screens. Single entry point: Settings only.
 @Serializable
 data object About : Route
 
 @Serializable
 data object Licenses : Route
+
+@Serializable
+data object Privacy : Route

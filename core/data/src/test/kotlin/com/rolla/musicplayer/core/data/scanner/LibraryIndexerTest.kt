@@ -5,6 +5,9 @@ import com.rolla.musicplayer.core.database.entity.SongEntity
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -83,6 +86,81 @@ class LibraryIndexerTest {
 
         assertEquals(SyncResult(added = 0, removed = 1), result)
         coVerify(exactly = 1) { songDao.deleteByMediaStoreIds(listOf(7L)) }
+    }
+
+    // ── concurrent invocation safety ───────────────────────────────────────
+
+    /**
+     * Regression test for the manual "Rescan library" entry point overlapping an already in-flight
+     * [LibraryIndexer.sync] (e.g. the library screen's permission-grant scan). The two calls must
+     * serialize rather than interleave: the second call's [SongDao.getAllSongs] snapshot must only
+     * be read after the first call has fully finished (including its DAO writes), never while the
+     * first call still holds the lock.
+     */
+    @Test
+    fun sync_concurrentInvocations_areSerializedByAnInternalMutex() = runTest {
+        val callOrder = mutableListOf<String>()
+        val secondCallReady = CompletableDeferred<Unit>()
+        var callCount = 0
+
+        coEvery { scanner.scan() } coAnswers {
+            callCount++
+            if (callCount == 1) {
+                callOrder += "first-start"
+                // Let the second sync() attempt to acquire the lock while this call still holds it.
+                secondCallReady.complete(Unit)
+                delay(50)
+                callOrder += "first-end"
+            } else {
+                callOrder += "second-start"
+                callOrder += "second-end"
+            }
+            listOf(scannedSong(mediaStoreId = 1L))
+        }
+        coEvery { songDao.getAllSongs() } returns emptyList()
+
+        val firstJob = launch { indexer.sync() }
+        val secondJob = launch {
+            secondCallReady.await()
+            indexer.sync()
+        }
+
+        firstJob.join()
+        secondJob.join()
+
+        assertEquals(listOf("first-start", "first-end", "second-start", "second-end"), callOrder)
+    }
+
+    /** Same serialization guarantee, but for a [LibraryIndexer.sync] overlapping a [LibraryIndexer.syncSongs]. */
+    @Test
+    fun syncAndSyncSongs_concurrentInvocations_areSerializedByAnInternalMutex() = runTest {
+        val callOrder = mutableListOf<String>()
+        val secondCallReady = CompletableDeferred<Unit>()
+
+        coEvery { scanner.scan() } coAnswers {
+            callOrder += "sync-start"
+            secondCallReady.complete(Unit)
+            delay(50)
+            callOrder += "sync-end"
+            listOf(scannedSong(mediaStoreId = 1L))
+        }
+        coEvery { scanner.scan(listOf(2L)) } coAnswers {
+            callOrder += "syncSongs-start"
+            callOrder += "syncSongs-end"
+            listOf(scannedSong(mediaStoreId = 2L))
+        }
+        coEvery { songDao.getAllSongs() } returns emptyList()
+
+        val firstJob = launch { indexer.sync() }
+        val secondJob = launch {
+            secondCallReady.await()
+            indexer.syncSongs(listOf(2L))
+        }
+
+        firstJob.join()
+        secondJob.join()
+
+        assertEquals(listOf("sync-start", "sync-end", "syncSongs-start", "syncSongs-end"), callOrder)
     }
 
     // ── syncSongs (targeted re-sync after a tag write) ────────────────────

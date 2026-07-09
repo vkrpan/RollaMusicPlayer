@@ -4,16 +4,21 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
+import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.datastore.EqualizerPreferences
 import com.rolla.musicplayer.core.model.ThemeMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private const val RESCAN_FAILURE_MESSAGE = "Couldn't rescan the library. Please try again."
 
 /**
  * ViewModel for the Settings screen.
@@ -40,9 +45,18 @@ import javax.inject.Inject
 class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val equalizerPreferences: EqualizerPreferences,
+    private val libraryIndexer: LibraryIndexer,
 ) : ViewModel() {
 
     internal var sdkIntProvider: () -> Int = { Build.VERSION.SDK_INT }
+
+    /**
+     * Transient state of the manual rescan action -- deliberately separate from the persisted
+     * settings so a rescan doesn't ripple through the settings combine, then merged into
+     * [uiState] below. Main-thread confined (all writers run on viewModelScope's main dispatcher),
+     * so the check-then-set reentry guard in [onRescanClick] is race-free.
+     */
+    private val rescanStatus = MutableStateFlow(RescanStatus())
 
     val uiState: StateFlow<SettingsUiState> = combine(
         settingsRepository.observeThemeMode(),
@@ -59,6 +73,8 @@ class SettingsViewModel @Inject constructor(
             equalizerEnabled = equalizerEnabled,
             isDynamicColorAvailable = isDynamicColorAvailable(),
         )
+    }.combine(rescanStatus) { settings, rescan ->
+        settings.copy(isRescanning = rescan.isRescanning, rescanMessage = rescan.message)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
@@ -90,6 +106,35 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
+     * Runs a full manual library rescan ([LibraryIndexer.sync] -- safe to fire even while another
+     * sync is in flight elsewhere; the indexer serializes concurrent calls internally). Re-entry
+     * from this screen is ignored while a rescan is already running. On completion,
+     * [SettingsUiState.rescanMessage] carries a result summary; a failure becomes a friendly
+     * message rather than a crash (same best-effort stance as the setting writes).
+     */
+    fun onRescanClick() {
+        if (rescanStatus.value.isRescanning) return
+        rescanStatus.value = RescanStatus(isRescanning = true)
+        viewModelScope.launch {
+            try {
+                val result = libraryIndexer.sync()
+                rescanStatus.value = RescanStatus(
+                    message = "Library rescanned: ${result.added} added or updated, ${result.removed} removed",
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                rescanStatus.value = RescanStatus(message = RESCAN_FAILURE_MESSAGE)
+            }
+        }
+    }
+
+    /** Clears [SettingsUiState.rescanMessage] once the snackbar has shown it. */
+    fun dismissRescanMessage() {
+        rescanStatus.update { it.copy(message = null) }
+    }
+
+    /**
      * Launches [block] in [viewModelScope], dropping any non-cancellation failure. Mirrors
      * `SearchViewModel.onClearRecentSearches`'s idiom: a DataStore write failure (disk full ->
      * IOException) is cosmetic here -- the setting simply doesn't persist -- and must never crash
@@ -109,4 +154,10 @@ class SettingsViewModel @Inject constructor(
 
     /** True on API 31+ (Android 12), where Material You dynamic color exists. */
     private fun isDynamicColorAvailable(): Boolean = sdkIntProvider() >= Build.VERSION_CODES.S
+
+    /** Transient manual-rescan state merged into [uiState]; see [rescanStatus]. */
+    private data class RescanStatus(
+        val isRescanning: Boolean = false,
+        val message: String? = null,
+    )
 }

@@ -3,14 +3,18 @@ package com.rolla.musicplayer.feature.settings
 import app.cash.turbine.test
 import com.rolla.musicplayer.core.data.repository.DEFAULT_PLAYBACK_SPEED
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
+import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
+import com.rolla.musicplayer.core.data.scanner.SyncResult
 import com.rolla.musicplayer.core.datastore.EqualizerPreferences
 import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.core.testing.FakeEqualizerPreferences
 import com.rolla.musicplayer.core.testing.FakeSettingsRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -30,11 +34,15 @@ class SettingsViewModelTest {
 
     private val fakeSettingsRepository = FakeSettingsRepository()
     private val fakeEqualizerPreferences = FakeEqualizerPreferences()
+    private val libraryIndexer: LibraryIndexer = mockk {
+        coEvery { sync() } returns SyncResult(added = 0, removed = 0)
+    }
 
     private fun createViewModel(
         settingsRepository: SettingsRepository = fakeSettingsRepository,
         equalizerPreferences: EqualizerPreferences = fakeEqualizerPreferences,
-    ): SettingsViewModel = SettingsViewModel(settingsRepository, equalizerPreferences)
+        indexer: LibraryIndexer = libraryIndexer,
+    ): SettingsViewModel = SettingsViewModel(settingsRepository, equalizerPreferences, indexer)
 
     // ── uiState defaults ─────────────────────────────────────────────────────
 
@@ -241,5 +249,104 @@ class SettingsViewModelTest {
         viewModel.onSkipSilenceChanged(true)
 
         assertTrue(true)
+    }
+
+    // ── manual rescan ─────────────────────────────────────────────────────────
+
+    @Test
+    fun onRescanClick_showsProgressThenResultMessageWithCounts() = runTest {
+        // Gate keeps the sync in flight so the isRescanning=true state is deterministically
+        // observable before completion (rather than racing StateFlow conflation).
+        val gate = CompletableDeferred<Unit>()
+        coEvery { libraryIndexer.sync() } coAnswers {
+            gate.await()
+            SyncResult(added = 5, removed = 2)
+        }
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+
+            gate.complete(Unit)
+            val finished = awaitItem()
+            assertEquals(false, finished.isRescanning)
+            assertEquals("Library rescanned: 5 added or updated, 2 removed", finished.rescanMessage)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun onRescanClick_whileRescanInFlight_secondCallIsIgnored() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { libraryIndexer.sync() } coAnswers {
+            gate.await()
+            SyncResult(added = 0, removed = 0)
+        }
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+            viewModel.onRescanClick()
+
+            gate.complete(Unit)
+            assertEquals(false, awaitItem().isRescanning)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify(exactly = 1) { libraryIndexer.sync() }
+    }
+
+    @Test
+    fun onRescanClick_syncThrows_setsFriendlyFailureMessageWithoutCrash() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { libraryIndexer.sync() } coAnswers {
+            gate.await()
+            throw IOException("mediastore unavailable")
+        }
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+
+            gate.complete(Unit)
+            val failed = awaitItem()
+            assertEquals(false, failed.isRescanning)
+            assertEquals("Couldn't rescan the library. Please try again.", failed.rescanMessage)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun dismissRescanMessage_clearsTheMessage() = runTest {
+        coEvery { libraryIndexer.sync() } returns SyncResult(added = 1, removed = 0)
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            // Skip intermediate emissions (in-flight state may conflate with completion here --
+            // the deterministic ordering is already pinned by the gated tests above).
+            var item = awaitItem()
+            while (item.rescanMessage == null) {
+                item = awaitItem()
+            }
+
+            viewModel.dismissRescanMessage()
+            assertEquals(null, awaitItem().rescanMessage)
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 }

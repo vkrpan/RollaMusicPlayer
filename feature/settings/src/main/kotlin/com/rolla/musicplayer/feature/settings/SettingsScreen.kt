@@ -18,10 +18,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,16 +57,16 @@ private val PlaybackSpeedSliderSteps =
  * Stateful entry point for the Settings screen (Settings route). Same Route/Screen split as every
  * other screen in the codebase (see TagEditorRoute in feature:tageditor).
  *
- * [onEqualizerClick]/[onRescanClick]/[onPrivacyClick]/[onAboutClick]/[onLicensesClick] are hoisted
- * callbacks whose actual navigation destinations are wired up by navigation-agent separately; this
- * Route never constructs or reasons about them, it only forwards each row tap to the caller.
+ * [onEqualizerClick]/[onPrivacyClick]/[onAboutClick]/[onLicensesClick] are hoisted navigation
+ * callbacks wired by navigation-agent; the Rescan action is NOT hoisted -- it's a ViewModel
+ * action ([SettingsViewModel.onRescanClick]), not a navigation edge, so it stays inside this
+ * feature (same reasoning as SearchRoute binding song taps to its own ViewModel's play()).
  */
 @Suppress("LongParameterList")
 @Composable
 fun SettingsRoute(
     onNavigateUp: () -> Unit,
     onEqualizerClick: () -> Unit,
-    onRescanClick: () -> Unit,
     onPrivacyClick: () -> Unit,
     onAboutClick: () -> Unit,
     onLicensesClick: () -> Unit,
@@ -80,7 +83,8 @@ fun SettingsRoute(
         onPlaybackSpeedChanged = remember(viewModel) { viewModel::onPlaybackSpeedChanged },
         onSkipSilenceChanged = remember(viewModel) { viewModel::onSkipSilenceChanged },
         onEqualizerClick = onEqualizerClick,
-        onRescanClick = onRescanClick,
+        onRescanClick = remember(viewModel) { viewModel::onRescanClick },
+        onDismissRescanMessage = remember(viewModel) { viewModel::dismissRescanMessage },
         onPrivacyClick = onPrivacyClick,
         onAboutClick = onAboutClick,
         onLicensesClick = onLicensesClick,
@@ -99,6 +103,7 @@ fun SettingsScreen(
     onSkipSilenceChanged: (Boolean) -> Unit,
     onEqualizerClick: () -> Unit,
     onRescanClick: () -> Unit,
+    onDismissRescanMessage: () -> Unit,
     onPrivacyClick: () -> Unit,
     onAboutClick: () -> Unit,
     onLicensesClick: () -> Unit,
@@ -106,10 +111,20 @@ fun SettingsScreen(
 ) {
     var showThemeDialog by rememberSaveable { mutableStateOf(false) }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val rescanMessage = uiState.rescanMessage
+    LaunchedEffect(rescanMessage) {
+        if (rescanMessage != null) {
+            snackbarHostState.showSnackbar(rescanMessage)
+            onDismissRescanMessage()
+        }
+    }
+
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         topBar = { SettingsTopBar(onNavigateUp = onNavigateUp) },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -138,7 +153,11 @@ fun SettingsScreen(
                 modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(SectionSpacing))
-            LibrarySection(onRescanClick = onRescanClick, modifier = Modifier.fillMaxWidth())
+            LibrarySection(
+                isRescanning = uiState.isRescanning,
+                onRescanClick = onRescanClick,
+                modifier = Modifier.fillMaxWidth(),
+            )
             Spacer(Modifier.height(SectionSpacing))
             PrivacySection(onPrivacyClick = onPrivacyClick, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.height(SectionSpacing))
@@ -256,11 +275,21 @@ private fun PlaybackSection(
 
 /** Single action row: kicks off a fresh MediaStore scan of the local library. */
 @Composable
-private fun LibrarySection(onRescanClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun LibrarySection(
+    isRescanning: Boolean,
+    onRescanClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier) {
         SettingsSectionHeader(title = "Library", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
         SettingsSectionCard {
-            SettingsValueNavRow(label = "Rescan library", onClick = onRescanClick)
+            SettingsValueNavRow(
+                label = "Rescan library",
+                subLabel = "Scan device storage for new or changed music",
+                onClick = onRescanClick,
+                enabled = !isRescanning,
+                showProgress = isRescanning,
+            )
         }
     }
 }
@@ -324,6 +353,7 @@ private fun PreviewSettingsScreen() {
             onSkipSilenceChanged = {},
             onEqualizerClick = {},
             onRescanClick = {},
+            onDismissRescanMessage = {},
             onPrivacyClick = {},
             onAboutClick = {},
             onLicensesClick = {},

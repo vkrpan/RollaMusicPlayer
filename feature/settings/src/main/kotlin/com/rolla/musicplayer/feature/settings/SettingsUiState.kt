@@ -17,6 +17,11 @@ import com.rolla.musicplayer.core.model.ThemeMode
  * exists on API 31+ (Android 12), so this is a static, device-derived capability flag the screen
  * uses to decide whether to render the dynamic-color row at all. See
  * [SettingsViewModel.isDynamicColorAvailable] for how it's computed.
+ *
+ * [isRescanning]/[rescanMessage] are the manual library-rescan action's transient state
+ * ([SettingsViewModel.onRescanClick]): the Rescan row shows progress while [isRescanning], and
+ * [rescanMessage] is a one-shot snackbar message (result summary or friendly failure) cleared via
+ * [SettingsViewModel.dismissRescanMessage].
  */
 @Immutable
 data class SettingsUiState(
@@ -26,4 +31,6 @@ data class SettingsUiState(
     val skipSilence: Boolean = false,
     val equalizerEnabled: Boolean = false,
     val isDynamicColorAvailable: Boolean = false,
+    val isRescanning: Boolean = false,
+    val rescanMessage: String? = null,
 )

@@ -17,6 +17,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
@@ -51,6 +52,8 @@ private val RowTextSpacing = 2.dp
 private val ChevronIconSize = 24.dp
 private val OptionRowMinHeight = 48.dp
 private val OptionRowLabelGap = 12.dp
+private val RowProgressSize = 20.dp
+private val RowProgressStrokeWidth = 2.dp
 
 /**
  * A small gray label ("Playback", "Privacy", ...) grouping the [SettingsSectionCard] beneath it --
@@ -117,7 +120,12 @@ fun SettingsToggleRow(
  * Pass [value] for settings whose current state is worth surfacing inline (Theme, Equalizer
  * On/Off); leave it null for pure navigation/action rows (Rescan library, Privacy, About), which
  * render the chevron instead.
+ *
+ * For in-flight action rows (Rescan library), [showProgress] swaps the trailing slot for a small
+ * spinner and callers typically pass [enabled] = false alongside so the action can't re-fire
+ * mid-run.
  */
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun SettingsValueNavRow(
     label: String,
@@ -125,25 +133,31 @@ fun SettingsValueNavRow(
     modifier: Modifier = Modifier,
     subLabel: String? = null,
     value: String? = null,
+    enabled: Boolean = true,
+    showProgress: Boolean = false,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = RowMinHeight)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SettingsRowLabel(label = label, subLabel = subLabel, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(RowLabelGap))
-        if (value != null) {
-            Text(
+        when {
+            showProgress -> CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                strokeWidth = RowProgressStrokeWidth,
+                modifier = Modifier.size(RowProgressSize),
+            )
+            value != null -> Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.primary,
             )
-        } else {
-            Icon(
+            else -> Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,

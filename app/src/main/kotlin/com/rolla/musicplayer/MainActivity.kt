@@ -29,7 +29,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.pm.PackageInfoCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination
@@ -52,7 +55,9 @@ import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistsRoute
 import com.rolla.musicplayer.feature.search.SearchRoute
 import com.rolla.musicplayer.feature.settings.AboutRoute
+import com.rolla.musicplayer.feature.settings.AppBuildInfo
 import com.rolla.musicplayer.feature.settings.LicensesRoute
+import com.rolla.musicplayer.feature.settings.PrivacyRoute
 import com.rolla.musicplayer.feature.settings.SettingsRoute
 import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
@@ -64,6 +69,7 @@ import com.rolla.musicplayer.navigation.Licenses
 import com.rolla.musicplayer.navigation.NowPlaying
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Playlists
+import com.rolla.musicplayer.navigation.Privacy
 import com.rolla.musicplayer.navigation.Search
 import com.rolla.musicplayer.navigation.Settings
 import com.rolla.musicplayer.navigation.SmartPlaylist
@@ -385,12 +391,11 @@ private fun AppNavGraph(
                         launchSingleTop = true
                     }
                 },
-                // Rescan hasn't shipped yet (Prompt 6 wires it to the media scanner). Same
-                // dormant-callback convention as SearchRoute's onAlbumClick/onArtistClick above.
-                onRescanClick = {},
-                // Privacy sub-screen hasn't shipped yet (Prompt 6). Same dormant-callback
-                // convention as onRescanClick above.
-                onPrivacyClick = {},
+                onPrivacyClick = {
+                    navController.navigate(Privacy) {
+                        launchSingleTop = true
+                    }
+                },
                 onAboutClick = {
                     navController.navigate(About) {
                         launchSingleTop = true
@@ -405,16 +410,29 @@ private fun AppNavGraph(
         }
         // About is a leaf reachable only from Settings' "About" row (today). navigateUp()-only,
         // no popUpTo -- always pops back to Settings. launchSingleTop above guards double-taps of
-        // the row. Content itself is a Prompt 6 placeholder -- see AboutScreen.kt.
+        // the row. Version identity comes from PackageInfo (works whether or not the buildConfig
+        // build feature is enabled) -- feature modules can't read the app module's BuildConfig.
         composable<About> {
-            AboutRoute(onNavigateUp = { navController.navigateUp() })
+            val context = LocalContext.current
+            val buildInfo = remember(context) {
+                val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+                AppBuildInfo(
+                    versionName = packageInfo.versionName ?: "unknown",
+                    versionCode = PackageInfoCompat.getLongVersionCode(packageInfo),
+                )
+            }
+            AboutRoute(buildInfo = buildInfo, onNavigateUp = { navController.navigateUp() })
         }
         // Licenses is a leaf reachable only from Settings' "Open-source licenses" row (today).
         // Same back-behavior shape as About above: navigateUp()-only, no popUpTo -- always pops
-        // back to Settings. launchSingleTop above guards double-taps of the row. Content itself
-        // is a Prompt 6 placeholder -- see LicensesScreen.kt.
+        // back to Settings. launchSingleTop above guards double-taps of the row.
         composable<Licenses> {
             LicensesRoute(onNavigateUp = { navController.navigateUp() })
+        }
+        // Privacy is a leaf reachable only from Settings' "Privacy & permissions" row. Same
+        // back-behavior shape as About/Licenses above: navigateUp()-only, no popUpTo.
+        composable<Privacy> {
+            PrivacyRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
 }
