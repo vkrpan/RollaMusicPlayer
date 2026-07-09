@@ -4,6 +4,8 @@ import com.rolla.musicplayer.core.datastore.EqualizerPreferences
 import com.rolla.musicplayer.core.datastore.EqualizerPreferencesImpl
 import com.rolla.musicplayer.core.datastore.RecentSearchesDataSource
 import com.rolla.musicplayer.core.datastore.RecentSearchesDataSourceImpl
+import com.rolla.musicplayer.core.datastore.SettingsPreferences
+import com.rolla.musicplayer.core.datastore.SettingsPreferencesImpl
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -21,4 +23,8 @@ abstract class PreferencesModule {
     @Binds
     @Singleton
     abstract fun bindRecentSearchesDataSource(impl: RecentSearchesDataSourceImpl): RecentSearchesDataSource
+
+    @Binds
+    @Singleton
+    abstract fun bindSettingsPreferences(impl: SettingsPreferencesImpl): SettingsPreferences
 }

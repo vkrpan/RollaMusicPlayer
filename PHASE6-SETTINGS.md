@@ -26,14 +26,16 @@ list the settings to add and where each one takes effect.
 ## Prompt 1 — Settings preferences (`:core:datastore`)
 
 ```
-Use the data-layer-agent with the implement-datastore skill. Extend SettingsDataStore / SettingsRepository
-with all app settings as Flows (Preferences DataStore, IOException-safe, transactional edits):
-- Appearance: themeMode (system/light/dark — may already exist), useDynamicColor (default false),
-  pureBlack (AMOLED, default true for dark).
-- Playback: playbackSpeed (default 1.0), crossfadeMs (default 0/off), skipSilence (default false),
-  gapless (default true), resumeOnHeadsetConnect (default false).
+Use the data-layer-agent with the implement-datastore skill. CREATE SettingsDataStore / SettingsRepository
+(neither exists yet — Step 0 confirmed) reusing the existing shared "settings" Preferences DataStore
+instance (the internal Context.dataStore delegate in :core:datastore) — do NOT create a second DataStore
+file. All settings as Flows following EqualizerPreferences' pattern (.catch IOException -> emptyPreferences,
+transactional edits):
+- Appearance: themeMode (system/light/dark), useDynamicColor (default false).
+- Playback: playbackSpeed (default 1.0), skipSilence (default false),
+  resumeOnHeadsetConnect (default false — OPTIONAL STRETCH, skip to keep the phase lean).
 - Library: (no stored value needed for a one-shot rescan action).
-Expose typed getters + update functions. Unit-test the DataStore codec/migration. Build.
+Expose typed getters + update functions. Unit-test the DataStore codec. Build.
 ```
 ✅ **Checkpoint:** all settings persist and expose as Flows; DataStore test passes.
 `git commit -m "feat(core-datastore): app settings preferences"`
@@ -42,10 +44,12 @@ Expose typed getters + update functions. Unit-test the DataStore codec/migration
 
 ```
 Use the audio-engineer agent. In :core:media, observe the relevant SettingsRepository Flows and apply
-them to ExoPlayer reactively: playbackSpeed → setPlaybackParameters; skipSilence → the skip-silent-audio
-option; gapless → media-item/loadcontrol config; crossfadeMs → the crossfade behavior;
-resumeOnHeadsetConnect → resume on ACTION_HEADSET_PLUG/BT connect. All offline, off the main thread.
-Build and verify changing a setting takes effect during playback.
+them to ExoPlayer reactively: playbackSpeed → Player.setPlaybackSpeed (a Player API — works through the
+MediaController); skipSilence → exoPlayer.skipSilenceEnabled — an ExoPlayer-ONLY API, so it must be
+applied inside PlaybackService observing the preference (the same binding pattern as the equalizer
+state), not from the controller. resumeOnHeadsetConnect (only if the optional stretch was kept) →
+receiver in the service. All offline, off the main thread. Both persisted settings re-apply on service
+start. Build and verify changing a setting takes effect during playback.
 ```
 ✅ **Checkpoint:** changing playback speed/skip-silence/etc. affects live playback.
 `git commit -m "feat(core-media): apply playback settings from DataStore"`
@@ -53,10 +57,12 @@ Build and verify changing a setting takes effect during playback.
 ## Prompt 3 — Apply theme settings (`:app` + `:core:designsystem`)
 
 ```
-Use the ui-builder and m3-design-system-agent. Make the app root observe themeMode + useDynamicColor
-(+ pureBlack) from SettingsRepository and pass them into RollaMusicPlayerTheme(darkTheme, dynamicColor).
-If pureBlack is on in dark mode, use the true-black background (ui-style-guide §2). Changing the theme
-setting must recompose the whole app live. Build and verify light/dark/system + dynamic toggle.
+Use the ui-builder and m3-design-system-agent. Make the app root (MainActivity, above the NavHost)
+observe themeMode + useDynamicColor from SettingsRepository and pass them into
+RollaMusicPlayerTheme(darkTheme = when(mode){ SYSTEM -> isSystemInDarkTheme(); LIGHT -> false;
+DARK -> true }, dynamicColor). Changing the theme setting must recompose the whole app live. Build and
+verify light/dark/system + dynamic toggle. (Dark background is already true-black #000000 per
+ui-style-guide §2 — there is no pureBlack toggle in this phase.)
 ```
 ✅ **Checkpoint:** theme + dynamic-color settings change the app appearance immediately.
 `git commit -m "feat(app): theme driven by settings"`
@@ -67,11 +73,12 @@ setting must recompose the whole app live. Build and verify light/dark/system + 
 Use the ui-builder and viewmodel-architect agents. Build SettingsScreen per ui-style-guide §6 (Settings):
 grouped rounded `large` cards under sectionHeader-styled headers (Appearance · Playback · Library ·
 Privacy · About). Row types:
-- Toggle row: label (+ optional sub-label) + M3 Switch (primary ON) — dynamic color, pure black,
-  skip-silence, gapless, resume-on-connect.
+- Toggle row: label (+ optional sub-label) + M3 Switch (primary ON) — dynamic color (row shown ONLY on
+  Android 12+ / API 31+, where it does something), skip-silence, resume-on-connect (if kept).
 - Value/navigation row: label + blue value (primary) or chevron — theme mode (opens a picker dialog),
-  Equalizer (navigates), Rescan library (action), About/Licenses.
-- Slider row: label + centered value — playback speed (e.g. 1.0x), crossfade (Off…Ns), primary active track.
+  Equalizer (navigates; value text On/Off from EqualizerPreferences.enabled), Rescan library (action),
+  Privacy & permissions, About/Licenses.
+- Slider row: label + centered value — playback speed (0.5x–2.0x, e.g. "1.0x"), primary active track.
 SettingsViewModel exposes the settings state and update calls that persist via the repository. Tokens only;
 48dp targets; content descriptions. Build.
 ```
@@ -121,6 +128,13 @@ Then merge `feature/settings` and update CLAUDE.md "Current Status".
 ---
 
 ## Notes & gotchas
+- **Rejected (recorded like the Visualizer rejection): crossfade** — ExoPlayer has no crossfade; it would
+  require a dual-player mixing architecture, a large risky build for marginal value in an offline player —
+  **and the gapless toggle** — gapless is automatic in ExoPlayer with no API to switch, so a switch would
+  be a fake control. **pureBlack/AMOLED toggle also dropped** — dark background is already #000000, the
+  toggle would be a no-op (revisit only if default dark ever moves to an elevated surface). The principle:
+  **no decorative toggles** — a settings screen full of switches that don't do anything is worse than a
+  short one where everything works.
 - **Settings drive features reactively.** Each preference is a Flow the consumer collects — theme in the
   app root, playback params in `:core:media`. Avoid reading a one-off value; observe it so changes apply live.
 - **Dynamic color stays off by default** (ui-style-guide §2) — the brand blue is the default accent; dynamic
