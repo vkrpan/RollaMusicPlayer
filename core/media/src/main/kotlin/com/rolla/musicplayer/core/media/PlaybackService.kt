@@ -41,6 +41,9 @@ class PlaybackService : MediaSessionService() {
     @Inject
     lateinit var equalizerSessionManager: EqualizerSessionManager
 
+    @Inject
+    lateinit var playbackSettingsBinder: PlaybackSettingsBinder
+
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
@@ -122,19 +125,23 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player).build()
         startPositionTicker()
         bindEqualizerToAudioSession()
+        playbackSettingsBinder.bind(player, serviceScope)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
 
     override fun onDestroy() {
         player.removeListener(playerListener)
-        // Stop the session-binding collector BEFORE releasing the effect, and wait for it:
-        // cancelAndJoin lets an in-flight attach run to its next suspension point, so no new
-        // native effect can be created after the release below (an attach that slipped in
-        // afterward would leak an AudioEffect nobody ever releases). The wait is bounded — the
-        // collector body is one native effect creation, one DataStore read, and a few native
-        // writes.
-        runBlocking { equalizerBindJob?.cancelAndJoin() }
+        // Stop the session-binding collectors BEFORE releasing the effect/player, and wait for
+        // them: cancelAndJoin lets an in-flight attach/apply run to its next suspension point, so
+        // nothing new can land on the effect or the player after the release calls below (an
+        // attach/apply that slipped in afterward would leak an AudioEffect nobody ever releases,
+        // or call into an already-released player). The wait is bounded — each collector body is
+        // one native effect creation / one DataStore read plus a couple of player calls.
+        runBlocking {
+            equalizerBindJob?.cancelAndJoin()
+            playbackSettingsBinder.unbind()
+        }
         // Release the equalizer effect while its audio session still exists (i.e. before the
         // player that owns that session is torn down).
         equalizerSessionManager.release()
