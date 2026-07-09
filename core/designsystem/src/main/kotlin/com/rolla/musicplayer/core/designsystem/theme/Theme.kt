@@ -6,7 +6,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * Whether the *resolved* theme is dark -- i.e. the [RollaMusicPlayerTheme] `darkTheme` parameter
+ * actually in effect, which the app root may have forced independently of the system setting
+ * (Settings > Appearance > Theme: System/Light/Dark). Semantic color extensions below read this
+ * instead of calling `isSystemInDarkTheme()` directly, so they stay correct whenever the resolved
+ * theme diverges from the system's (e.g. Dark forced while the device itself is in light mode) --
+ * calling `isSystemInDarkTheme()` from a token would silently re-couple it to the system setting
+ * and break parity/contrast in exactly that case. Always provided by [RollaMusicPlayerTheme];
+ * never read outside it.
+ */
+internal val LocalRollaDarkTheme = staticCompositionLocalOf { false }
 
 /**
  * The RollaMusicPlayer theme. Implements `.claude/rules/ui-style-guide.md`.
@@ -41,10 +55,12 @@ fun RollaMusicPlayerTheme(
         else -> LightColorScheme
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = RollaTypography,
-        shapes = RollaShapes,
-        content = content,
-    )
+    CompositionLocalProvider(LocalRollaDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = RollaTypography,
+            shapes = RollaShapes,
+            content = content,
+        )
+    }
 }

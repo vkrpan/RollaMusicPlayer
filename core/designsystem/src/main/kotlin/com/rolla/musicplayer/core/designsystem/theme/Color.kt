@@ -1,6 +1,5 @@
 package com.rolla.musicplayer.core.designsystem.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -125,14 +124,21 @@ val LightColorScheme: ColorScheme = lightColorScheme(
  * Implemented as theme-aware extensions so call sites read `MaterialTheme.colorScheme.miniPlayerContainer`.
  * (Alternative: promote these to a CompositionLocal-backed `RollaColors` if the set grows.)
  * Must be read inside a composable under RollaMusicPlayerTheme.
+ *
+ * These branch on [LocalRollaDarkTheme] -- the *resolved* theme RollaMusicPlayerTheme is actually
+ * rendering -- not `isSystemInDarkTheme()`. The two diverge whenever the user forces Light/Dark in
+ * Settings against the device's own system setting; reading the system flag here would silently
+ * pick the wrong branch (e.g. Dark forced on a light-mode device would render this pill in the
+ * *light* palette while `onSurface` text above it is already the *dark* palette's white -- a
+ * contrast failure, not just a cosmetic mismatch).
  */
 val ColorScheme.miniPlayerContainer: Color
     @Composable @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Color(0xFF241F2E) else Color(0xFFECEAF2)
+    get() = if (LocalRollaDarkTheme.current) Color(0xFF241F2E) else Color(0xFFECEAF2)
 
 val ColorScheme.sliderInactiveTrack: Color
     @Composable @ReadOnlyComposable
-    get() = if (isSystemInDarkTheme()) Color(0xFF3A3A3C) else Color(0xFFC4C6CA)
+    get() = if (LocalRollaDarkTheme.current) Color(0xFF3A3A3C) else Color(0xFFC4C6CA)
 
 val ColorScheme.fastScrollIndex: Color
     @Composable @ReadOnlyComposable

@@ -1,7 +1,9 @@
 package com.rolla.musicplayer
 
+import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
@@ -12,6 +14,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -24,6 +27,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,6 +42,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.LibraryRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
@@ -65,12 +70,79 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
-            RollaMusicPlayerTheme {
-                RollaNavHost()
-            }
+            RollaAppRoot(activity = this)
         }
     }
 }
+
+/**
+ * App root: observes the theme settings (via [MainViewModel]) and drives [RollaMusicPlayerTheme]
+ * from them, resolving the edge-to-edge system-bar contrast seam described below before every
+ * other screen (including [RollaNavHost]) recomposes underneath.
+ */
+@Composable
+private fun RollaAppRoot(activity: ComponentActivity) {
+    val mainViewModel: MainViewModel = hiltViewModel()
+    // Both StateFlows start at their SettingsRepository-documented defaults (ThemeMode.SYSTEM /
+    // false) for one frame before DataStore's first emission lands -- acceptable and standard
+    // (every settings-backed StateFlow in this app behaves this way), not worth a blocking read.
+    val themeMode by mainViewModel.themeMode.collectAsStateWithLifecycle()
+    val useDynamicColor by mainViewModel.useDynamicColor.collectAsStateWithLifecycle()
+
+    val darkTheme = when (themeMode) {
+        ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
+    }
+
+    ResolvedEdgeToEdgeEffect(activity = activity, darkTheme = darkTheme)
+
+    RollaMusicPlayerTheme(
+        darkTheme = darkTheme,
+        dynamicColor = useDynamicColor,
+    ) {
+        RollaNavHost()
+    }
+}
+
+/**
+ * enableEdgeToEdge()'s own default styles resolve dark/light from the *system* configuration, not
+ * the app's resolved [darkTheme] -- which diverges from the system whenever the user forces
+ * light/dark in Settings while the device is on the other mode. Re-invoke with an explicit
+ * detectDarkMode lambda bound to [darkTheme] so status/nav bar icon contrast always matches what's
+ * actually rendered.
+ */
+@Composable
+private fun ResolvedEdgeToEdgeEffect(activity: ComponentActivity, darkTheme: Boolean) {
+    DisposableEffect(darkTheme) {
+        activity.enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT,
+            ) { darkTheme },
+            navigationBarStyle = SystemBarStyle.auto(
+                NavigationBarLightScrim,
+                NavigationBarDarkScrim,
+            ) { darkTheme },
+        )
+        onDispose {}
+    }
+}
+
+// Mirrors androidx.activity.EdgeToEdge's own (internal, unreachable from app code) default
+// navigation-bar scrim colors used pre-API-29, where the bar can't be made fully transparent and
+// needs a translucent scrim for contrast. Duplicated here because we must pass a custom
+// detectDarkMode lambda above, which forces calling SystemBarStyle.auto(...) explicitly instead of
+// relying on enableEdgeToEdge()'s no-arg default.
+//
+// Deliberately NOT a :core:designsystem token (ui-style-guide.md §10 does not apply here): these
+// are `android.graphics.Color` Ints consumed by the platform SystemBarStyle API, not app UI --
+// they paint an OS-owned compositor scrim behind the 3-button navigation bar on old API levels,
+// never anything a composable renders. They are versioned to match AndroidX's own edge-to-edge
+// default, not a brand/design decision, so they belong next to the `enableEdgeToEdge()` call that
+// needs them (here), not in the design-token system that the rest of the app's visuals draw from.
+private val NavigationBarLightScrim = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+private val NavigationBarDarkScrim = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
 @Suppress("LongMethod")
 @OptIn(ExperimentalSharedTransitionApi::class)
