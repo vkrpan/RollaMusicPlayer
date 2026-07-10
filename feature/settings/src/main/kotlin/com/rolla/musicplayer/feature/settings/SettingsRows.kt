@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -177,6 +178,11 @@ fun SettingsValueNavRow(
  * value text), and [onValueChangeFinished] (with the final settled value) fires exactly once, when
  * the user lifts their finger -- mirroring NowPlayingScreen seek bar (drag-then-commit) rather
  * than persisting mid-gesture.
+ *
+ * The commit is displayed OPTIMISTICALLY: on release, [pendingValue] holds the just-committed
+ * value on screen until the external [value] round-trips back through the (async, best-effort)
+ * DataStore write and converges -- without it, the thumb would visibly revert to the pre-drag
+ * value for a few frames on every single adjustment before jumping forward again.
  */
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -191,7 +197,14 @@ fun SettingsSliderRow(
 ) {
     var isDragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(value) }
-    val displayedValue = if (isDragging) dragValue else value
+    var pendingValue by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(value) {
+        if (value == pendingValue) pendingValue = null
+    }
+    val displayedValue = when {
+        isDragging -> dragValue
+        else -> pendingValue ?: value
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -213,6 +226,7 @@ fun SettingsSliderRow(
                 dragValue = it
             },
             onValueChangeFinished = {
+                pendingValue = dragValue
                 isDragging = false
                 onValueChangeFinished(dragValue)
             },

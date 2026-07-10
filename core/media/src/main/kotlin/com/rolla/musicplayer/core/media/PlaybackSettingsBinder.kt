@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.core.media
 
 import androidx.annotation.VisibleForTesting
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -37,6 +38,9 @@ import javax.inject.Singleton
  * runs on whatever dispatcher the caller's [CoroutineScope] uses (the service passes its
  * `Dispatchers.Default` service scope) -- only the player call itself needs the main thread.
  */
+// skipSilenceEnabled is an UnstableApi -- same module-wide opt-in stance as PlaybackService /
+// PlaybackStateHolder / EqualizerController.
+@androidx.annotation.OptIn(UnstableApi::class)
 @Singleton
 class PlaybackSettingsBinder @Inject constructor(
     private val settingsRepository: SettingsRepository,
