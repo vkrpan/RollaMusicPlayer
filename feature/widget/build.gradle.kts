@@ -15,6 +15,11 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:media"))
     implementation(project(":core:designsystem"))
+    // BOM + material3 are compile-time requirements of MusicWidgetTheme's ColorScheme mapping:
+    // glance-material3 uses compose material3 internally but doesn't export it (api) to consumers.
+    val composeBom = platform(libs.androidx.compose.bom)
+    implementation(composeBom)
+    implementation(libs.androidx.compose.material3)
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
     implementation(libs.hilt.navigation.compose)

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Widget-local color palette: the single source of truth for both the Glance
+  `ColorProviders` (MusicWidgetTheme.kt) and the rounded-card background drawable
+  (drawable/widget_card_background.xml).
+
+  Glance composes OUTSIDE `RollaMusicPlayerTheme`, so the widget cannot read the app's
+  `LocalRollaDarkTheme`-driven semantic tokens (`miniPlayerContainer`, `sliderInactiveTrack`,
+  etc.; see :core:designsystem). Per ui-style-guide.md §8, the widget mirrors the dark
+  mini-player look UNCONDITIONALLY (day == night, both dark) rather than following the
+  system/app theme, so these are plain (non-night-qualified) values mapped 1:1 from
+  ui-style-guide.md §2's dark-theme role table.
+-->
+<resources>
+    <!-- §2 surfaceContainer: the rounded widget card itself. -->
+    <color name="widget_surface_container">#FF1C1C1E</color>
+    <!-- §2 surfaceContainerHigh: artwork placeholder tile behind the music-note glyph. -->
+    <color name="widget_surface_container_high">#FF2A2A2C</color>
+    <!-- §2 onSurface: title text, control icon tint. -->
+    <color name="widget_on_surface">#FFFFFFFF</color>
+    <!-- §2 onSurfaceVariant: artist text (secondary label). -->
+    <color name="widget_on_surface_variant">#FF9CA0A6</color>
+    <!-- §2 primary: the one stable accent — progress fill, play glyph emphasis. -->
+    <color name="widget_primary">#FF3D7BFF</color>
+    <!-- §2 onPrimary. -->
+    <color name="widget_on_primary">#FFFFFFFF</color>
+    <!-- §2 primaryContainer: unused by this layout but required by ColorProviders' role set. -->
+    <color name="widget_primary_container">#FF1E3A66</color>
+    <!-- §2 sliderInactiveTrack: reused as the progress bar's inactive track. -->
+    <color name="widget_track">#FF3A3A3C</color>
+    <!-- §2 outlineVariant: unused hairline role, kept for ColorProviders completeness. -->
+    <color name="widget_outline_variant">#FF2C2C2E</color>
+    <!-- §2 error: unused by this layout but required by ColorProviders' role set. -->
+    <color name="widget_error">#FFFF5A5A</color>
+</resources>

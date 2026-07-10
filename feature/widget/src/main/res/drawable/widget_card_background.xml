@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Rounded dark card background for the widget root, applied via
+  `GlanceModifier.background(ImageProvider(R.drawable.widget_card_background))` instead of
+  Glance's `GlanceModifier.cornerRadius(...)` — see MusicWidgetContent.kt's top-of-file KDoc for
+  why: `cornerRadius` only actually rounds corners on API 31+ (it degrades to square corners
+  below that), whereas a plain shape-drawable background renders identically rounded on every
+  API level this app supports (minSdk 24). Color matches @color/widget_surface_container (§2
+  surfaceContainer) so it stays in lockstep with MusicWidgetTheme.kt's ColorProviders mapping.
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_surface_container" />
+    <corners android:radius="24dp" />
+</shape>

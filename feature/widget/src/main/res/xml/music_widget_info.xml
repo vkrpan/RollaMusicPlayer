@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  minWidth/minHeight ~ 4x1 launcher cells (classic formula: 70*n - 30dp) widened in height to
+  ~2 cells (110dp) so artwork + title/artist + progress bar + the 5-icon control row all fit
+  comfortably without clipping. targetCellWidth/targetCellHeight (API 31+) express the same
+  intent in exact grid-cell units for launchers that support it; minWidth/minHeight remain for
+  pre-31 launchers. updatePeriodMillis="0" — push-driven by the playback service (later prompt),
+  never polled.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:minResizeWidth="180dp"
+    android:minResizeHeight="90dp"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/glance_default_loading_layout" />

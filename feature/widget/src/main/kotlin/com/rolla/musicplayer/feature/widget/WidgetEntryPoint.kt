@@ -25,6 +25,9 @@ interface WidgetEntryPoint {
     /** Read-only snapshot of current playback state for rendering the widget. */
     fun widgetStateProvider(): WidgetStateProvider
 
+    /** Decodes local artwork to a downscaled [android.graphics.Bitmap] for the Glance UI. */
+    fun artworkLoader(): WidgetArtworkLoader
+
     companion object {
         /**
          * Resolves [WidgetEntryPoint] from the application [Context]. Always pass

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_action_open_app">Open RollaMusicPlayer</string>
+    <string name="widget_action_previous">Previous track</string>
+    <string name="widget_action_skip_back_15">Skip back 15 seconds</string>
+    <string name="widget_action_play">Play</string>
+    <string name="widget_action_pause">Pause</string>
+    <string name="widget_action_skip_forward_15">Skip forward 15 seconds</string>
+    <string name="widget_action_next">Next track</string>
+    <string name="widget_artwork_content_description">Album artwork for %1$s</string>
+    <string name="widget_artwork_placeholder_content_description">No album artwork</string>
+    <string name="widget_empty_title">Nothing playing</string>
+    <string name="widget_empty_artist">Open RollaMusicPlayer to start playback</string>
+</resources>
