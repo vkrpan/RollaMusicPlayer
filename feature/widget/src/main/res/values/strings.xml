@@ -11,4 +11,5 @@
     <string name="widget_artwork_placeholder_content_description">No album artwork</string>
     <string name="widget_empty_title">Nothing playing</string>
     <string name="widget_empty_artist">Open RollaMusicPlayer to start playback</string>
+    <string name="widget_description">Playback controls and artwork for RollaMusicPlayer on your home screen. Works fully offline.</string>
 </resources>

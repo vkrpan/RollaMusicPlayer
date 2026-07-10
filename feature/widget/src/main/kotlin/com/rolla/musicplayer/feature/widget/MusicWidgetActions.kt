@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.updateAll
 import com.rolla.musicplayer.core.media.PlaybackController
 
 /**
@@ -15,16 +14,21 @@ import com.rolla.musicplayer.core.media.PlaybackController
  * player here, only calls onto the existing controller (`ui-style-guide.md` / widget-agent
  * charter: "thin mirror, not a second player").
  *
- * ### Interim wiring -- read before touching cadence/semantics
+ * ### Post-action refresh -- read before touching cadence/semantics
  * This lands ahead of the service's own push-update hook (a later prompt makes
  * `PlaybackService` call `MusicWidget().updateAll(context)` on every track/play-pause/throttled
- * position change). Until then, every callback below calls [updateAll] itself so a tap is not
- * silently invisible -- but this is a best-effort UI nudge, not a source of truth:
+ * position change). Until then, every callback below calls [MusicWidget.update] on its own
+ * [GlanceId] after acting, so THIS widget instance re-renders immediately and a tap is never
+ * silently invisible -- but this is a best-effort fast path, not a source of truth:
  * [PlaybackController.togglePlayPause]/[PlaybackController.next]/etc. dispatch to the
- * [androidx.media3.session.MediaController] asynchronously (an IPC round trip to the session),
- * so the [WidgetStateProvider] snapshot [updateAll] renders immediately after can still reflect
- * the PRE-action state for one frame -- it self-corrects on the very next state-driven update
- * once the service's listener callback lands. This mirrors the same one-tick staleness every
+ * [androidx.media3.session.MediaController] asynchronously (an IPC round trip to the session), so
+ * the [WidgetStateProvider] snapshot that `update` renders immediately after can still reflect the
+ * PRE-action state for one frame (most visible on play/pause, where the icon can briefly show the
+ * old state) -- it self-corrects on the very next state-driven update once the service's listener
+ * callback lands and pushes the real state. A synchronous delay/poll here to "wait" for the
+ * controller to settle was deliberately rejected (ugly, and still racy against the IPC); the
+ * chosen tradeoff is: render optimistically now, let the service's push-update hook (landing in
+ * the next prompt) be the actual correction. This mirrors the same one-tick staleness every
  * `MediaController` command already has; it is not unique to the widget.
  *
  * ### Cold-start caveat
@@ -41,31 +45,31 @@ import com.rolla.musicplayer.core.media.PlaybackController
  * is a `:core:media` change (audio-engineer's module), out of `:feature:widget`'s ownership, and
  * is called out as a coordination item rather than patched here.
  */
-private suspend fun withController(context: Context, block: (PlaybackController) -> Unit) {
+private suspend fun withController(context: Context, glanceId: GlanceId, block: (PlaybackController) -> Unit) {
     val controller = WidgetEntryPoint.get(context).playbackController()
     controller.connect()
     block(controller)
-    MusicWidget().updateAll(context)
+    MusicWidget().update(context, glanceId)
 }
 
 /** [Previous][PlaybackController.previous] -- mirrors the notification/in-app "previous" action. */
 class PreviousActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withController(context) { it.previous() }
+        withController(context, glanceId) { it.previous() }
     }
 }
 
 /** [Next][PlaybackController.next] -- mirrors the notification/in-app "next" action. */
 class NextActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withController(context) { it.next() }
+        withController(context, glanceId) { it.next() }
     }
 }
 
 /** [Toggle play/pause][PlaybackController.togglePlayPause]. */
 class PlayPauseActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        withController(context) { it.togglePlayPause() }
+        withController(context, glanceId) { it.togglePlayPause() }
     }
 }
 
@@ -74,7 +78,7 @@ class SkipBack15ActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val state = WidgetEntryPoint.get(context).widgetStateProvider().current()
         val target = clampSeekPosition(state.positionMs, -SKIP_DELTA_MS, state.durationMs)
-        withController(context) { it.seekTo(target) }
+        withController(context, glanceId) { it.seekTo(target) }
     }
 }
 
@@ -83,7 +87,7 @@ class SkipForward15ActionCallback : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         val state = WidgetEntryPoint.get(context).widgetStateProvider().current()
         val target = clampSeekPosition(state.positionMs, SKIP_DELTA_MS, state.durationMs)
-        withController(context) { it.seekTo(target) }
+        withController(context, glanceId) { it.seekTo(target) }
     }
 }
 

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Static schematic mock of the widget, used ONLY as the app-widget-picker thumbnail
+  (android:previewImage in xml/music_widget_info.xml). Not rendered by Glance at
+  runtime; the real UI is MusicWidgetContent.kt. Viewport (250x110) matches the
+  provider's minWidth/minHeight so it previews at roughly the true aspect ratio.
+  Shapes/colors mirror ui-style-guide.md section 2/8: dark rounded card, artwork
+  tile, two text bars, a progress fill, and five control dots (the middle one
+  filled solid as the play glyph, per section 1's "play is the only filled icon" rule).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="110dp"
+    android:viewportWidth="250"
+    android:viewportHeight="110">
+    <!-- Rounded card background (surfaceContainer). -->
+    <path
+        android:fillColor="#FF1C1C1E"
+        android:pathData="M16,0 H234 A16,16 0 0 1 250,16 V94 A16,16 0 0 1 234,110 H16 A16,16 0 0 1 0,94 V16 A16,16 0 0 1 16,0 Z" />
+    <!-- Artwork placeholder tile (surfaceContainerHigh). -->
+    <path
+        android:fillColor="#FF2A2A2C"
+        android:pathData="M22,12 H58 A10,10 0 0 1 68,22 V58 A10,10 0 0 1 58,68 H22 A10,10 0 0 1 12,58 V22 A10,10 0 0 1 22,12 Z" />
+    <!-- Title text bar (onSurface). -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M85,20 H195 A5,5 0 0 1 200,25 A5,5 0 0 1 195,30 H85 A5,5 0 0 1 80,25 A5,5 0 0 1 85,20 Z" />
+    <!-- Artist text bar (onSurfaceVariant). -->
+    <path
+        android:fillColor="#FF9CA0A6"
+        android:pathData="M84,38 H156 A4,4 0 0 1 160,42 A4,4 0 0 1 156,46 H84 A4,4 0 0 1 80,42 A4,4 0 0 1 84,38 Z" />
+    <!-- Progress track (sliderInactiveTrack). -->
+    <path
+        android:fillColor="#FF3A3A3C"
+        android:pathData="M14,78 H236 A2,2 0 0 1 238,80 A2,2 0 0 1 236,82 H14 A2,2 0 0 1 12,80 A2,2 0 0 1 14,78 Z" />
+    <!-- Progress fill (primary). -->
+    <path
+        android:fillColor="#FF3D7BFF"
+        android:pathData="M14,78 H98 A2,2 0 0 1 100,80 A2,2 0 0 1 98,82 H14 A2,2 0 0 1 12,80 A2,2 0 0 1 14,78 Z" />
+    <!-- Control dots: previous, -15s (onSurface line icons). -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M35,98 A5,5 0 1,0 45,98 A5,5 0 1,0 35,98 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M80,98 A5,5 0 1,0 90,98 A5,5 0 1,0 80,98 Z" />
+    <!-- Play/pause: the one solidly filled control (primary accent). -->
+    <path
+        android:fillColor="#FF3D7BFF"
+        android:pathData="M117,97 A8,8 0 1,0 133,97 A8,8 0 1,0 117,97 Z" />
+    <!-- Control dots: +15s, next. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M160,98 A5,5 0 1,0 170,98 A5,5 0 1,0 160,98 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M205,98 A5,5 0 1,0 215,98 A5,5 0 1,0 205,98 Z" />
+</vector>

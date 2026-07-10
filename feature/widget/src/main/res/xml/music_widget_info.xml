@@ -5,7 +5,9 @@
   comfortably without clipping. targetCellWidth/targetCellHeight (API 31+) express the same
   intent in exact grid-cell units for launchers that support it; minWidth/minHeight remain for
   pre-31 launchers. updatePeriodMillis="0" — push-driven by the playback service (later prompt),
-  never polled.
+  never polled. previewImage is the schematic picker thumbnail in drawable/widget_preview.xml
+  (never rendered at runtime; the real UI is MusicWidgetContent.kt); description is the picker's
+  explanatory string.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
@@ -17,4 +19,6 @@
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"
+    android:description="@string/widget_description"
+    android:previewImage="@drawable/widget_preview"
     android:initialLayout="@layout/glance_default_loading_layout" />
