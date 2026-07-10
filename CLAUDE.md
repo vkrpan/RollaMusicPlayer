@@ -95,7 +95,7 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 ├── :core:model         # Domain models + enums (Song, Album, Artist, Playlist, ...). Pure Kotlin.
 ├── :core:common        # Dispatchers, Result types, extensions, base utilities
 ├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
-├── :core:datastore     # DataStore: settings + equalizer active-state
+├── :core:datastore     # DataStore: app settings (theme/dynamic color/speed/skip-silence), equalizer active-state, recent searches
 ├── :core:data          # Repositories + media scanner
 ├── :core:media         # Media3 playback service, MediaSession, audio session, equalizer effect
 ├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
@@ -198,8 +198,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-**Status**: Core Playback, Playlists, Equalizer, Tag Editor, and Search shipped (Phases 2, 4, 5 complete — custom tag system deferred; Phase 3 search done, detail screens + artwork caching remain)
-**Last Updated**: 2026-07-08
+**Status**: Core Playback, Playlists, Equalizer, Tag Editor, Search, and Settings shipped (Phases 2, 4, 5 complete — custom tag system deferred; Phase 3 search done, detail screens + artwork caching remain; Phase 6 widget next)
+**Last Updated**: 2026-07-10
 
 ### What's shipped (on `main`)
 
@@ -222,7 +222,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 | Equalizer — `:core:media` engine + `:feature:equalizer` UI | `524f6e1`…`58b22e9` | `EqualizerController` (audiofx wrapper: nearest-band mapping for the 9 target frequencies, bandLevelRange clamping, thread-safe + exception-contained), service lifecycle binding (attach/re-apply persisted state on session-id change, guaranteed release on destroy), active state in DataStore + named presets in Room (DB v3, tested migration), 9 vertical spring sliders + preset chip grid + gains-driven response curve (real `Visualizer` rejected — requires RECORD_AUDIO, conflicts with privacy positioning), `Equalizer` route wired from Now Playing |
 | `:feature:tageditor` — tag editor | `546154d`…`98868cc` | Offline jaudiotagger fork (`com.github.Adonai`, local IO only) + `SongTags` model, `TagReader`/`TagWriter` (MP3/FLAC/M4A contract-tested against real fixture files), scoped-storage write consent per SDK (`createWriteRequest` 30+ / `RecoverableSecurityException` recovery 29 / legacy WRITE_EXTERNAL_STORAGE maxSdk=28 requested at point of use), single-song editor + batch editing (per-field apply toggles, per-song outcomes, partial-failure summaries), copy-through-cache write via `SongFileResolver`, post-save `TagSaveFinalizer` (MediaStore re-scan → targeted Room re-sync preserving user state → now-playing metadata refresh via `replaceMediaItem`), local-image artwork embedding (PhotoPicker, `isAndroid` flag for FLAC on-device decode), cancel/back guarded mid-save, long-press entry points in library |
 | `:feature:search` — library search | `8c22705`…`adc4577` | LIKE-based substring search over Room (deliberate FTS4 rejection — documented in `SearchDao`; wildcard-escaped, prefix-first relevance), grouped results Songs/Albums/Artists (albums/artists derived via `GROUP BY` over `songs` — no new tables; synthetic FNV-1a artist id documented as list-key-only), `SearchRepository` + `SearchResults` model, debounced (300ms) cancellable `SearchViewModel` (`flatMapLatest`, instant-Idle on blank, SavedStateHandle-seeded), SearchScreen (auto-focus field, IME-safe single-owner insets, sectioned results), shared `AlbumRow`/`ArtistRow` in `:core:ui`, `Search(query: String? = null)` route + library/playlists top-bar entries + `rollamusic://search` deep link, recent searches in DataStore (capped MRU 10, escaped codec, best-effort writes) |
-| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests, LibraryIndexer 8), and search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11) |
+| `:feature:settings` + settings vertical | `1b1a4a9`…`36b5366` | SettingsPreferences in the shared "settings" DataStore (theme mode enum codec, dynamic color, playback speed, skip silence — crossfade/gapless-toggle/pureBlack REJECTED as decorative, recorded in PHASE6-SETTINGS.md), SettingsRepository with two-sided speed clamping, PlaybackSettingsBinder (service-lifecycle binding: speed via Player API, skipSilence via ExoPlayer-only API w/ UnstableApi opt-in, persisted values re-applied on service start), settings-driven theme (MainViewModel → RollaMusicPlayerTheme; resolved-theme edge-to-edge bar contrast; LocalRollaDarkTheme fixing a forced-theme WCAG bug in miniPlayerContainer/sliderInactiveTrack), grouped-cards SettingsScreen per §6 (theme picker dialog, API-31-gated dynamic color row, optimistic write-on-release speed slider), Privacy/About/Licenses screens (all local: PackageInfo version, hand-curated OSS list), manual rescan with progress + result snackbar (LibraryIndexer now serializes concurrent syncs via internal Mutex — fixed a TOCTOU race), Settings/About/Licenses/Privacy routes + overflow (⋮) entries in Library and Playlists |
+| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests), search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11), and settings (ViewModel 20 incl. gated rescan state machine, repository 14, prefs codec, PlaybackSettingsBinder 8, MainViewModel 6, LibraryIndexer 10 incl. mutex-serialization proofs) |
 
 ### What remains
 
@@ -233,10 +234,10 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Next Steps
 
-1. Build `:feature:settings` (PHASE6-SETTINGS.md exists) — include its Equalizer entry point (nav is ready: `Equalizer` route pops back to any caller)
+1. Build `:feature:widget` (PHASE7-WIDGET.md exists) — Glance home screen widget per ui-style-guide §8 (playback state is ready: tag edits already propagate via `PlaybackStateHolder`)
 2. Add album detail and artist detail screens to `:feature:library` — then wire search's dormant `onAlbumClick`/`onArtistClick` (MainActivity `composable<Search>`)
 3. Implement album artwork caching in `:core:data`
-4. Build `:feature:widget` — Glance home screen widget (playback state is ready: tag edits already propagate via `PlaybackStateHolder`)
+4. Phase 7 prep: baseline profile, license-list build-time generation option, `MediaWriteRequester` SDK-branch tests (Robolectric)
 
 ## Notes
 
