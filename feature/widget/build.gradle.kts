@@ -13,8 +13,15 @@ android {
 
 dependencies {
     implementation(project(":core:model"))
+    implementation(project(":core:media"))
     implementation(project(":core:designsystem"))
     implementation(libs.glance.appwidget)
     implementation(libs.glance.material3)
     implementation(libs.hilt.navigation.compose)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.turbine)
+    testImplementation(project(":core:testing"))
 }
