@@ -93,7 +93,7 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 
 :core
 ├── :core:model         # Domain models + enums (Song, Album, Artist, Playlist, ...). Pure Kotlin.
-├── :core:common        # Dispatchers, Result types, extensions, base utilities
+├── :core:common        # EMPTY placeholder (planned: shared dispatchers/Result types — today each feature declares its own dispatcher qualifier, e.g. TagEditorIoDispatcher/WidgetIoDispatcher)
 ├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
 ├── :core:datastore     # DataStore: app settings (theme/dynamic color/speed/skip-silence), equalizer active-state, recent searches
 ├── :core:data          # Repositories + media scanner
@@ -198,8 +198,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-**Status**: Core Playback, Playlists, Equalizer, Tag Editor, Search, and Settings shipped (Phases 2, 4, 5 complete — custom tag system deferred; Phase 3 search done, detail screens + artwork caching remain; Phase 6 widget next)
-**Last Updated**: 2026-07-10
+**Status**: Core Playback, Playlists, Equalizer, Tag Editor, Search, Settings, and Home Widget shipped (Phases 2, 4, 5, 6 complete — custom tag system deferred; Phase 3 search done, detail screens + artwork caching remain; Phase 7 testing/release next)
+**Last Updated**: 2026-07-12
 
 ### What's shipped (on `main`)
 
@@ -223,21 +223,22 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 | `:feature:tageditor` — tag editor | `546154d`…`98868cc` | Offline jaudiotagger fork (`com.github.Adonai`, local IO only) + `SongTags` model, `TagReader`/`TagWriter` (MP3/FLAC/M4A contract-tested against real fixture files), scoped-storage write consent per SDK (`createWriteRequest` 30+ / `RecoverableSecurityException` recovery 29 / legacy WRITE_EXTERNAL_STORAGE maxSdk=28 requested at point of use), single-song editor + batch editing (per-field apply toggles, per-song outcomes, partial-failure summaries), copy-through-cache write via `SongFileResolver`, post-save `TagSaveFinalizer` (MediaStore re-scan → targeted Room re-sync preserving user state → now-playing metadata refresh via `replaceMediaItem`), local-image artwork embedding (PhotoPicker, `isAndroid` flag for FLAC on-device decode), cancel/back guarded mid-save, long-press entry points in library |
 | `:feature:search` — library search | `8c22705`…`adc4577` | LIKE-based substring search over Room (deliberate FTS4 rejection — documented in `SearchDao`; wildcard-escaped, prefix-first relevance), grouped results Songs/Albums/Artists (albums/artists derived via `GROUP BY` over `songs` — no new tables; synthetic FNV-1a artist id documented as list-key-only), `SearchRepository` + `SearchResults` model, debounced (300ms) cancellable `SearchViewModel` (`flatMapLatest`, instant-Idle on blank, SavedStateHandle-seeded), SearchScreen (auto-focus field, IME-safe single-owner insets, sectioned results), shared `AlbumRow`/`ArtistRow` in `:core:ui`, `Search(query: String? = null)` route + library/playlists top-bar entries + `rollamusic://search` deep link, recent searches in DataStore (capped MRU 10, escaped codec, best-effort writes) |
 | `:feature:settings` + settings vertical | `1b1a4a9`…`36b5366` | SettingsPreferences in the shared "settings" DataStore (theme mode enum codec, dynamic color, playback speed, skip silence — crossfade/gapless-toggle/pureBlack REJECTED as decorative, recorded in PHASE6-SETTINGS.md), SettingsRepository with two-sided speed clamping, PlaybackSettingsBinder (service-lifecycle binding: speed via Player API, skipSilence via ExoPlayer-only API w/ UnstableApi opt-in, persisted values re-applied on service start), settings-driven theme (MainViewModel → RollaMusicPlayerTheme; resolved-theme edge-to-edge bar contrast; LocalRollaDarkTheme fixing a forced-theme WCAG bug in miniPlayerContainer/sliderInactiveTrack), grouped-cards SettingsScreen per §6 (theme picker dialog, API-31-gated dynamic color row, optimistic write-on-release speed slider), Privacy/About/Licenses screens (all local: PackageInfo version, hand-curated OSS list), manual rescan with progress + result snackbar (LibraryIndexer now serializes concurrent syncs via internal Mutex — fixed a TOCTOU race), Settings/About/Licenses/Privacy routes + overflow (⋮) entries in Library and Playlists |
-| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests), search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11), and settings (ViewModel 20 incl. gated rescan state machine, repository 14, prefs codec, PlaybackSettingsBinder 8, MainViewModel 6, LibraryIndexer 10 incl. mutex-serialization proofs) |
+| `:feature:widget` — Glance home widget | `9fa3a73`…`4e91047` | §8 dark rounded card (GlanceTheme ColorProviders mapped from the §2 palette — deliberately day==night; Glance can't read the app's Compose tokens), 56dp artwork w/ single-entry memoized 256px two-pass downscale (review-gate HIGH: was re-decoding per 1s tick), title/artist, primary progress bar, previous · −15s · play/pause · +15s · next controls (all content-described) + body-tap → app, five stateless ActionCallbacks via WidgetEntryPoint driving the ONE PlaybackController (no second player; ±15s = seekTo clamped, pure-function tested), cold-tap-safe (controller commands queue on the connect future), push-updated via the PlaybackUpdateHook multibinding seam (:core:media dispatcher fires after state-holder writes on track change/play-pause/1s tick-while-playing; widget side coalesces via replay-1 DROP_OLDEST SharedFlow), updatePeriodMillis=0 (never polls), receiver exported=true (review-gate CRITICAL: false leaves the widget un-addable — platform-protected broadcasts, no attack surface), picker preview drawable |
+| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests), search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11), settings (ViewModel 20 incl. gated rescan state machine, repository 14, prefs codec, PlaybackSettingsBinder 8, MainViewModel 6, LibraryIndexer 10 incl. mutex-serialization proofs), and widget (state 5, provider 4, sample-size 8, loader 3, seek-clamp 10, update-hook coalescing 3, plus core-media dispatcher 5 + controller queuing 7) |
 
 ### What remains
 
 - **Phase 3 leftover**: album/artist detail screens (search's album/artist taps are wired no-ops awaiting these routes; artist ids there must reconcile with search's synthetic FNV name-hash ids), artwork caching polish
 - **Phase 5 leftover**: custom tag system (deferred — not part of the shipped tag editor)
-- **Phase 6**: `:feature:widget` (Glance home screen widget), UI/UX polish
-- **Phase 7**: Comprehensive testing, baseline profile, release prep (note: `MediaWriteRequester`'s SDK branching has no direct unit tests — needs Robolectric or `mockkStatic`; covered indirectly via ViewModel consent tests)
+- **Phase 6 leftover**: UI/UX polish pass (widget itself shipped; on-device widget verification checklist rests with manual testing)
+- **Phase 7**: Comprehensive testing, baseline profile, release prep (notes: `MediaWriteRequester` SDK branching needs Robolectric/mockkStatic for direct tests; `WidgetArtworkLoader`'s cache-hit branch is device-only-verifiable; build-tooling candidates — merged-manifest INTERNET assertion, license-list build-time generation)
 
 ## Next Steps
 
-1. Build `:feature:widget` (PHASE7-WIDGET.md exists) — Glance home screen widget per ui-style-guide §8 (playback state is ready: tag edits already propagate via `PlaybackStateHolder`)
-2. Add album detail and artist detail screens to `:feature:library` — then wire search's dormant `onAlbumClick`/`onArtistClick` (MainActivity `composable<Search>`)
-3. Implement album artwork caching in `:core:data`
-4. Phase 7 prep: baseline profile, license-list build-time generation option, `MediaWriteRequester` SDK-branch tests (Robolectric)
+1. Add album detail and artist detail screens to `:feature:library` — then wire search's dormant `onAlbumClick`/`onArtistClick` (MainActivity `composable<Search>`)
+2. Implement album artwork caching in `:core:data`
+3. Phase 7: comprehensive testing + baseline profile + release prep (see Phase 7 notes under "What remains")
+4. Optional consolidation: build `:core:common` for real (shared dispatcher qualifiers replacing the per-feature ones) or drop the module
 
 ## Notes
 
