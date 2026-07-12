@@ -44,6 +44,9 @@ class PlaybackService : MediaSessionService() {
     @Inject
     lateinit var playbackSettingsBinder: PlaybackSettingsBinder
 
+    @Inject
+    lateinit var playbackUpdateDispatcher: PlaybackUpdateDispatcher
+
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
@@ -74,6 +77,9 @@ class PlaybackService : MediaSessionService() {
             if (songId != null) {
                 serviceScope.launch { songRepository.recordPlaybackStarted(songId) }
             }
+            // Push-update seam for :feature:widget et al (see PlaybackUpdateHook) -- dispatched
+            // after the holder write above, off this (player-thread) callback.
+            serviceScope.launch { playbackUpdateDispatcher.dispatch() }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -94,6 +100,9 @@ class PlaybackService : MediaSessionService() {
             }
             playbackStateHolder.setCurrentSong(song)
             playbackStateHolder.setDurationMs(player.duration.coerceAtLeast(0L))
+            // Push-update seam for :feature:widget et al (see PlaybackUpdateHook) -- dispatched
+            // after both holder writes above, off this (player-thread) callback.
+            serviceScope.launch { playbackUpdateDispatcher.dispatch() }
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -180,14 +189,26 @@ class PlaybackService : MediaSessionService() {
             .setWakeMode(C.WAKE_MODE_LOCAL)
             .build()
 
+    // The loop itself keeps running on its fixed cadence regardless of play state -- it never stops
+    // while paused, it just skips the holder write below. The hook dispatch therefore has to be
+    // gated on that same "did we just update the position" condition (didUpdatePosition), not on the
+    // ticker running at all, or paused playback would produce a hook call every tick for no change.
     private fun startPositionTicker() {
         serviceScope.launch {
             while (true) {
                 delay(POSITION_POLL_INTERVAL_MS)
-                withContext(Dispatchers.Main.immediate) {
+                val didUpdatePosition = withContext(Dispatchers.Main.immediate) {
                     if (player.playbackState == Player.STATE_READY && player.isPlaying) {
                         playbackStateHolder.setPositionMs(player.currentPosition.coerceAtLeast(0L))
+                        true
+                    } else {
+                        false
                     }
+                }
+                if (didUpdatePosition) {
+                    // Push-update seam for :feature:widget et al (see PlaybackUpdateHook) --
+                    // dispatched after the holder write above, off the main thread used for that write.
+                    serviceScope.launch { playbackUpdateDispatcher.dispatch() }
                 }
             }
         }

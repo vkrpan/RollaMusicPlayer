@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.media
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.annotation.VisibleForTesting
 import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -18,6 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+// Justified: this is the single facade every UI surface (app screens, widget, future features)
+// drives playback through -- transport, queue, seek, modes, and connection lifecycle genuinely
+// belong together, and splitting it would only scatter the MediaController null-safety rules.
+@Suppress("TooManyFunctions")
 @Singleton
 class PlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -31,7 +36,12 @@ class PlaybackController @Inject constructor(
     val shuffleMode: StateFlow<ShuffleMode> = playbackStateHolder.shuffleMode
     val repeatMode: StateFlow<RepeatMode> = playbackStateHolder.repeatMode
 
-    private var controllerFuture: ListenableFuture<MediaController>? = null
+    // internal + @VisibleForTesting rather than private: lets PlaybackControllerTest install a
+    // mocked ListenableFuture directly to exercise the withConnectedController queuing path without
+    // going through connect() -- connect() builds a real MediaController via SessionToken, which
+    // needs a live Android session/binder and isn't reachable from a plain JVM unit test.
+    @VisibleForTesting
+    internal var controllerFuture: ListenableFuture<MediaController>? = null
 
     private val controller: MediaController?
         get() = controllerFuture?.let { if (it.isDone && !it.isCancelled) it.get() else null }
@@ -53,27 +63,36 @@ class PlaybackController @Inject constructor(
 
     fun play(song: Song) {
         val item = buildMediaItem(song)
-        val c = controller
-        if (c != null) {
-            startPlayback(c, item)
-        } else {
-            // Future not yet resolved — enqueue command; last tap wins if multiple queued.
-            controllerFuture?.addListener(
-                { controller?.let { startPlayback(it, item) } },
-                { command -> command.run() },
-            )
-        }
+        withConnectedController { startPlayback(it, item) }
     }
 
     fun playAll(songs: List<Song>, startIndex: Int = 0) {
         val items = songs.map(::buildMediaItem)
+        withConnectedController { startQueuePlayback(it, items, startIndex) }
+    }
+
+    /**
+     * Runs [block] against the connected [MediaController] immediately if [controllerFuture] has
+     * already resolved. Otherwise -- e.g. the very first command tapped in the gap between
+     * [connect] being called and the controller actually resolving, such as right after process
+     * death -- [block] is queued to run exactly once as soon as the future resolves, instead of
+     * being silently dropped. This is the same queuing [play] and [playAll] already relied on via
+     * `controllerFuture.addListener`, pulled out so [togglePlayPause], [next], [previous], and
+     * [seekTo] get it too (previously they only ever read [controller] and no-op'd when it was
+     * still null).
+     *
+     * If several commands queue up before the future resolves, each queued [block] still runs in
+     * the order it was added once it does, so the last one queued determines the final player state
+     * ("last tap wins"). A true no-op only when [connect] was never called, i.e. there is no future
+     * at all.
+     */
+    private fun withConnectedController(block: (MediaController) -> Unit) {
         val c = controller
         if (c != null) {
-            startQueuePlayback(c, items, startIndex)
+            block(c)
         } else {
-            // Future not yet resolved — enqueue command; last tap wins if multiple queued.
             controllerFuture?.addListener(
-                { controller?.let { startQueuePlayback(it, items, startIndex) } },
+                { controller?.let(block) },
                 { command -> command.run() },
             )
         }
@@ -127,21 +146,15 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    fun togglePlayPause() {
-        controller?.let { if (it.isPlaying) it.pause() else it.play() }
+    fun togglePlayPause() = withConnectedController { c ->
+        if (c.isPlaying) c.pause() else c.play()
     }
 
-    fun next() {
-        controller?.seekToNext()
-    }
+    fun next() = withConnectedController { it.seekToNext() }
 
-    fun previous() {
-        controller?.seekToPrevious()
-    }
+    fun previous() = withConnectedController { it.seekToPrevious() }
 
-    fun seekTo(positionMs: Long) {
-        controller?.seekTo(positionMs)
-    }
+    fun seekTo(positionMs: Long) = withConnectedController { it.seekTo(positionMs) }
 
     fun setShuffle(mode: ShuffleMode) {
         controller?.shuffleModeEnabled = (mode == ShuffleMode.ON)
