@@ -31,19 +31,14 @@ import com.rolla.musicplayer.core.media.PlaybackController
  * the next prompt) be the actual correction. This mirrors the same one-tick staleness every
  * `MediaController` command already has; it is not unique to the widget.
  *
- * ### Cold-start caveat
+ * ### Cold start
  * [PlaybackController.connect] resolves a [androidx.media3.session.MediaController] via an async
- * `buildAsync()` future. If the app process was fully dead (not just backgrounded) before this
- * tap -- e.g. after a reboot or force-stop -- the very first tap calls `connect()` and then
- * immediately calls e.g. `togglePlayPause()` in the same [onAction], before that future can
- * possibly have resolved; [PlaybackController.togglePlayPause] (and `next`/`previous`/`seekTo`)
- * silently no-op when the underlying controller is `null` (see their `controller?.let { }`
- * bodies in `:core:media`), so that specific first tap is a best-effort no-op and a second tap
- * (by which point `connect()`'s future has resolved) works normally. [PlaybackController.play]
- * avoids this for the "start a song" path by queuing onto `controllerFuture.addListener`, but
- * `togglePlayPause`/`next`/`previous`/`seekTo` do not expose that queuing today -- widening that
- * is a `:core:media` change (audio-engineer's module), out of `:feature:widget`'s ownership, and
- * is called out as a coordination item rather than patched here.
+ * `buildAsync()` future, so a tap arriving while the app process is cold fires `connect()` and
+ * the command in the same [onAction] before that future can have resolved. That is fine:
+ * `togglePlayPause`/`next`/`previous`/`seekTo` all route through `PlaybackController`'s
+ * `withConnectedController` queuing (the same mechanism `play()` always used) -- a command issued
+ * pre-connection is queued on the future and executes exactly once when it resolves, verified by
+ * `PlaybackControllerTest`. The very first cold tap therefore works; no second tap is needed.
  */
 private suspend fun withController(context: Context, glanceId: GlanceId, block: (PlaybackController) -> Unit) {
     val controller = WidgetEntryPoint.get(context).playbackController()

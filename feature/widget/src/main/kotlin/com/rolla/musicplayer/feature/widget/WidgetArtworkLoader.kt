@@ -41,6 +41,15 @@ import javax.inject.Singleton
  * cancellation still works. `null` is the *entire* failure contract; this class does not build or
  * know about the themed placeholder shown for a `null` result -- that is the Glance UI's job,
  * landing in a later prompt.
+ *
+ * ### Single-entry memoization
+ * The service's ~1s position tick re-renders the widget on every tick while playing, and every
+ * render asks for the SAME artwork path until the track changes -- without a cache that is two
+ * stream opens + two decodes per second, for hours, producing byte-identical bitmaps
+ * (review-gate HIGH finding). The last successful decode is memoized keyed by its exact path;
+ * only ever one "current" artwork exists, so a plain volatile field pair suffices (no LruCache).
+ * The evicted bitmap is NOT [Bitmap.recycle]d -- an in-flight RemoteViews parcel may still
+ * reference it; dropping the reference and letting GC reclaim it is the safe teardown.
  */
 @Singleton
 class WidgetArtworkLoader @Inject constructor(
@@ -48,16 +57,26 @@ class WidgetArtworkLoader @Inject constructor(
     @WidgetIoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
 
+    @Volatile
+    private var cachedPath: String? = null
+
+    @Volatile
+    private var cachedBitmap: Bitmap? = null
+
     /**
      * Loads and downscales the local artwork at [artworkPath], or returns `null` on a missing
      * path or any decode failure. A `null`/blank [artworkPath] returns `null` immediately without
-     * touching [Context.getContentResolver].
+     * touching [Context.getContentResolver]; an unchanged [artworkPath] returns the memoized
+     * bitmap without any IO (see the class KDoc).
      */
     suspend fun load(artworkPath: String?): Bitmap? {
         if (artworkPath.isNullOrBlank()) return null
-        return withContext(ioDispatcher) {
+        return cachedBitmapFor(artworkPath) ?: withContext(ioDispatcher) {
             try {
-                decode(artworkPath)
+                decode(artworkPath)?.also { decoded ->
+                    cachedPath = artworkPath
+                    cachedBitmap = decoded
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
@@ -65,6 +84,10 @@ class WidgetArtworkLoader @Inject constructor(
             }
         }
     }
+
+    /** The memoized bitmap iff it was decoded from exactly [artworkPath]; see the class KDoc. */
+    private fun cachedBitmapFor(artworkPath: String): Bitmap? =
+        cachedBitmap?.takeIf { cachedPath == artworkPath }
 
     private fun decode(artworkPath: String): Bitmap? {
         val uri = Uri.parse(artworkPath)

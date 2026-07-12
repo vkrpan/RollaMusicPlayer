@@ -2,9 +2,14 @@
 <!-- No INTERNET permission: the widget is 100% offline (local playback state + local artwork only). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <!-- exported MUST be true for an appwidget provider: the system/launcher (a different
+             UID) delivers APPWIDGET_UPDATE and friends to this component, and Android 12+ calls
+             this case out explicitly. Not an attack surface: the APPWIDGET_* action family is
+             platform-protected and cannot be spoofed by third-party apps. (Review-gate CRITICAL:
+             exported="false" would leave the widget un-addable / never updating.) -->
         <receiver
             android:name=".MusicWidgetReceiver"
-            android:exported="false"
+            android:exported="true"
             android:label="RollaMusicPlayer">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

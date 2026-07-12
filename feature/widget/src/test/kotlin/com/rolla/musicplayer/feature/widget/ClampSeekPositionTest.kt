@@ -60,4 +60,21 @@ class ClampSeekPositionTest {
 
         assertEquals(0L, result)
     }
+
+    @Test
+    fun `negative current position is coerced up into the valid range`() {
+        // Defensive bound: PlaybackStateHolder.positionMs is always coerced non-negative upstream,
+        // so this input shouldn't occur in practice, but clampSeekPosition's own coerceIn must not
+        // propagate a negative snapshot into a negative seek target.
+        val result = clampSeekPosition(currentPositionMs = -5_000L, deltaMs = 15_000L, durationMs = 180_000L)
+
+        assertEquals(10_000L, result)
+    }
+
+    @Test
+    fun `negative current position combined with a further negative delta clamps at zero`() {
+        val result = clampSeekPosition(currentPositionMs = -5_000L, deltaMs = -15_000L, durationMs = 180_000L)
+
+        assertEquals(0L, result)
+    }
 }

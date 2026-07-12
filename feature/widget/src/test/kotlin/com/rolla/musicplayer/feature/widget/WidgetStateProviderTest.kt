@@ -56,9 +56,25 @@ class WidgetStateProviderTest {
         assertNull(state.artworkPath)
     }
 
+    @Test
+    fun `current reads durationMs from the holder's live flow, not the song's stale field`() {
+        // Song.durationMs is deliberately left at a value the holder's own StateFlow disagrees
+        // with (e.g. the service hasn't yet pushed the just-prepared player's real duration into
+        // the holder, or the MediaItem transition callback -- which always builds Song with
+        // durationMs = 0L, see PlaybackService -- fired before the ready-state duration write).
+        // WidgetStateProviderImpl must snapshot playbackStateHolder.durationMs, never song.durationMs.
+        playbackStateHolder.setCurrentSong(testSong().copy(durationMs = STALE_SONG_DURATION_MS))
+        playbackStateHolder.setDurationMs(DURATION_MS)
+
+        val state = provider.current()
+
+        assertEquals(DURATION_MS, state.durationMs)
+    }
+
     private companion object {
         const val POSITION_MS = 45_000L
         const val DURATION_MS = 180_000L
+        const val STALE_SONG_DURATION_MS = 0L
 
         fun testSong(artworkUri: String = "content://media/local/art/1"): Song = Song(
             id = "song-1",
