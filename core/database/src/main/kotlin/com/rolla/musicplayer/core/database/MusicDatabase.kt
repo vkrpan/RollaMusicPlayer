@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.rolla.musicplayer.core.database.converter.ShortListConverter
+import com.rolla.musicplayer.core.database.dao.AlbumDao
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.dao.SearchDao
@@ -35,6 +36,10 @@ abstract class MusicDatabase : RoomDatabase() {
     // A new DAO getter over the existing `songs` table — not a schema change, so this does NOT
     // require a version bump or migration (see SearchDao's KDoc for the full rationale).
     abstract fun searchDao(): SearchDao
+
+    // Same rationale as searchDao() above — album-detail queries over the existing `songs`
+    // table, no schema change (see AlbumDao's KDoc).
+    abstract fun albumDao(): AlbumDao
 
     companion object {
         const val DATABASE_NAME = "music_database"

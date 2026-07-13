@@ -47,6 +47,7 @@ import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
+import com.rolla.musicplayer.feature.library.AlbumDetailRoute
 import com.rolla.musicplayer.feature.library.LibraryRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
@@ -62,6 +63,7 @@ import com.rolla.musicplayer.feature.settings.SettingsRoute
 import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
 import com.rolla.musicplayer.navigation.About
+import com.rolla.musicplayer.navigation.AlbumDetail
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
@@ -344,6 +346,14 @@ private fun AppNavGraph(
         composable<SmartPlaylist> {
             PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
         }
+        // AlbumDetail is a leaf reachable today only from Search (wired below); later also from a
+        // library Albums tab that doesn't exist yet. Back = navigateUp() only -- no popUpTo here,
+        // same shape as TagEditor below -- so it always pops back to whichever screen opened it
+        // rather than a hard-coded destination. launchSingleTop at the call site guards
+        // double-taps of a search result row.
+        composable<AlbumDetail> {
+            AlbumDetailRoute(onNavigateUp = { navController.navigateUp() })
+        }
         // Search is reachable from two entry points (Library and Playlists top bars, wired
         // above). No popUpTo here: navigateUp() always pops Search off and returns to whichever
         // of the two actually opened it, rather than a hard-coded destination. launchSingleTop at
@@ -353,10 +363,15 @@ private fun AppNavGraph(
         ) {
             SearchRoute(
                 onNavigateUp = { navController.navigateUp() },
-                // Album/artist detail screens haven't shipped yet (Phase 3). These no-ops
-                // activate once AlbumDetail/ArtistDetail routes land -- same convention as
-                // LibraryRoute's onEditTagsClick default before TagEditor existed.
-                onAlbumClick = {},
+                // AlbumDetail has shipped and is wired below -- launchSingleTop guards double-taps
+                // of a search result row. ArtistDetail hasn't shipped yet (Phase 3 leftover); its
+                // no-op activates once that route lands -- same convention as LibraryRoute's
+                // onEditTagsClick default before TagEditor existed.
+                onAlbumClick = { albumId ->
+                    navController.navigate(AlbumDetail(albumId = albumId)) {
+                        launchSingleTop = true
+                    }
+                },
                 onArtistClick = {},
             )
         }

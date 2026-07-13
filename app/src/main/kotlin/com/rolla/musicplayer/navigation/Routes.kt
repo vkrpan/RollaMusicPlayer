@@ -22,6 +22,11 @@ data class PlaylistDetail(val playlistId: Long) : Route
 @Serializable
 data class SmartPlaylist(val kind: String) : Route
 
+// Real album_id from the songs schema (unlike ArtistDetail's synthetic FNV-1a hash id --
+// see SearchDao -- albums have a genuine MediaStore-backed numeric id).
+@Serializable
+data class AlbumDetail(val albumId: Long) : Route
+
 @Serializable
 data class TagEditor(val songId: Long) : Route
 

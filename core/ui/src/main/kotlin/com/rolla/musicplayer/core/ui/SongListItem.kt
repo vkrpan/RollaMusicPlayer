@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.core.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -32,10 +33,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Song
@@ -54,6 +58,11 @@ private val DividerStartPadding = 84.dp
  * caller to redefine as "toggle selection" for as long as selection mode stays active. All three
  * new parameters default to their single-song, non-selectable behavior so every existing call site
  * (Songs list, playlist detail, etc.) keeps compiling and rendering exactly as before.
+ *
+ * [trackNumber] swaps the leading artwork thumbnail for a fixed-width numeric label -- intended for
+ * album detail, where every row already shares the same album art, so the disc track number is the
+ * more useful leading affordance (see AlbumDetailScreen in `:feature:library`). Defaults to null,
+ * which keeps every existing call site's leading-artwork rendering byte-identical.
  */
 @Suppress("LongParameterList")
 @Composable
@@ -61,6 +70,7 @@ fun SongListItem(
     song: Song,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    trackNumber: Int? = null,
     onMoreClick: () -> Unit = {},
     selected: Boolean = false,
     selectionModeActive: Boolean = false,
@@ -70,6 +80,7 @@ fun SongListItem(
         SongListItemContent(
             song = song,
             onClick = onClick,
+            trackNumber = trackNumber,
             onMoreClick = onMoreClick,
             selected = selected,
             selectionModeActive = selectionModeActive,
@@ -89,6 +100,7 @@ fun SongListItem(
 private fun SongListItemContent(
     song: Song,
     onClick: () -> Unit,
+    trackNumber: Int?,
     onMoreClick: () -> Unit,
     selected: Boolean,
     selectionModeActive: Boolean,
@@ -108,7 +120,7 @@ private fun SongListItemContent(
             .padding(start = RowHorizontalPadding, top = RowVerticalPadding, bottom = RowVerticalPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = song.album)
+        SongItemLeading(song = song, trackNumber = trackNumber)
         Spacer(modifier = Modifier.width(ArtworkToTextGap))
         SongInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
         SongItemTrailing(
@@ -180,6 +192,19 @@ private fun SongInfo(
     }
 }
 
+/**
+ * Leading slot: a [TrackNumberLabel] when [trackNumber] is non-null (album detail rows, where the
+ * shared album art makes the disc number the more useful affordance), else the [ArtworkThumbnail].
+ */
+@Composable
+private fun SongItemLeading(song: Song, trackNumber: Int?) {
+    if (trackNumber != null) {
+        TrackNumberLabel(trackNumber = trackNumber)
+    } else {
+        ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = song.album)
+    }
+}
+
 @Composable
 private fun ArtworkThumbnail(
     artworkUri: String,
@@ -210,6 +235,60 @@ private fun ArtworkThumbnail(
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Leading track-number slot, swapped in for [ArtworkThumbnail] when the row is given a non-null
+ * `trackNumber` (see [SongListItem]). Sized to the same [ThumbnailSize] width so title/artist text
+ * still lines up with plain, artwork-led rows elsewhere.
+ */
+@Composable
+private fun TrackNumberLabel(trackNumber: Int, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.width(ThumbnailSize),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = trackNumber.toString(),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+private fun previewSong(id: String, title: String, trackNumber: Int): Song = Song(
+    id = id,
+    title = title,
+    artist = "Queen",
+    album = "A Night at the Opera",
+    albumId = 1L,
+    durationMs = 200_000L,
+    trackNumber = trackNumber,
+    year = 1975,
+    contentUri = "content://media/$id",
+    artworkUri = "",
+)
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Song List Item - Track Number - Light")
+@Preview(name = "Song List Item - Track Number - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+private fun PreviewSongListItemTrackNumber() {
+    RollaMusicPlayerTheme {
+        Column {
+            SongListItem(
+                song = previewSong("1", "Bohemian Rhapsody", trackNumber = 1),
+                onClick = {},
+                trackNumber = 1,
+            )
+            SongListItem(
+                song = previewSong("2", "You're My Best Friend", trackNumber = 2),
+                onClick = {},
+                trackNumber = 2,
             )
         }
     }
