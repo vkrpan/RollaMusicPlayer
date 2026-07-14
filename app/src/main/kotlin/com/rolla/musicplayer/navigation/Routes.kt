@@ -27,6 +27,12 @@ data class SmartPlaylist(val kind: String) : Route
 @Serializable
 data class AlbumDetail(val albumId: Long) : Route
 
+// Routed by NAME, not id: the songs schema has no artist_id column (artists exist only as a
+// GROUP BY artist grouping; the Artist.id in search is a list-key-only FNV hash). The name is the
+// real identity and ArtistRepository is keyed by it. Contrast AlbumDetail above (real album_id).
+@Serializable
+data class ArtistDetail(val artistName: String) : Route
+
 @Serializable
 data class TagEditor(val songId: Long) : Route
 

@@ -74,15 +74,16 @@ private val SectionHeaderVerticalPadding = 12.dp
  * every other screen in the codebase (see TagEditorRoute in feature:tageditor, LibraryRoute in
  * feature:library).
  *
- * onAlbumClick and onArtistClick are hoisted no-ops today, since album/artist detail screens
- * have not shipped yet, left for navigation-agent to wire once they exist -- same convention as
- * LibraryRoute exposing onEditTagsClick while the tag editor route was still pending.
+ * onAlbumClick and onArtistClick are both wired by navigation-agent: onAlbumClick navigates by
+ * Album.id (a real MediaStore-backed numeric id), while onArtistClick navigates by Artist.name --
+ * artists have no durable id in the songs schema (see the ArtistDetail route in Routes.kt), so the
+ * name is passed through instead.
  */
 @Composable
 fun SearchRoute(
     onNavigateUp: () -> Unit,
     onAlbumClick: (Long) -> Unit,
-    onArtistClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -115,7 +116,7 @@ fun SearchScreen(
     onNavigateUp: () -> Unit,
     onSongClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
-    onArtistClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
     onRecentSearchClick: (String) -> Unit,
     onClearRecentSearches: () -> Unit,
     modifier: Modifier = Modifier,
@@ -247,7 +248,7 @@ private fun SearchContent(
     recentSearches: List<String>,
     onSongClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
-    onArtistClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
     onRecentSearchClick: (String) -> Unit,
     onClearRecentSearches: () -> Unit,
     modifier: Modifier = Modifier,
@@ -361,7 +362,7 @@ private fun SearchResultsList(
     results: SearchResults,
     onSongClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
-    onArtistClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(modifier = modifier.fillMaxSize()) {
@@ -380,7 +381,7 @@ private fun SearchResultsList(
         if (results.artists.isNotEmpty()) {
             item(key = "header-artists") { SectionHeader(text = "Artists") }
             items(items = results.artists, key = { artist -> "artist-${artist.id}" }) { artist ->
-                ArtistRow(artist = artist, onClick = { onArtistClick(artist.id) })
+                ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
             }
         }
     }

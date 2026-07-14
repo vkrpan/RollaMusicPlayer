@@ -48,6 +48,7 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.AlbumDetailRoute
+import com.rolla.musicplayer.feature.library.ArtistDetailRoute
 import com.rolla.musicplayer.feature.library.LibraryRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
@@ -64,6 +65,7 @@ import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
 import com.rolla.musicplayer.navigation.About
 import com.rolla.musicplayer.navigation.AlbumDetail
+import com.rolla.musicplayer.navigation.ArtistDetail
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Library
@@ -354,6 +356,20 @@ private fun AppNavGraph(
         composable<AlbumDetail> {
             AlbumDetailRoute(onNavigateUp = { navController.navigateUp() })
         }
+        // ArtistDetail is a leaf reachable today only from Search (wired below); later also from
+        // a library Artists tab that doesn't exist yet. Back = navigateUp() only -- no popUpTo
+        // here, same shape as AlbumDetail above -- so it always pops back to whichever screen
+        // opened it rather than a hard-coded destination. Album taps inside ArtistDetail push
+        // AlbumDetail (a normal forward push, not a back-stack replacement) with its own
+        // launchSingleTop guard against double-taps of an album row.
+        composable<ArtistDetail> {
+            ArtistDetailRoute(
+                onNavigateUp = { navController.navigateUp() },
+                onAlbumClick = { albumId ->
+                    navController.navigate(AlbumDetail(albumId = albumId)) { launchSingleTop = true }
+                },
+            )
+        }
         // Search is reachable from two entry points (Library and Playlists top bars, wired
         // above). No popUpTo here: navigateUp() always pops Search off and returns to whichever
         // of the two actually opened it, rather than a hard-coded destination. launchSingleTop at
@@ -363,16 +379,20 @@ private fun AppNavGraph(
         ) {
             SearchRoute(
                 onNavigateUp = { navController.navigateUp() },
-                // AlbumDetail has shipped and is wired below -- launchSingleTop guards double-taps
-                // of a search result row. ArtistDetail hasn't shipped yet (Phase 3 leftover); its
-                // no-op activates once that route lands -- same convention as LibraryRoute's
-                // onEditTagsClick default before TagEditor existed.
+                // AlbumDetail and ArtistDetail have both shipped and are wired below --
+                // launchSingleTop guards double-taps of a search result row on each.
                 onAlbumClick = { albumId ->
                     navController.navigate(AlbumDetail(albumId = albumId)) {
                         launchSingleTop = true
                     }
                 },
-                onArtistClick = {},
+                // ArtistDetail is routed by name, not id -- see the ArtistDetail route comment in
+                // Routes.kt for why (no artist_id column in the songs schema).
+                onArtistClick = { artistName ->
+                    navController.navigate(ArtistDetail(artistName = artistName)) {
+                        launchSingleTop = true
+                    }
+                },
             )
         }
         // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Library;

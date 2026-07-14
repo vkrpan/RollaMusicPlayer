@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.rolla.musicplayer.core.database.MusicDatabase
 import com.rolla.musicplayer.core.database.dao.AlbumDao
+import com.rolla.musicplayer.core.database.dao.ArtistDao
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.dao.SearchDao
@@ -42,4 +43,7 @@ object DatabaseModule {
 
     @Provides
     fun provideAlbumDao(database: MusicDatabase): AlbumDao = database.albumDao()
+
+    @Provides
+    fun provideArtistDao(database: MusicDatabase): ArtistDao = database.artistDao()
 }
