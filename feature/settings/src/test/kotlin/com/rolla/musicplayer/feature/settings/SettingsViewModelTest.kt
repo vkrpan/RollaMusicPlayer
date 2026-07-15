@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.feature.settings
 
 import app.cash.turbine.test
+import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
 import com.rolla.musicplayer.core.data.repository.DEFAULT_PLAYBACK_SPEED
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
@@ -12,6 +13,7 @@ import com.rolla.musicplayer.core.testing.FakeSettingsRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -37,12 +39,14 @@ class SettingsViewModelTest {
     private val libraryIndexer: LibraryIndexer = mockk {
         coEvery { sync() } returns SyncResult(added = 0, removed = 0)
     }
+    private val albumArtworkCache: AlbumArtworkCache = mockk(relaxed = true)
 
     private fun createViewModel(
         settingsRepository: SettingsRepository = fakeSettingsRepository,
         equalizerPreferences: EqualizerPreferences = fakeEqualizerPreferences,
         indexer: LibraryIndexer = libraryIndexer,
-    ): SettingsViewModel = SettingsViewModel(settingsRepository, equalizerPreferences, indexer)
+        artworkCache: AlbumArtworkCache = albumArtworkCache,
+    ): SettingsViewModel = SettingsViewModel(settingsRepository, equalizerPreferences, indexer, artworkCache)
 
     // ── uiState defaults ─────────────────────────────────────────────────────
 
@@ -280,6 +284,29 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun onRescanClick_onSuccess_clearsArtworkCacheAfterSync() = runTest {
+        coEvery { libraryIndexer.sync() } returns SyncResult(added = 5, removed = 2)
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+
+            val finished = awaitItem()
+            assertEquals(false, finished.isRescanning)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify(exactly = 1) { albumArtworkCache.clear() }
+        coVerifyOrder {
+            libraryIndexer.sync()
+            albumArtworkCache.clear()
+        }
+    }
+
+    @Test
     fun onRescanClick_whileRescanInFlight_secondCallIsIgnored() = runTest {
         val gate = CompletableDeferred<Unit>()
         coEvery { libraryIndexer.sync() } coAnswers {
@@ -325,6 +352,51 @@ class SettingsViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    @Test
+    fun onRescanClick_artworkCacheClearThrows_stillReportsSuccess() = runTest {
+        coEvery { libraryIndexer.sync() } returns SyncResult(added = 5, removed = 2)
+        coEvery { albumArtworkCache.clear() } throws IOException("disk full")
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+
+            val finished = awaitItem()
+            assertEquals(false, finished.isRescanning)
+            assertEquals("Library rescanned: 5 added or updated, 2 removed", finished.rescanMessage)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun onRescanClick_syncThrows_artworkCacheIsNeverCleared() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        coEvery { libraryIndexer.sync() } coAnswers {
+            gate.await()
+            throw IOException("mediastore unavailable")
+        }
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            assertEquals(false, awaitItem().isRescanning)
+
+            viewModel.onRescanClick()
+            assertEquals(true, awaitItem().isRescanning)
+
+            gate.complete(Unit)
+            val failed = awaitItem()
+            assertEquals(false, failed.isRescanning)
+            assertEquals("Couldn't rescan the library. Please try again.", failed.rescanMessage)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+        coVerify(exactly = 0) { albumArtworkCache.clear() }
     }
 
     @Test

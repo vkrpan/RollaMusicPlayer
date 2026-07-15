@@ -14,6 +14,9 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:media"))
+    // AlbumArtworkCache -- the shared, albumId-keyed downscaled-art disk cache (wave 2 of the
+    // artwork-caching feature). One-directional: :core:data does not depend on :feature:widget.
+    implementation(project(":core:data"))
     // BOM + material3 are compile-time requirements of MusicWidgetTheme's ColorScheme mapping:
     // glance-material3 uses compose material3 internally but doesn't export it (api) to consumers.
     val composeBom = platform(libs.androidx.compose.bom)

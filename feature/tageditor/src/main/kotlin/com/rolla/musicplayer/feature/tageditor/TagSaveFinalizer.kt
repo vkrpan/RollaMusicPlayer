@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor
 
+import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.media.PlaybackController
@@ -22,16 +23,23 @@ import javax.inject.Inject
  * 2. **Targeted re-sync** -- [LibraryIndexer.syncSongs] for just the saved songs' MediaStore ids,
  *    so the library reflects the new tags without a full rescan and without losing per-song user
  *    state (favourite/play count -- the indexer's merge guarantees that).
- * 3. **Refresh playback** -- for each saved song, [PlaybackController.updateSongMetadata] with the
+ * 3. **Invalidate cached artwork** -- [AlbumArtworkCache.invalidate] for each distinct
+ *    `albumId` among the saved songs. This runs BEFORE step 4 (refresh playback) on purpose:
+ *    `refreshPlayback` fires the playback-metadata update that re-renders now-playing and the
+ *    widget, so the stale cached cover must already be gone by then -- dropping it first means
+ *    those re-renders (and Coil, via the file's changed last-modified) re-decode the freshly
+ *    embedded art instead of serving the evicted copy. Multiple saved songs can share an album,
+ *    so `distinct()` avoids redundant invalidations.
+ * 4. **Refresh playback** -- for each saved song, [PlaybackController.updateSongMetadata] with the
  *    freshly re-synced row, so the now-playing UI, queue, and media notification (and the widget,
  *    once Phase 6 builds it on the same playback state) re-render the new tags if that song is
  *    loaded. Songs the re-sync removed (file vanished between write and sync) are skipped.
  *
  * The whole pipeline is **best-effort by design**: the user's file write has already succeeded by
- * the time this runs, so a failure here (scanner hiccup, DB error) must never be reported as a
- * failed save -- it is swallowed, and the next full library sync repairs the staleness. Callers
- * should still `await` this before closing their screen: it runs in the caller's scope, and the
- * library list the user returns to should already show the new tags.
+ * the time this runs, so a failure here (scanner hiccup, DB error, cache eviction failure) must
+ * never be reported as a failed save -- it is swallowed, and the next full library sync repairs
+ * the staleness. Callers should still `await` this before closing their screen: it runs in the
+ * caller's scope, and the library list the user returns to should already show the new tags.
  *
  * Call from the main dispatcher (any `viewModelScope` launch): each collaborator hops to its own
  * IO dispatcher internally, and [PlaybackController] must be touched from main.
@@ -42,6 +50,7 @@ class TagSaveFinalizer @Inject constructor(
     private val libraryIndexer: LibraryIndexer,
     private val songRepository: SongRepository,
     private val playbackController: PlaybackController,
+    private val albumArtworkCache: AlbumArtworkCache,
 ) {
 
     suspend fun onSongsSaved(songs: List<Song>) {
@@ -50,6 +59,7 @@ class TagSaveFinalizer @Inject constructor(
             val paths = songs.mapNotNull { songFileResolver.resolveFilePath(it) }
             mediaScanNotifier.awaitScan(paths)
             libraryIndexer.syncSongs(songs.mapNotNull { it.id.toLongOrNull() })
+            songs.map { it.albumId }.distinct().forEach { albumArtworkCache.invalidate(it) }
             refreshPlayback(songs)
         } catch (e: CancellationException) {
             throw e

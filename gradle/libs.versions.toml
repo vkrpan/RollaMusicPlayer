@@ -100,6 +100,7 @@ room-testing                   = { group = "androidx.room",            name = "r
 datastore-preferences          = { group = "androidx.datastore",       name = "datastore-preferences",         version.ref = "datastore" }
 
 # Coil
+coil                           = { group = "io.coil-kt",               name = "coil",                          version.ref = "coil" }
 coil-compose                   = { group = "io.coil-kt",               name = "coil-compose",                  version.ref = "coil" }
 
 # Tag editing — Android-compatible JAudiotagger fork (jitpack.io), local/offline only.
