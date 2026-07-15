@@ -60,7 +60,9 @@ fun AlbumCard(
     Column(modifier = modifier.width(CardWidth).clickable(onClick = onClick)) {
         AlbumCardArtwork(
             artworkUri = album.artworkUri,
-            contentDescription = "Album artwork for ${album.title}",
+            // Decorative within the merged clickable card: the title/count Texts below already
+            // carry the content (same reasoning as SmartPlaylistCard's null'd artwork).
+            contentDescription = null,
             modifier = Modifier.fillMaxWidth().aspectRatio(1f),
         )
         Spacer(modifier = Modifier.height(TextGap))
@@ -87,7 +89,7 @@ private fun songCountLabel(count: Int): String = if (count == 1) "1 song" else "
 @Composable
 private fun AlbumCardArtwork(
     artworkUri: String,
-    contentDescription: String,
+    contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current

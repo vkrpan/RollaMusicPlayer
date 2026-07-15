@@ -50,6 +50,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -334,7 +336,9 @@ private fun TagEditorHeaderCard(
         ) {
             TagEditorArtwork(
                 artworkUri = artworkUri.orEmpty(),
-                contentDescription = "Album artwork for $songTitle",
+                // Decorative: the song title Text is announced two stops later; describing the
+                // artwork made TalkBack read the title twice (a11y audit).
+                contentDescription = null,
                 modifier = Modifier
                     .size(ArtworkSize)
                     .clip(MaterialTheme.shapes.extraLarge),
@@ -369,7 +373,7 @@ private fun TagEditorHeaderCard(
 }
 
 @Composable
-private fun TagEditorArtwork(artworkUri: String, contentDescription: String, modifier: Modifier = Modifier) {
+private fun TagEditorArtwork(artworkUri: String, contentDescription: String?, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val request = remember(artworkUri) {
         ImageRequest.Builder(context).data(artworkUri.ifEmpty { null }).crossfade(true).build()
@@ -504,7 +508,10 @@ private fun SaveCancelRow(
             enabled = canSave && !isSaving,
             modifier = Modifier
                 .weight(1f)
-                .heightIn(min = MinTouchTarget),
+                .heightIn(min = MinTouchTarget)
+                // While saving, the label Text is swapped for a bare spinner and the (still
+                // focusable, disabled) button would otherwise lose its accessible name entirely.
+                .semantics { if (isSaving) contentDescription = "Saving" },
         ) {
             if (isSaving) {
                 CircularProgressIndicator(

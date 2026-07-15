@@ -66,6 +66,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -278,7 +280,6 @@ private fun NowPlayingContent(
     ) {
         NowPlayingArtwork(
             artworkUri = song?.artworkUri.orEmpty(),
-            contentDescription = song?.title.orEmpty(),
             modifier = artworkModifier,
         )
         Column(
@@ -395,7 +396,6 @@ private fun NowPlayingTopBarActions(onEqualizerClick: () -> Unit) {
 @Composable
 private fun NowPlayingArtwork(
     artworkUri: String,
-    contentDescription: String,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -411,7 +411,9 @@ private fun NowPlayingArtwork(
     ) {
         AsyncImage(
             model = request,
-            contentDescription = contentDescription,
+            // Decorative: NowPlayingTitleArtist announces the same title right below this, so a
+            // contentDescription here would make TalkBack read the title twice back-to-back.
+            contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
@@ -444,7 +446,7 @@ private fun NowPlayingActionRow(
         IconButton(onClick = onToggleFavorite) {
             Icon(
                 imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                contentDescription = "Favourite",
+                contentDescription = if (isFavorite) "Remove from favourites" else "Add to favourites",
                 tint = if (isFavorite) {
                     MaterialTheme.colorScheme.primary
                 } else {
@@ -495,6 +497,7 @@ private fun NowPlayingSeekBar(
                 activeTrackColor = MaterialTheme.colorScheme.primary,
                 inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
             ),
+            modifier = Modifier.semantics { contentDescription = "Playback position" },
         )
         SeekBarTimeLabels(positionMs = positionMsValue, durationMs = durationMsValue)
     }
@@ -538,7 +541,7 @@ private fun NowPlayingTransportRow(
         IconButton(onClick = onToggleShuffle) {
             Icon(
                 imageVector = Icons.Default.Shuffle,
-                contentDescription = "Shuffle",
+                contentDescription = if (shuffleMode == ShuffleMode.ON) "Shuffle on" else "Shuffle off",
                 tint = if (shuffleMode == ShuffleMode.ON) {
                     MaterialTheme.colorScheme.primary
                 } else {
@@ -571,7 +574,11 @@ private fun NowPlayingTransportRow(
                 } else {
                     Icons.Default.Repeat
                 },
-                contentDescription = "Repeat",
+                contentDescription = when (repeatMode) {
+                    RepeatMode.OFF -> "Repeat off"
+                    RepeatMode.ALL -> "Repeat all"
+                    RepeatMode.ONE -> "Repeat one"
+                },
                 tint = if (repeatMode == RepeatMode.OFF) {
                     MaterialTheme.colorScheme.onSurface
                 } else {

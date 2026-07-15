@@ -274,7 +274,9 @@ private fun AlbumDetailHeader(
     ) {
         AlbumArtwork(
             artworkUri = album.artworkUri,
-            contentDescription = "Album artwork for ${album.title}",
+            // Decorative: the album title Text is the very next TalkBack stop; describing the
+            // artwork made it announce the title twice in a row (a11y audit).
+            contentDescription = null,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = ArtworkHorizontalPadding)
@@ -309,7 +311,7 @@ private fun songCountLabel(count: Int): String = if (count == 1) "1 song" else "
 @Composable
 private fun AlbumArtwork(
     artworkUri: String,
-    contentDescription: String,
+    contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current

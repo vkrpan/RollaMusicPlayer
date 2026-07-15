@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -407,28 +408,37 @@ private fun EqualizerBandColumn(
         modifier = modifier.width(BandColumnWidth),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = gainLabel(gainMillibel),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        BandLabel(text = gainLabel(gainMillibel))
         Spacer(Modifier.height(BandLabelSpacing))
         VerticalGainSlider(
             gainMillibel = gainMillibel,
             valueRange = valueRange,
             enabled = enabled,
+            frequencyLabel = frequencyLabel,
             onGainChange = onGainChange,
             modifier = Modifier
                 .width(BandColumnWidth)
                 .height(SliderTrackHeight),
         )
         Spacer(Modifier.height(BandLabelSpacing))
-        Text(
-            text = frequencyLabel,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        BandLabel(text = frequencyLabel)
     }
+}
+
+/**
+ * Gain-value / frequency caption above and below each band slider. Single-line and non-wrapping:
+ * the 48dp band column can't fit a wrap at large font scales, so the short token ("+6", "630Hz")
+ * must clip its box rather than spill into the neighboring slider (a11y audit, fontScale 1.5).
+ */
+@Composable
+private fun BandLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        softWrap = false,
+    )
 }
 
 /**
@@ -447,14 +457,19 @@ private fun EqualizerBandColumn(
  * whole EQ curve springing into its new shape instead of jumping. [onGainChange] still reports the
  * slider's raw per-frame value upward unchanged; [EqualizerViewModel] debounces persistence, so
  * per-frame calls here are expected, not a perf problem.
+ *
+ * [frequencyLabel] (e.g. "630Hz") is read only for [contentDescription] -- without it TalkBack
+ * announces all nine bands identically as "Slider, value X", giving no way to tell which band is
+ * focused (TalkBack audit).
  */
-@Suppress("LongMethod")
+@Suppress("LongMethod", "LongParameterList")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VerticalGainSlider(
     gainMillibel: Short,
     valueRange: ClosedFloatingPointRange<Float>,
     enabled: Boolean,
+    frequencyLabel: String,
     onGainChange: (Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -528,7 +543,8 @@ private fun VerticalGainSlider(
                 layout(placeable.height, placeable.width) {
                     placeable.place(-placeable.width, 0)
                 }
-            },
+            }
+            .semantics { contentDescription = "$frequencyLabel gain" },
     )
 }
 

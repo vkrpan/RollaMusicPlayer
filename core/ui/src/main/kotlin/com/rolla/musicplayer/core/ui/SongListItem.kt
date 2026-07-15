@@ -30,6 +30,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -72,6 +74,10 @@ fun SongListItem(
     modifier: Modifier = Modifier,
     trackNumber: Int? = null,
     onMoreClick: () -> Unit = {},
+    // Overrides the trailing button's announced purpose. The default says "More options", which is
+    // a lie at call sites whose onMoreClick performs a direct action (e.g. playlist detail's
+    // remove-from-playlist) -- those MUST pass the honest action label (TalkBack audit HIGH).
+    moreContentDescription: String? = null,
     selected: Boolean = false,
     selectionModeActive: Boolean = false,
     onLongClick: (() -> Unit)? = null,
@@ -82,6 +88,7 @@ fun SongListItem(
             onClick = onClick,
             trackNumber = trackNumber,
             onMoreClick = onMoreClick,
+            moreContentDescription = moreContentDescription,
             selected = selected,
             selectionModeActive = selectionModeActive,
             onLongClick = onLongClick,
@@ -102,15 +109,12 @@ private fun SongListItemContent(
     onClick: () -> Unit,
     trackNumber: Int?,
     onMoreClick: () -> Unit,
+    moreContentDescription: String?,
     selected: Boolean,
     selectionModeActive: Boolean,
     onLongClick: (() -> Unit)?,
 ) {
-    val rowBackground = if (selectionModeActive && selected) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        Color.Transparent
-    }
+    val rowBackground = rowBackgroundFor(selectionHighlighted = selectionModeActive && selected)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -122,12 +126,18 @@ private fun SongListItemContent(
     ) {
         SongItemLeading(song = song, trackNumber = trackNumber)
         Spacer(modifier = Modifier.width(ArtworkToTextGap))
-        SongInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
+        SongInfo(
+            title = song.title,
+            artist = song.artist,
+            subtitleColor = subtitleColorFor(selectionHighlighted = selectionModeActive && selected),
+            modifier = Modifier.weight(1f),
+        )
         SongItemTrailing(
             selectionModeActive = selectionModeActive,
             selected = selected,
             song = song,
             onMoreClick = onMoreClick,
+            moreContentDescription = moreContentDescription,
         )
     }
 }
@@ -154,6 +164,7 @@ private fun SongItemTrailing(
     selected: Boolean,
     song: Song,
     onMoreClick: () -> Unit,
+    moreContentDescription: String?,
 ) {
     if (selectionModeActive) {
         Checkbox(checked = selected, onCheckedChange = null)
@@ -161,17 +172,39 @@ private fun SongItemTrailing(
         IconButton(onClick = onMoreClick) {
             Icon(
                 imageVector = Icons.Default.MoreVert,
-                contentDescription = "More options for ${song.title}",
+                contentDescription = moreContentDescription ?: "More options for ${song.title}",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }
 }
 
+/** The multi-select highlight fill behind a selected row; transparent outside selection mode. */
+@Composable
+private fun rowBackgroundFor(selectionHighlighted: Boolean): Color =
+    if (selectionHighlighted) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        Color.Transparent
+    }
+
+/**
+ * onSurfaceVariant on the selected row's primaryContainer is 4.31:1 in dark theme -- under WCAG
+ * AA. onPrimaryContainer clears both themes comfortably (8.7:1 / 13.2:1).
+ */
+@Composable
+private fun subtitleColorFor(selectionHighlighted: Boolean): Color =
+    if (selectionHighlighted) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant
+    }
+
 @Composable
 private fun SongInfo(
     title: String,
     artist: String,
+    subtitleColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -185,7 +218,7 @@ private fun SongInfo(
         Text(
             text = artist,
             style = MaterialTheme.typography.artistName,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = subtitleColor,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -201,7 +234,10 @@ private fun SongItemLeading(song: Song, trackNumber: Int?) {
     if (trackNumber != null) {
         TrackNumberLabel(trackNumber = trackNumber)
     } else {
-        ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = song.album)
+        // Decorative within the merged row: announcing the album name here made TalkBack read
+        // artwork-description + title + artist as one verbose run (same reasoning as MiniPlayer's
+        // null'd artwork). The row's own text carries the content.
+        ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = null)
     }
 }
 
@@ -256,6 +292,9 @@ private fun TrackNumberLabel(trackNumber: Int, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
+            // The merged row would otherwise open with a bare digit ("1, Death on Two Legs...");
+            // frame it so TalkBack reads "Track 1, ..." instead.
+            modifier = Modifier.clearAndSetSemantics { contentDescription = "Track $trackNumber" },
         )
     }
 }

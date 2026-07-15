@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,6 +65,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -553,6 +557,42 @@ private fun isReducedMotion(): Boolean {
     }
 }
 
+/**
+ * TalkBack-reachable equivalent of the long-press drag reorder ([DragDropState] /
+ * `detectDragGesturesAfterLongPress` above) -- a raw pointer-drag gesture has no accessibility
+ * affordance of its own, so without this a user playlist's order would be permanently unreachable
+ * under TalkBack (audit CRITICAL). "Move up"/"Move down" perform the exact same
+ * remove-then-insert-then-persist steps the drag's `onMove`/`onDragEnd` pair performs, just as a
+ * single atomic step instead of a per-frame stream. Never attached to smart playlists (see the
+ * isUserPlaylist gate at the call site); "Move up" is omitted for the first row and "Move down" for
+ * the last, since [orderedSongs]'s own bounds make both directions self-evidently correct without
+ * re-deriving them from [isUserPlaylist].
+ */
+private fun reorderCustomActions(
+    orderedSongs: SnapshotStateList<Song>,
+    index: Int,
+    onReorder: (List<String>) -> Unit,
+): List<CustomAccessibilityAction> = buildList {
+    if (index > 0) {
+        add(
+            CustomAccessibilityAction(label = "Move up") {
+                orderedSongs.add(index - 1, orderedSongs.removeAt(index))
+                onReorder(orderedSongs.map { it.id })
+                true
+            },
+        )
+    }
+    if (index < orderedSongs.lastIndex) {
+        add(
+            CustomAccessibilityAction(label = "Move down") {
+                orderedSongs.add(index + 1, orderedSongs.removeAt(index))
+                onReorder(orderedSongs.map { it.id })
+                true
+            },
+        )
+    }
+}
+
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun PlaylistSongList(
@@ -612,7 +652,7 @@ private fun PlaylistSongList(
     val placementSpec = if (reducedMotion) snap() else ReorderPlacementSpring
 
     LazyColumn(state = listState, modifier = modifier.then(dragModifier)) {
-        items(items = orderedSongs, key = { song -> song.id }) { song ->
+        itemsIndexed(items = orderedSongs, key = { _, song -> song.id }) { index, song ->
             // derivedStateOf so a draggingItemKey write only invalidates the (at most two) rows
             // whose boolean actually flips, not every visible row. draggingItemKey stays null for
             // smart playlists (the drag modifier is never installed), so no isUserPlaylist check.
@@ -640,6 +680,14 @@ private fun PlaylistSongList(
                 song = song,
                 onClick = { onSongClick(song) },
                 onMoreClick = { if (isUserPlaylist) onRemoveSong(song) else onAddToPlaylist(song) },
+                // The default "More options for X" is a lie here -- this button performs a direct
+                // action (remove, or open the add-to-playlist sheet), never a menu (TalkBack audit
+                // HIGH).
+                moreContentDescription = if (isUserPlaylist) {
+                    "Remove ${song.title} from playlist"
+                } else {
+                    "Add ${song.title} to a playlist"
+                },
                 modifier = Modifier
                     .graphicsLayer {
                         scaleX = liftScale.value
@@ -649,7 +697,16 @@ private fun PlaylistSongList(
                             translationY = dragDropState.draggingItemOffset
                         }
                     }
-                    .then(if (isDragging) Modifier else Modifier.animateItem(placementSpec = placementSpec)),
+                    .then(if (isDragging) Modifier else Modifier.animateItem(placementSpec = placementSpec))
+                    .then(
+                        if (isUserPlaylist) {
+                            Modifier.semantics {
+                                customActions = reorderCustomActions(orderedSongs, index, onReorder)
+                            }
+                        } else {
+                            Modifier
+                        },
+                    ),
             )
         }
     }

@@ -458,7 +458,10 @@ private fun SaveCancelRow(
             enabled = canSave && !isSaving,
             modifier = Modifier
                 .weight(1f)
-                .heightIn(min = MinTouchTarget),
+                .heightIn(min = MinTouchTarget)
+                // While saving, the label Text is swapped for a bare spinner and the (still
+                // focusable, disabled) button would otherwise lose its accessible name entirely.
+                .semantics { if (isSaving) contentDescription = "Saving" },
         ) {
             if (isSaving) {
                 CircularProgressIndicator(

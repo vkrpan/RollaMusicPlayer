@@ -35,8 +35,8 @@ Dark theme (primary). Map each to the Material 3 role; do not invent ad-hoc colo
 | `surfaceContainerHighest` | `#333335` | Pressed/hover state |
 | `onSurface` | `#FFFFFF` | Titles, primary labels |
 | `onSurfaceVariant` | `#9CA0A6` | Secondary text (artist, counts, paths, captions) |
-| `primary` | `#3D7BFF` | Accent: selected chip fill, active EQ sliders, switches ON, slider track, link/value text |
-| `onPrimary` | `#FFFFFF` | Text/icon on accent fills |
+| `primary` | `#4780FF` (WCAG AA audit 2026-07-15: lifted from `#3D7BFF`; dark-only value, see note below) | Accent: selected chip fill, active EQ sliders, switches ON, slider track, link/value text |
+| `onPrimary` | `#001B3F` (WCAG AA audit 2026-07-15: deep navy, was `#FFFFFF`; dark-only value) | Text/icon on accent fills |
 | `primaryContainer` | `#1E3A66` | Subtle accent surfaces if needed |
 | `outlineVariant` | `#2C2C2E` | Hairline dividers between rows |
 | `error` | `#FF5A5A` | Destructive only |
@@ -46,11 +46,18 @@ Custom semantic extensions (add to `Color.kt` as `ColorScheme.xxx` `@Composable 
 | Token | Dark | Usage |
 | --- | --- | --- |
 | `miniPlayerContainer` | `#241F2E` (faint purple-tinted dark) | The bottom mini-player pill |
-| `fastScrollIndex` | `onSurfaceVariant` @ 60% | A–Z fast-scroll letters |
-| `sliderInactiveTrack` | `#3A3A3C` | Inactive portion of EQ/seek/sliders |
+| `fastScrollIndex` | full-opacity `onSurfaceVariant` (WCAG AA audit 2026-07-15: was `onSurfaceVariant` @ 60%, which only cleared ~3.2:1 against `surfaceContainer` — below the 4.5:1 text floor) | A–Z fast-scroll letters |
+| `sliderInactiveTrack` | `#6E6E73` (WCAG AA audit 2026-07-15: raised from `#3A3A3C`, which only cleared ~1.5:1 against `surfaceContainer` — below the 3:1 component floor) | Inactive portion of EQ/seek/sliders |
 
 **Light theme parity:** invert neutrals (`background #FFFFFF`, `surfaceContainer #F2F3F5`, `onSurface #111111`,
-`onSurfaceVariant #5F6368`) and keep the **same `primary` blue**. Light must be first-class, but true-black is dark-only.
+`onSurfaceVariant #5F6368`). **`primary` is NOT the same hex as dark** — WCAG AA audit 2026-07-15 proved no
+single blue hex can simultaneously clear 4.5:1 for white-on-it (button fill) AND 4.5:1 for it-as-text-on-dark-
+`surfaceContainer` (the luminance windows required for each don't intersect). Both schemes keep the same
+~221° brand hue but use per-scheme lightness (M3-canonical practice): light `primary` = `#0F5CFF`,
+`onPrimary` stays `#FFFFFF` (this darker fill clears 4.5:1 with white text, and the primary itself clears
+4.5:1 as text on `background`/`surfaceContainer`). `sliderInactiveTrack` in light is `#838890` (lowered from
+`#C4C6CA`, which only cleared ~1.5:1 against `surfaceContainer`). Light must be first-class, but true-black is
+dark-only. Full contrast ratio table and derivation: m3-design-system-agent WCAG audit, 2026-07-15.
 
 **Dynamic color:** optional Material You may tint neutrals, but the **accent blue stays brand-stable** by default
 (offer dynamic accent as a setting, off by default). All combinations must meet WCAG AA (≥4.5:1 for text).

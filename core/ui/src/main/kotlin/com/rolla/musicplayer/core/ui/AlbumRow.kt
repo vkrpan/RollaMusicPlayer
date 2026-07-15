@@ -79,7 +79,9 @@ private fun AlbumRowContent(album: Album, onClick: () -> Unit) {
     ) {
         AlbumArtworkThumbnail(
             artworkUri = album.artworkUri,
-            contentDescription = "Album artwork for ${album.title}",
+            // Decorative within the merged row: a non-null description made TalkBack read
+            // "Album artwork for X. X. Artist, N songs" -- the row's text already carries it.
+            contentDescription = null,
         )
         Spacer(modifier = Modifier.width(ArtworkToTextGap))
         AlbumInfo(album = album, modifier = Modifier.weight(1f))

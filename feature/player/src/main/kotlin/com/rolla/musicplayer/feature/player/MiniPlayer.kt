@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -40,6 +40,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -109,10 +111,20 @@ fun MiniPlayer(
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(horizontal = PillHorizontalMargin, vertical = PillVerticalPadding)
-            .height(PillHeight)
+            // min, not a fixed height: at large fontScale the title/artist column needs more than
+            // PillHeight to lay out without clipping -- clip(CircleShape) + background below both
+            // follow the row's actual measured bounds, so the pill just grows taller instead.
+            .heightIn(min = PillHeight)
             .background(MaterialTheme.colorScheme.miniPlayerContainer, CircleShape)
             .clip(CircleShape)
             .clickable(onClick = onBodyClick)
+            // mergeDescendants folds the (non-actionable) artwork + title/artist text into one
+            // purpose-labeled stop; the transport IconButtons below remain separately focusable --
+            // semantics merging does not swallow descendant nodes that carry their own actions (see
+            // RecentSearchesSection.kt's RecentSearchRow for the same idiom without nested actions).
+            .semantics(mergeDescendants = true) {
+                contentDescription = "Now playing: ${song.title} by ${song.artist}. Open player."
+            }
             .padding(start = PillStartPadding, end = PillEndPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

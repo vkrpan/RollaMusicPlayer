@@ -20,14 +20,16 @@
     <color name="widget_on_surface">#FFFFFFFF</color>
     <!-- §2 onSurfaceVariant: artist text (secondary label). -->
     <color name="widget_on_surface_variant">#FF9CA0A6</color>
-    <!-- §2 primary: the one stable accent — progress fill, play glyph emphasis. -->
-    <color name="widget_primary">#FF3D7BFF</color>
-    <!-- §2 onPrimary. -->
-    <color name="widget_on_primary">#FFFFFFFF</color>
+    <!-- §2 primary (dark): the one stable accent — progress fill, play glyph emphasis.
+         Synced 2026-07-15 with the WCAG-audit token split in :core:designsystem (was #3D7BFF). -->
+    <color name="widget_primary">#FF4780FF</color>
+    <!-- §2 onPrimary (dark): unused by this layout but kept 1:1 with the app scheme (was #FFFFFF). -->
+    <color name="widget_on_primary">#FF001B3F</color>
     <!-- §2 primaryContainer: unused by this layout but required by ColorProviders' role set. -->
     <color name="widget_primary_container">#FF1E3A66</color>
-    <!-- §2 sliderInactiveTrack: reused as the progress bar's inactive track. -->
-    <color name="widget_track">#FF3A3A3C</color>
+    <!-- §2 sliderInactiveTrack (dark): the progress bar's inactive track. Raised with the WCAG
+         audit (was #3A3A3C, only 1.50:1 vs the card) — #6E6E73 clears the 3:1 component floor. -->
+    <color name="widget_track">#FF6E6E73</color>
     <!-- §2 outlineVariant: unused hairline role, kept for ColorProviders completeness. -->
     <color name="widget_outline_variant">#FF2C2C2E</color>
     <!-- §2 error: unused by this layout but required by ColorProviders' role set. -->

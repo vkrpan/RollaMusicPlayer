@@ -12,15 +12,36 @@ import androidx.compose.ui.graphics.Color
  *
  * Implements `.claude/rules/ui-style-guide.md` §2 (One UI–inspired dark: OLED black,
  * single blue accent, soft rounded dark surfaces). Dark is the primary theme; light is
- * first-class parity. The accent (`primary`) stays brand-stable even under dynamic color.
+ * first-class parity. The accent (`primary`) stays the same brand hue (~221°) in both
+ * schemes, but is NOT the same hex in both — see the WCAG note below.
  *
  * Owned by m3-design-system-agent. Never hardcode colors elsewhere — reference
  * `MaterialTheme.colorScheme.*` or the semantic extensions at the bottom of this file.
  */
 
-// ---- Brand accent (stable in both themes) ----
-private val Blue = Color(0xFF3D7BFF)
-private val OnBlue = Color(0xFFFFFFFF)
+// ---- Brand accent (WCAG AA audit 2026-07-15) ----
+// A single #3D7BFF blue could NOT simultaneously satisfy (a) white-on-it >= 4.5:1 and
+// (b) it-as-text-on-dark-surfaceContainer #1C1C1E >= 4.5:1 -- the two luminance windows
+// don't intersect (proven by the audit). Fixed with the M3-canonical per-scheme split
+// below: same ~221° hue, different lightness per theme, chosen so both the
+// fill-with-onPrimary-text case and the primary-as-text case clear their thresholds in
+// their own scheme. Do not re-merge these into one shared constant.
+//
+// Dark: relative luminance must be >= ~0.228 to clear 4.5:1 as text on surfaceContainer
+// #1C1C1E (the tightest of background/surface/surfaceContainer, since surfaceContainer is
+// the lightest of the three dark surfaces). #4780FF measures ~0.240 -- clears with margin.
+private val DarkPrimary = Color(0xFF4780FF)
+
+// Lifted primary is too light for white text to clear 4.5:1 (~3.7:1) -- pair it with a
+// near-black navy on-color instead (luminance <= ~0.0144 required at this primary lightness).
+private val DarkOnPrimary = Color(0xFF001B3F)
+
+// Light: relative luminance must be <= ~0.160 to clear 4.5:1 as text on light
+// surfaceContainer #F2F3F5 (the tightest surface -- lower luminance than #FFFFFF
+// background, so it's the binding constraint). #0F5CFF measures ~0.150 -- clears with
+// margin, and white text on this darker fill clears 4.5:1 too (with more margin still).
+private val LightPrimary = Color(0xFF0F5CFF)
+private val LightOnPrimary = Color(0xFFFFFFFF)
 
 // ---- Dark palette ----
 private val DarkBackground = Color(0xFF000000)
@@ -61,16 +82,16 @@ private val LightError = Color(0xFFBA1A1A)
 private val LightOnError = Color(0xFFFFFFFF)
 
 val DarkColorScheme: ColorScheme = darkColorScheme(
-    primary = Blue,
-    onPrimary = OnBlue,
+    primary = DarkPrimary,
+    onPrimary = DarkOnPrimary,
     primaryContainer = DarkPrimaryContainer,
     onPrimaryContainer = DarkOnPrimaryContainer,
     secondary = DarkOnSurfaceVariant,
     onSecondary = Color(0xFF000000),
     secondaryContainer = DarkSurfaceContainerHigh,
     onSecondaryContainer = Color(0xFFE2E2E5),
-    tertiary = Blue,
-    onTertiary = OnBlue,
+    tertiary = DarkPrimary,
+    onTertiary = DarkOnPrimary,
     background = DarkBackground,
     onBackground = DarkOnBackground,
     surface = DarkSurface,
@@ -90,16 +111,16 @@ val DarkColorScheme: ColorScheme = darkColorScheme(
 )
 
 val LightColorScheme: ColorScheme = lightColorScheme(
-    primary = Blue,
-    onPrimary = OnBlue,
+    primary = LightPrimary,
+    onPrimary = LightOnPrimary,
     primaryContainer = LightPrimaryContainer,
     onPrimaryContainer = LightOnPrimaryContainer,
     secondary = LightOnSurfaceVariant,
     onSecondary = Color(0xFFFFFFFF),
     secondaryContainer = LightSurfaceContainerHigh,
     onSecondaryContainer = Color(0xFF1A1C1E),
-    tertiary = Blue,
-    onTertiary = OnBlue,
+    tertiary = LightPrimary,
+    onTertiary = LightOnPrimary,
     background = LightBackground,
     onBackground = LightOnBackground,
     surface = LightSurface,
@@ -131,15 +152,35 @@ val LightColorScheme: ColorScheme = lightColorScheme(
  * pick the wrong branch (e.g. Dark forced on a light-mode device would render this pill in the
  * *light* palette while `onSurface` text above it is already the *dark* palette's white -- a
  * contrast failure, not just a cosmetic mismatch).
+ *
+ * WCAG audit 2026-07-15: verified passing, unchanged -- `onSurface`/`onSurfaceVariant` text on
+ * this pill both clear 4.5:1 in both themes. `primary` was NOT checked as text on this pill and
+ * must never be used that way (it is not one of the audited pairings) -- treat any future
+ * primary-as-text-on-miniPlayerContainer usage as a new pairing requiring its own audit.
  */
 val ColorScheme.miniPlayerContainer: Color
     @Composable @ReadOnlyComposable
     get() = if (LocalRollaDarkTheme.current) Color(0xFF241F2E) else Color(0xFFECEAF2)
 
+// WCAG audit 2026-07-15: the old #3A3A3C (dark) / #C4C6CA (light) only cleared 1.5-1.9:1
+// against the surfaces they're drawn on -- far under the 3:1 UI-component floor.
+// Dark: needs relative luminance >= ~0.135 to clear 3:1 vs the lightest dark surface it's
+// drawn on (surfaceContainer #1C1C1E). #6E6E73 measures ~0.157 -- clears with margin, and
+// stays well under DarkPrimary's ~0.240 so the active track still reads as more prominent.
+// Light: needs relative luminance <= ~0.265 to clear 3:1 vs the tightest light surface
+// (surfaceContainer #F2F3F5, darker than #FFFFFF background). #838890 measures ~0.245 --
+// clears with margin, and stays well above LightPrimary's ~0.150 (active track is darker/
+// more saturated, so it still reads as more prominent in light mode too).
 val ColorScheme.sliderInactiveTrack: Color
     @Composable @ReadOnlyComposable
-    get() = if (LocalRollaDarkTheme.current) Color(0xFF3A3A3C) else Color(0xFFC4C6CA)
+    get() = if (LocalRollaDarkTheme.current) Color(0xFF6E6E73) else Color(0xFF838890)
 
+// WCAG audit 2026-07-15: at 60% alpha over surfaceContainer this token was UNUSED but
+// authored broken -- the composited result only cleared ~3.2:1 (dark) / ~2.5:1 (light)
+// against surfaceContainer, both under the 4.5:1 text floor a 12sp fast-scroll letter needs.
+// Fixed to full-opacity `onSurfaceVariant`, which already clears 4.5:1 as text on
+// background/surface/surfaceContainer in both themes (6.5:1 dark / 5.4:1 light against
+// surfaceContainer, the tightest of the three) -- do not reintroduce alpha here.
 val ColorScheme.fastScrollIndex: Color
     @Composable @ReadOnlyComposable
-    get() = onSurfaceVariant.copy(alpha = 0.6f)
+    get() = onSurfaceVariant
