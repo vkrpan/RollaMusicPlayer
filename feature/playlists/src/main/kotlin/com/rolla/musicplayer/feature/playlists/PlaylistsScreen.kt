@@ -56,6 +56,7 @@ import coil.request.ImageRequest
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.metadata
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
+import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.PlaylistRow
@@ -69,6 +70,7 @@ private val FeatureCardSize = 150.dp
 private val FeatureCardTextGap = 8.dp
 private val FeatureCardIconSize = 40.dp
 private val CollageIconSize = 20.dp
+private val EmptyStateVerticalPadding = 32.dp
 private const val COLLAGE_QUADRANT_COUNT = 4
 private const val COLLAGE_QUADRANTS_PER_ROW = 2
 
@@ -225,13 +227,33 @@ private fun PlaylistsContent(
         shape = MaterialTheme.shapes.large,
     ) {
         LazyColumn(contentPadding = PaddingValues(vertical = ContentVerticalPadding)) {
-            item {
+            item(key = "smart-playlists") {
                 SmartPlaylistRow(smartPlaylists = smartPlaylists, onSmartPlaylistClick = onSmartPlaylistClick)
             }
-            items(items = userPlaylists, key = { it.id }) { playlist ->
-                PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
+            if (userPlaylists.isEmpty()) {
+                item(key = "empty-user-playlists") { EmptyUserPlaylistsState() }
+            } else {
+                items(items = userPlaylists, key = { it.id }) { playlist ->
+                    PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun EmptyUserPlaylistsState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = FeatureCardRowPadding, vertical = EmptyStateVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "No playlists yet. Tap + to create one.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -263,7 +285,7 @@ private fun SmartPlaylistCard(
         Spacer(modifier = Modifier.height(FeatureCardTextGap))
         Text(
             text = summary.label,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.songTitle,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

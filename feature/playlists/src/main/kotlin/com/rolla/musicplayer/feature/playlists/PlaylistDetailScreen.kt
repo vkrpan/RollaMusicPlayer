@@ -80,8 +80,8 @@ import com.rolla.musicplayer.core.ui.SongListItem
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
-private val ControlButtonSize = 44.dp
-private val ControlIconSize = 22.dp
+private val ControlButtonSize = 48.dp
+private val ControlIconSize = 24.dp
 private val HeaderHorizontalPadding = 16.dp
 private val HeaderVerticalPadding = 12.dp
 private val EmptyStateHorizontalPadding = 32.dp

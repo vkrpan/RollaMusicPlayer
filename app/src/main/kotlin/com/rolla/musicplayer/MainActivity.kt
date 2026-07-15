@@ -16,6 +16,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
@@ -25,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -176,6 +179,13 @@ private fun RollaNavHost() {
     SharedTransitionLayout {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            // Leaf screens each own a Scaffold + TopAppBar that independently consumes the status
+            // bar inset (via TopAppBarDefaults.windowInsets). Without this, the default
+            // ScaffoldDefaults.contentWindowInsets also reserves the status-bar height as
+            // innerPadding.top here, doubling it on every screen. Bottom/horizontal stay owned by
+            // this outer Scaffold since bottomBar (mini-player + bottom nav) lives here.
+            contentWindowInsets = ScaffoldDefaults.contentWindowInsets
+                .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom),
             bottomBar = {
                 Column {
                     AnimatedVisibility(

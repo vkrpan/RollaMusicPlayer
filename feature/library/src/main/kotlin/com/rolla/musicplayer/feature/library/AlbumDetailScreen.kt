@@ -61,8 +61,8 @@ import com.rolla.musicplayer.core.ui.SongListItem
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
-private val ControlButtonSize = 44.dp
-private val ControlIconSize = 22.dp
+private val ControlButtonSize = 48.dp
+private val ControlIconSize = 24.dp
 private val HeaderHorizontalPadding = 16.dp
 private val HeaderVerticalPadding = 16.dp
 private val ArtworkHorizontalPadding = 32.dp
@@ -223,13 +223,37 @@ private fun AlbumDetailList(
                 onShuffleClick = onShuffleClick,
             )
         }
-        items(items = songs, key = { song -> song.id }) { song ->
-            SongListItem(
-                song = song,
-                onClick = { onSongClick(song) },
-                trackNumber = song.trackNumber,
-            )
+        if (songs.isEmpty()) {
+            // album != null with an empty songs list is a transient window: observeAlbum and
+            // observeAlbumSongs are independent Room queries that don't re-emit atomically. Show a
+            // deliberate empty state rather than a header floating over a blank panel.
+            item(key = "empty-songs") { AlbumSongsEmptyState() }
+        } else {
+            items(items = songs, key = { song -> song.id }) { song ->
+                SongListItem(
+                    song = song,
+                    onClick = { onSongClick(song) },
+                    trackNumber = song.trackNumber,
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun AlbumSongsEmptyState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = EmptyStateHorizontalPadding, vertical = HeaderVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "No songs in this album",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

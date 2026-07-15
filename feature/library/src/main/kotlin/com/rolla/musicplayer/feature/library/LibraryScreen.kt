@@ -43,6 +43,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,8 +73,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
-private val ControlButtonSize = 44.dp
-private val ControlIconSize = 22.dp
+private val ControlButtonSize = 48.dp
+private val ControlIconSize = 24.dp
 private val MinTouchTarget = 48.dp
 
 /**
@@ -155,9 +157,13 @@ fun LibraryScreen(
     // than in LibraryViewModel (see ui-builder scope). Selection mode is *derived* from this set
     // being non-empty rather than tracked as a separate boolean, so clearing the last selected
     // song automatically exits selection mode with no extra bookkeeping.
-    var selectedSongIds by rememberSaveable(stateSaver = SelectedSongIdsSaver) {
+    // Held as an explicit State (not just a `by` delegate) so the song list can read membership
+    // through derivedStateOf per row: passing the stable State down means a selection toggle
+    // recomposes only the row whose selected-ness actually flipped, not every visible row.
+    val selectedSongIdsState = rememberSaveable(stateSaver = SelectedSongIdsSaver) {
         mutableStateOf(emptySet<String>())
     }
+    var selectedSongIds by selectedSongIdsState
     val selectionModeActive = selectedSongIds.isNotEmpty()
     val onToggleSelection: (Song) -> Unit = { song ->
         selectedSongIds = if (song.id in selectedSongIds) {
@@ -191,7 +197,7 @@ fun LibraryScreen(
             songs = songs,
             scanState = scanState,
             selectionModeActive = selectionModeActive,
-            selectedSongIds = selectedSongIds,
+            selectedSongIds = selectedSongIdsState,
             onSongClick = onSongClick,
             onToggleSelection = onToggleSelection,
             onMoreClick = { song -> optionsSheetSong = song },
@@ -351,7 +357,7 @@ private fun LibraryContent(
     songs: List<Song>,
     scanState: ScanState,
     selectionModeActive: Boolean,
-    selectedSongIds: Set<String>,
+    selectedSongIds: State<Set<String>>,
     onSongClick: (Song) -> Unit,
     onToggleSelection: (Song) -> Unit,
     onMoreClick: (Song) -> Unit,
@@ -485,7 +491,7 @@ private fun EmptySongsContent(modifier: Modifier = Modifier) {
 private fun SongListContent(
     songs: List<Song>,
     selectionModeActive: Boolean,
-    selectedSongIds: Set<String>,
+    selectedSongIds: State<Set<String>>,
     onSongClick: (Song) -> Unit,
     onToggleSelection: (Song) -> Unit,
     onMoreClick: (Song) -> Unit,
@@ -493,11 +499,14 @@ private fun SongListContent(
 ) {
     LazyColumn(modifier = modifier) {
         items(items = songs, key = { song -> song.id }) { song ->
+            // derivedStateOf over the stable selection State: this row recomposes only when its own
+            // membership flips, not on every change to the set (see selectedSongIdsState above).
+            val isSelected by remember(song.id) { derivedStateOf { song.id in selectedSongIds.value } }
             SongListItem(
                 song = song,
                 onClick = { if (selectionModeActive) onToggleSelection(song) else onSongClick(song) },
                 onMoreClick = { onMoreClick(song) },
-                selected = song.id in selectedSongIds,
+                selected = isSelected,
                 selectionModeActive = selectionModeActive,
                 onLongClick = { onToggleSelection(song) },
             )

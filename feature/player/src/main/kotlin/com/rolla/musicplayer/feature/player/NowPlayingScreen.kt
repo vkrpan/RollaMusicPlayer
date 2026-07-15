@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -190,7 +191,11 @@ fun NowPlayingScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0),
+        // Top stays owned by NowPlayingTopBar (a TopAppBar, which reserves the status-bar inset
+        // itself and dominates innerPadding.top regardless of this value). No bottomBar is set on
+        // this route (the outer app Scaffold's bottomBar is hidden here), so without an explicit
+        // bottom inset the transport row would render flush under the system nav bar.
+        contentWindowInsets = WindowInsets.navigationBars,
         topBar = {
             NowPlayingTopBar(
                 onNavigateUp = onNavigateUp,

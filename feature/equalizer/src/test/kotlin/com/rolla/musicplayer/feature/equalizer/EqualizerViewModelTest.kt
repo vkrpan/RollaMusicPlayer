@@ -112,7 +112,7 @@ class EqualizerViewModelTest {
         advanceUntilIdle()
 
         assertEquals(true, viewModel.uiState.value.enabled)
-        assertEquals(listOf<Short>(100, 200, 300, 0, 0, 0, 0, 0, 0), viewModel.uiState.value.gainsMillibel)
+        assertEquals(listOf<Short>(100, 200, 300, 0, 0, 0, 0, 0, 0), viewModel.uiState.value.gainsMillibel.values)
     }
 
     @Test
@@ -121,7 +121,7 @@ class EqualizerViewModelTest {
         advanceUntilIdle()
 
         val balanced = BUILT_IN_EQUALIZER_PRESETS.first { it.name == "Balanced" }
-        assertEquals(List(TARGET_FREQUENCIES_HZ.size) { 0.toShort() }, viewModel.uiState.value.gainsMillibel)
+        assertEquals(List(TARGET_FREQUENCIES_HZ.size) { 0.toShort() }, viewModel.uiState.value.gainsMillibel.values)
         assertEquals(balanced.id, viewModel.uiState.value.selectedPresetId)
     }
 
@@ -185,11 +185,11 @@ class EqualizerViewModelTest {
             assertEquals(0.toShort(), awaitItem().gainsMillibel[0])
 
             viewModel.setBandGain(0, 100)
-            assertEquals(100.toShort(), viewModel.uiState.value.gainsMillibel[0])
+            assertEquals(100.toShort(), viewModel.uiState.value.gainsMillibel.values[0])
             assertEquals(100.toShort(), fakeDeviceEqualizer.getBandLevel(0))
 
             viewModel.setBandGain(0, 300)
-            assertEquals(300.toShort(), viewModel.uiState.value.gainsMillibel[0])
+            assertEquals(300.toShort(), viewModel.uiState.value.gainsMillibel.values[0])
             assertEquals(300.toShort(), fakeDeviceEqualizer.getBandLevel(0))
 
             // Not yet persisted -- still inside the debounce window, and the second call
@@ -244,7 +244,7 @@ class EqualizerViewModelTest {
 
             viewModel.selectPreset(bassBoost)
 
-            assertEquals(bassBoost.gainsMillibel, viewModel.uiState.value.gainsMillibel)
+            assertEquals(bassBoost.gainsMillibel, viewModel.uiState.value.gainsMillibel.values)
             assertEquals(bassBoost.id, viewModel.uiState.value.selectedPresetId)
             bassBoost.gainsMillibel.forEachIndexed { index, gain ->
                 assertEquals(gain, fakeDeviceEqualizer.getBandLevel(index.toShort()))
@@ -276,7 +276,7 @@ class EqualizerViewModelTest {
         advanceUntilIdle()
         viewModel.setBandGain(2, 500)
         advanceUntilIdle()
-        val expectedGains = viewModel.uiState.value.gainsMillibel
+        val expectedGains = viewModel.uiState.value.gainsMillibel.values
 
         repository.observePresets().test {
             awaitItem() // presets before saving

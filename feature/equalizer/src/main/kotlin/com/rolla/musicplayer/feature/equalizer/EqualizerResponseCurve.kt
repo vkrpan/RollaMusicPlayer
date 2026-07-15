@@ -57,7 +57,7 @@ private const val MIN_GAIN_SPAN_MILLIBEL = 1f
  */
 @Composable
 internal fun EqualizerResponseCurve(
-    gainsMillibel: List<Short>,
+    gainsMillibel: BandGains,
     minGainMillibel: Short,
     maxGainMillibel: Short,
     enabled: Boolean,
@@ -98,7 +98,7 @@ internal fun EqualizerResponseCurve(
  */
 @Composable
 private fun rememberAnimatedGains(
-    gainsMillibel: List<Short>,
+    gainsMillibel: BandGains,
     minGainMillibel: Short,
     maxGainMillibel: Short,
 ): List<Animatable<Float, AnimationVector1D>> {
@@ -113,11 +113,11 @@ private fun rememberAnimatedGains(
 
     val animatedGains = remember {
         List(TARGET_FREQUENCIES_HZ.size) { index ->
-            Animatable(normalizedGain(gainsMillibel.getOrElse(index) { 0 }, maxAbsGainMillibel))
+            Animatable(normalizedGain(gainsMillibel.values.getOrElse(index) { 0 }, maxAbsGainMillibel))
         }
     }
 
-    gainsMillibel.forEachIndexed { index, gainMillibel ->
+    gainsMillibel.values.forEachIndexed { index, gainMillibel ->
         val target = normalizedGain(gainMillibel, maxAbsGainMillibel)
         LaunchedEffect(target, reducedMotion) {
             if (reducedMotion) {
@@ -230,7 +230,7 @@ private fun PreviewEqualizerResponseCurveEnabled() {
     RollaMusicPlayerTheme {
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             EqualizerResponseCurve(
-                gainsMillibel = PREVIEW_ENABLED_GAINS_MILLIBEL,
+                gainsMillibel = BandGains(PREVIEW_ENABLED_GAINS_MILLIBEL),
                 minGainMillibel = PREVIEW_MIN_GAIN_MILLIBEL,
                 maxGainMillibel = PREVIEW_MAX_GAIN_MILLIBEL,
                 enabled = true,
@@ -250,7 +250,7 @@ private fun PreviewEqualizerResponseCurveDisabled() {
     RollaMusicPlayerTheme {
         Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
             EqualizerResponseCurve(
-                gainsMillibel = PREVIEW_DISABLED_GAINS_MILLIBEL,
+                gainsMillibel = BandGains(PREVIEW_DISABLED_GAINS_MILLIBEL),
                 minGainMillibel = PREVIEW_MIN_GAIN_MILLIBEL,
                 maxGainMillibel = PREVIEW_MAX_GAIN_MILLIBEL,
                 enabled = false,

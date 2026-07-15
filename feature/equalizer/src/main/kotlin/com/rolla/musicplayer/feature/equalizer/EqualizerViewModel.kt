@@ -30,10 +30,28 @@ private const val FALLBACK_MAX_GAIN_MILLIBEL: Short = 1500
 private const val PERSIST_DEBOUNCE_MS = 250L
 
 /**
+ * Compiler-stable wrapper around a fixed-order list of band gains, index-aligned with
+ * TARGET_FREQUENCIES_HZ (nine entries, 40Hz..10kHz in order).
+ *
+ * Plain `kotlin.collections.List<Short>` is not covered by this project's Compose stability
+ * config (stability-configuration.conf only reaches `com.rolla.musicplayer.core.model.*`, not
+ * stdlib collection types), so the compiler treats any composable parameter typed `List<Short>`
+ * as unconditionally unstable -- every composable receiving raw gains would be unskippable, and a
+ * single slider drag frame would recompose all nine band columns plus the response curve. Wrapping
+ * the list in this `@Immutable`-annotated holder asserts stability to the compiler without adding
+ * a dependency on kotlinx.collections.immutable (not already present in this module), restoring
+ * structural/referential skip checks at every composable boundary that takes [BandGains] instead
+ * of `List<Short>` (see [EqualizerSlidersCard], [EqualizerBandsRow], [EqualizerResponseCurve]).
+ */
+@Immutable
+data class BandGains(val values: List<Short> = List(TARGET_FREQUENCIES_HZ.size) { 0 })
+
+/**
  * Equalizer screen UI state.
  *
  * [gainsMillibel] is index-aligned with TARGET_FREQUENCIES_HZ (EqualizerBands.kt in :core:media)
- * -- nine entries, 40Hz..10kHz in order.
+ * -- nine entries, 40Hz..10kHz in order. See [BandGains] for why it's wrapped rather than a plain
+ * `List<Short>`.
  *
  * [minGainMillibel]/[maxGainMillibel] mirror the attached [EqualizerController]'s live
  * [EqualizerCapabilities] range. The controller is only attached while the playback service holds
@@ -50,7 +68,7 @@ private const val PERSIST_DEBOUNCE_MS = 250L
 @Immutable
 data class EqualizerUiState(
     val enabled: Boolean = false,
-    val gainsMillibel: List<Short> = List(TARGET_FREQUENCIES_HZ.size) { 0 },
+    val gainsMillibel: BandGains = BandGains(),
     val minGainMillibel: Short = FALLBACK_MIN_GAIN_MILLIBEL,
     val maxGainMillibel: Short = FALLBACK_MAX_GAIN_MILLIBEL,
     val presets: List<EqualizerPreset> = emptyList(),
@@ -119,7 +137,7 @@ class EqualizerViewModel @Inject constructor(
         controller.setGainForFrequency(TARGET_FREQUENCIES_HZ[index], gainMillibel)
         val capabilities = controller.capabilities()
         _uiState.update { current ->
-            val updatedGains = current.gainsMillibel.toMutableList().apply { this[index] = gainMillibel }
+            val updatedGains = current.gainsMillibel.values.toMutableList().apply { this[index] = gainMillibel }
             current.withGains(updatedGains).withCapabilities(capabilities)
         }
         schedulePersist()
@@ -145,7 +163,7 @@ class EqualizerViewModel @Inject constructor(
         val trimmed = name.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
-            repository.savePreset(trimmed, _uiState.value.gainsMillibel)
+            repository.savePreset(trimmed, _uiState.value.gainsMillibel.values)
         }
     }
 
@@ -180,7 +198,7 @@ class EqualizerViewModel @Inject constructor(
 
     private suspend fun saveCurrentSettings() {
         val state = _uiState.value
-        repository.saveSettings(EqualizerSettings(enabled = state.enabled, gainsMillibel = state.gainsMillibel))
+        repository.saveSettings(EqualizerSettings(enabled = state.enabled, gainsMillibel = state.gainsMillibel.values))
     }
 }
 
@@ -188,10 +206,10 @@ private fun EqualizerUiState.withSettings(settings: EqualizerSettings): Equalize
     withGains(settings.gainsMillibel).copy(enabled = settings.enabled)
 
 private fun EqualizerUiState.withGains(gains: List<Short>): EqualizerUiState =
-    copy(gainsMillibel = gains, selectedPresetId = matchingPresetId(gains, presets))
+    copy(gainsMillibel = BandGains(gains), selectedPresetId = matchingPresetId(gains, presets))
 
 private fun EqualizerUiState.withPresets(presets: List<EqualizerPreset>): EqualizerUiState =
-    copy(presets = presets, selectedPresetId = matchingPresetId(gainsMillibel, presets))
+    copy(presets = presets, selectedPresetId = matchingPresetId(gainsMillibel.values, presets))
 
 private fun EqualizerUiState.withCapabilities(capabilities: EqualizerCapabilities?): EqualizerUiState =
     copy(

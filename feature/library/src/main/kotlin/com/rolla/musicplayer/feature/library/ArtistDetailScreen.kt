@@ -59,8 +59,8 @@ import com.rolla.musicplayer.core.ui.SongListItem
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
-private val ControlButtonSize = 44.dp
-private val ControlIconSize = 22.dp
+private val ControlButtonSize = 48.dp
+private val ControlIconSize = 24.dp
 private val HeaderHorizontalPadding = 16.dp
 private val HeaderVerticalPadding = 16.dp
 private val EmptyStateHorizontalPadding = 32.dp
@@ -236,9 +236,34 @@ private fun ArtistDetailList(
                 ArtistAlbumsSection(albums = albums, onAlbumClick = onAlbumClick)
             }
         }
-        items(items = songs, key = { song -> song.id }) { song ->
-            SongListItem(song = song, onClick = { onSongClick(song) })
+        if (songs.isEmpty()) {
+            // artist != null with empty songs is a transient window: observeArtist/observeArtistSongs
+            // are independent Room queries that don't re-emit atomically. Show a deliberate empty
+            // state for the primary songs list rather than a blank panel below the header. (The
+            // Albums section above is supplementary and correctly just hides when empty.)
+            item(key = "empty-songs") { ArtistSongsEmptyState() }
+        } else {
+            items(items = songs, key = { song -> song.id }) { song ->
+                SongListItem(song = song, onClick = { onSongClick(song) })
+            }
         }
+    }
+}
+
+@Composable
+private fun ArtistSongsEmptyState(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = EmptyStateHorizontalPadding, vertical = HeaderVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "No songs for this artist",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

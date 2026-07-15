@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -41,6 +42,12 @@ private val ThumbnailIconSize = 24.dp
 private val RowVerticalPadding = 12.dp
 private val RowHorizontalPadding = 16.dp
 private val ArtworkToTextGap = 12.dp
+
+// Inset to start after the leading icon (RowHorizontalPadding + ThumbnailSize + ArtworkToTextGap),
+// matching PlaylistRow/SongListItem's hairline divider so the "New playlist…" row reads as its own
+// row instead of fusing into the first playlist below it.
+private val DividerStartPadding = RowHorizontalPadding + ThumbnailSize + ArtworkToTextGap
+private val DividerThickness = 0.5.dp
 
 /**
  * Shared bottom sheet listing the user's existing playlists plus a "New playlist…" entry point,
@@ -101,19 +108,26 @@ fun AddToPlaylistSheetHost(
 
 @Composable
 private fun NewPlaylistRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        NewPlaylistIcon()
-        Spacer(modifier = Modifier.width(ArtworkToTextGap))
-        Text(
-            text = "New playlist…",
-            style = MaterialTheme.typography.songTitle,
-            color = MaterialTheme.colorScheme.onSurface,
+    Column(modifier = modifier) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NewPlaylistIcon()
+            Spacer(modifier = Modifier.width(ArtworkToTextGap))
+            Text(
+                text = "New playlist…",
+                style = MaterialTheme.typography.songTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+        }
+        HorizontalDivider(
+            modifier = Modifier.padding(start = DividerStartPadding),
+            color = MaterialTheme.colorScheme.outlineVariant,
+            thickness = DividerThickness,
         )
     }
 }

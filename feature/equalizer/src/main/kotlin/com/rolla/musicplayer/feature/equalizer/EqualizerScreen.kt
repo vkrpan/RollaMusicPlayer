@@ -9,6 +9,7 @@ package com.rolla.musicplayer.feature.equalizer
 
 import android.content.res.Configuration
 import android.provider.Settings
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
@@ -61,6 +62,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -106,6 +108,15 @@ internal val GainValueSpring: FiniteAnimationSpec<Float> = spring(
 )
 private const val DRAGGED_THUMB_SCALE = 1.3f
 private val ThumbScaleSpring: FiniteAnimationSpec<Float> = spring(
+    dampingRatio = Spring.DampingRatioNoBouncy,
+    stiffness = Spring.StiffnessMedium,
+)
+
+// Same calm spring family as GainValueSpring/ThumbScaleSpring above, applied to PresetChip's
+// selected/unselected color swap (ui-style-guide.md §9: "animate size/weight/color, not abrupt
+// swaps"). Reduced-motion swaps this out for snap() at the call site, same pattern as every other
+// motion in this file.
+private val PresetChipColorSpring: FiniteAnimationSpec<Color> = spring(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = Spring.StiffnessMedium,
 )
@@ -290,13 +301,21 @@ private fun EqualizerContent(
 @Composable
 private fun EqualizerSlidersCard(
     enabled: Boolean,
-    gainsMillibel: List<Short>,
+    gainsMillibel: BandGains,
     minGainMillibel: Short,
     maxGainMillibel: Short,
     onSetEnabled: (Boolean) -> Unit,
     onBandGainChange: (Int, Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Remembered so every band slider (and the response curve, transitively) keeps receiving the
+    // SAME ClosedFloatingPointRange<Float> instance across recompositions instead of a freshly
+    // allocated one every drag frame -- an unstable/changed-every-time parameter would defeat
+    // per-band skipping even after gainsMillibel itself becomes compiler-stable (see BandGains).
+    val valueRange = remember(minGainMillibel, maxGainMillibel) {
+        minGainMillibel.toFloat()..maxGainMillibel.toFloat()
+    }
+
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -316,7 +335,7 @@ private fun EqualizerSlidersCard(
             EqualizerBandsRow(
                 enabled = enabled,
                 gainsMillibel = gainsMillibel,
-                valueRange = minGainMillibel.toFloat()..maxGainMillibel.toFloat(),
+                valueRange = valueRange,
                 onBandGainChange = onBandGainChange,
             )
         }
@@ -346,7 +365,7 @@ private fun EnabledToggleRow(enabled: Boolean, onSetEnabled: (Boolean) -> Unit, 
 @Composable
 private fun EqualizerBandsRow(
     enabled: Boolean,
-    gainsMillibel: List<Short>,
+    gainsMillibel: BandGains,
     valueRange: ClosedFloatingPointRange<Float>,
     onBandGainChange: (Int, Short) -> Unit,
     modifier: Modifier = Modifier,
@@ -365,7 +384,7 @@ private fun EqualizerBandsRow(
         TARGET_FREQUENCIES_HZ.forEachIndexed { index, _ ->
             EqualizerBandColumn(
                 frequencyLabel = FREQUENCY_LABELS[index],
-                gainMillibel = gainsMillibel.getOrElse(index) { 0 },
+                gainMillibel = gainsMillibel.values.getOrElse(index) { 0 },
                 valueRange = valueRange,
                 enabled = enabled,
                 onGainChange = { gain -> onBandGainChange(index, gain) },
@@ -596,12 +615,7 @@ private fun PresetChip(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.primary
-    } else {
-        MaterialTheme.colorScheme.surfaceContainerHigh
-    }
-    val contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+    val (containerColor, contentColor) = rememberPresetChipColors(selected)
 
     Box(
         modifier = modifier
@@ -620,6 +634,35 @@ private fun PresetChip(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+/**
+ * Animates [PresetChip]'s container/content colors between selected and unselected
+ * (ui-style-guide.md §9: "animate size/weight/color, not abrupt swaps") -- same reduced-motion
+ * snap-vs-spring choice every other animation in this file makes (see VerticalGainSlider,
+ * EqualizerResponseCurve's rememberAnimatedGains). Split out of [PresetChip] itself purely to keep
+ * that composable under the file's LongMethod threshold.
+ */
+@Composable
+private fun rememberPresetChipColors(selected: Boolean): Pair<Color, Color> {
+    val reducedMotion = isReducedMotion()
+    val colorAnimationSpec: FiniteAnimationSpec<Color> = if (reducedMotion) snap() else PresetChipColorSpring
+
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        },
+        animationSpec = colorAnimationSpec,
+        label = "presetChipContainerColor",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+        animationSpec = colorAnimationSpec,
+        label = "presetChipContentColor",
+    )
+    return containerColor to contentColor
 }
 
 @Composable
@@ -674,7 +717,7 @@ private fun previewUiState(): EqualizerUiState {
     val bassBoost = BUILT_IN_EQUALIZER_PRESETS.first { it.name == "Bass boost" }
     return EqualizerUiState(
         enabled = true,
-        gainsMillibel = bassBoost.gainsMillibel,
+        gainsMillibel = BandGains(bassBoost.gainsMillibel),
         presets = BUILT_IN_EQUALIZER_PRESETS,
         selectedPresetId = bassBoost.id,
     )
@@ -688,7 +731,7 @@ private val PREVIEW_CUSTOM_GAINS_MILLIBEL: List<Short> = listOf(200, 100, 0, -50
 
 private fun previewCustomUiState(): EqualizerUiState = EqualizerUiState(
     enabled = true,
-    gainsMillibel = PREVIEW_CUSTOM_GAINS_MILLIBEL,
+    gainsMillibel = BandGains(PREVIEW_CUSTOM_GAINS_MILLIBEL),
     presets = BUILT_IN_EQUALIZER_PRESETS,
     selectedPresetId = null,
 )
