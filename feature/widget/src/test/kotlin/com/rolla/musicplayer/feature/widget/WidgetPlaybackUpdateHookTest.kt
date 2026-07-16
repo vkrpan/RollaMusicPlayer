@@ -2,6 +2,7 @@ package com.rolla.musicplayer.feature.widget
 
 import android.content.Context
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -73,5 +74,30 @@ class WidgetPlaybackUpdateHookTest {
 
         assertEquals(2, attempts)
         assertTrue(succeeded)
+    }
+
+    @Test
+    fun renderCancellation_isRethrownAndStopsTheCollector() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val hook = WidgetPlaybackUpdateHook(context, dispatcher)
+        var attempts = 0
+        hook.renderWidget = {
+            attempts++
+            throw CancellationException("scope torn down mid-render")
+        }
+
+        hook.onPlaybackStateChanged()
+        advanceUntilIdle()
+        // Unlike a generic render failure (swallowed, collector keeps running), a
+        // CancellationException must propagate out of the collect block -- that cancels the single
+        // collector coroutine, so a later fire is never picked up.
+        hook.onPlaybackStateChanged()
+        advanceUntilIdle()
+
+        assertEquals(
+            "a rethrown CancellationException must stop the collector, not be swallowed like other failures",
+            1,
+            attempts,
+        )
     }
 }

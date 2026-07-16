@@ -8,6 +8,14 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // Robolectric (MediaWriteRequesterTest) needs the merged manifest/resources to resolve
+        // its per-SDK android-all environment; scoped to this module only, not the convention
+        // plugins, since no other module runs Robolectric tests.
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -39,5 +47,6 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
+    testImplementation(libs.robolectric)
     testImplementation(project(":core:testing"))
 }

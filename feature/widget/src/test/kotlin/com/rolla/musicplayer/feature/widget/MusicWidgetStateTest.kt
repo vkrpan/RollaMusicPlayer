@@ -39,4 +39,22 @@ class MusicWidgetStateTest {
 
         assertEquals(0.25f, state.progress)
     }
+
+    @Test
+    fun `progress is exactly one when position equals duration`() {
+        // Boundary case distinct from "position exceeds duration": the ratio is exactly 1f and
+        // must pass through coerceIn's inclusive upper bound without needing to clamp anything.
+        val state = MusicWidgetState(positionMs = 180_000L, durationMs = 180_000L)
+
+        assertEquals(1f, state.progress)
+    }
+
+    @Test
+    fun `progress is exactly zero when position is zero and duration is positive`() {
+        // Boundary case distinct from "position is negative": the ratio is exactly 0f and must
+        // pass through coerceIn's inclusive lower bound without needing to clamp anything.
+        val state = MusicWidgetState(positionMs = 0L, durationMs = 180_000L)
+
+        assertEquals(0f, state.progress)
+    }
 }
