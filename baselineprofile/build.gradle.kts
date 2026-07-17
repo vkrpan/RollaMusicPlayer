@@ -32,6 +32,16 @@ android {
             apiLevel = 31
             systemImageSource = "aosp-atd"
         }
+        // Full (non-ATD) AOSP image with a real rendering pipeline. ATD images run headless and
+        // produce NO frame timeline slices, so FrameTimingMetric (ScrollBenchmark) structurally
+        // cannot measure on pixel6Api31 ("Observed no expect/actual slices in trace") -- run
+        // scroll-jank benchmarks on THIS device; startup + profile generation stay on the
+        // lighter ATD image.
+        create<ManagedVirtualDevice>("pixel6Api31Frames") {
+            device = "Pixel 6"
+            apiLevel = 31
+            systemImageSource = "aosp"
+        }
     }
 }
 

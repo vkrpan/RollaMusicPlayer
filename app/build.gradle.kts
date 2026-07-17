@@ -14,6 +14,16 @@ android {
         compose = true
     }
     buildTypes {
+        // Not yet minified/signed (that lands with the separate release-config work), but the
+        // proguard files are wired now: the baselineprofile plugin's auto-generated
+        // `benchmarkRelease` variant forces minification and R8's strict missing-class check
+        // needs proguard-rules.pro's -dontwarn entries (jaudiotagger's desktop-Java references).
+        getByName("release") {
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
         // A release-like, non-debuggable build for Macrobenchmark/Baseline Profile generation to
         // drive (see .claude/skills/generate-baseline-profile/SKILL.md). NOTE: `release` itself is
         // not yet minified/signed here (that lands with the separate release-config work), so
