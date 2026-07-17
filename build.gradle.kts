@@ -9,6 +9,9 @@ plugins {
     alias(libs.plugins.hilt) apply false
     alias(libs.plugins.ksp) apply false
     alias(libs.plugins.room) apply false
+    // Baseline Profile consumer/producer plugin (applied in app/build.gradle.kts and
+    // baselineprofile/build.gradle.kts); declared here (apply false) to put it on the classpath.
+    alias(libs.plugins.androidx.baselineprofile) apply false
     // detekt is applied per-module via the rolla.static.analysis convention plugin;
     // declaring it here (apply false) puts the plugin jar on the classpath for subprojects.
     alias(libs.plugins.detekt) apply false

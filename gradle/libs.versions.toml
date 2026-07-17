@@ -54,6 +54,12 @@ mockk              = "1.13.10"
 turbine            = "1.2.0"
 robolectric        = "4.13"
 
+# Baseline Profile / Macrobenchmark
+benchmarkMacro     = "1.2.4"
+uiautomator        = "2.3.0"
+profileinstaller   = "1.3.1"
+baselineprofile    = "1.2.4"
+
 [libraries]
 # AndroidX core
 androidx-core-ktx              = { group = "androidx.core",            name = "core-ktx",                      version.ref = "coreKtx" }
@@ -125,6 +131,11 @@ mockk                          = { group = "io.mockk",                 name = "m
 turbine                        = { group = "app.cash.turbine",          name = "turbine",                       version.ref = "turbine" }
 robolectric                    = { group = "org.robolectric",          name = "robolectric",                   version.ref = "robolectric" }
 
+# Baseline Profile / Macrobenchmark
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark",        name = "benchmark-macro-junit4",       version.ref = "benchmarkMacro" }
+androidx-uiautomator            = { group = "androidx.test.uiautomator", name = "uiautomator",                  version.ref = "uiautomator" }
+androidx-profileinstaller       = { group = "androidx.profileinstaller", name = "profileinstaller",             version.ref = "profileinstaller" }
+
 [plugins]
 android-application            = { id = "com.android.application",     version.ref = "agp" }
 android-library                = { id = "com.android.library",         version.ref = "agp" }
@@ -137,3 +148,4 @@ ksp                            = { id = "com.google.devtools.ksp",     version.r
 room                           = { id = "androidx.room",               version.ref = "room" }
 detekt                         = { id = "io.gitlab.arturbosch.detekt",  version.ref = "detekt" }
 spotless                       = { id = "com.diffplug.spotless",        version.ref = "spotless" }
+androidx-baselineprofile       = { id = "androidx.baselineprofile",     version.ref = "baselineprofile" }

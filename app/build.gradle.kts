@@ -2,6 +2,7 @@ plugins {
     id("rolla.android.application")
     id("rolla.android.hilt")
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.androidx.baselineprofile)
 }
 
 android {
@@ -11,6 +12,19 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    buildTypes {
+        // A release-like, non-debuggable build for Macrobenchmark/Baseline Profile generation to
+        // drive (see .claude/skills/generate-baseline-profile/SKILL.md). NOTE: `release` itself is
+        // not yet minified/signed here (that lands with the separate release-config work), so
+        // `benchmark` currently inherits that too -- regenerate the profile once minification is
+        // turned on for release, since R8 output can shift which methods/classes are hot.
+        create("benchmark") {
+            initWith(getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("release")
+            isDebuggable = false
+        }
     }
 }
 
@@ -47,6 +61,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     implementation(libs.coil)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.profileinstaller)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
@@ -55,4 +70,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(project(":core:testing"))
+
+    // Producer module: generates/bundles the Baseline Profile consumed by `benchmark`/`release`.
+    baselineProfile(project(":baselineprofile"))
 }

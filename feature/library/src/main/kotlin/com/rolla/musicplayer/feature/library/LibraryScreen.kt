@@ -56,6 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -76,6 +77,9 @@ private val SurfaceVerticalMargin = 8.dp
 private val ControlButtonSize = 48.dp
 private val ControlIconSize = 24.dp
 private val MinTouchTarget = 48.dp
+
+// UiAutomator handle for the :baselineprofile module (see the generator's By.res lookup).
+private const val SONG_LIST_TEST_TAG = "song_list"
 
 /**
  * Saves the multi-select song-id set as a plain [List] -- a bare [Set] is not directly
@@ -497,7 +501,9 @@ private fun SongListContent(
     onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier) {
+    // testTag: UiAutomator handle for the :baselineprofile generator/benchmarks' scroll journey
+    // (resolved via testTagsAsResourceId on the app's root Scaffold).
+    LazyColumn(modifier = modifier.testTag(SONG_LIST_TEST_TAG)) {
         items(items = songs, key = { song -> song.id }) { song ->
             // derivedStateOf over the stable selection State: this row recomposes only when its own
             // membership flips, not on every change to the set (see selectedSongIdsState above).

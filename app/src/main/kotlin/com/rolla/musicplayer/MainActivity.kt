@@ -33,8 +33,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.core.content.pm.PackageInfoCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,7 +167,8 @@ private val NavigationBarLightScrim = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
 private val NavigationBarDarkScrim = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
 @Suppress("LongMethod")
-@OptIn(ExperimentalSharedTransitionApi::class)
+// ExperimentalComposeUiApi: testTagsAsResourceId (UiAutomator visibility for :baselineprofile).
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class)
 @Composable
 private fun RollaNavHost() {
     val navController = rememberNavController()
@@ -178,6 +182,10 @@ private fun RollaNavHost() {
 
     SharedTransitionLayout {
         Scaffold(
+            // testTagsAsResourceId exposes Compose testTags (e.g. the library list's "song_list")
+            // as resource-ids to UiAutomator, which the :baselineprofile generator/benchmarks use
+            // to drive the scroll journey. No effect on production behavior or accessibility.
+            modifier = Modifier.semantics { testTagsAsResourceId = true },
             containerColor = MaterialTheme.colorScheme.background,
             // Leaf screens each own a Scaffold + TopAppBar that independently consumes the status
             // bar inset (via TopAppBarDefaults.windowInsets). Without this, the default
