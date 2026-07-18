@@ -1,6 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- No INTERNET permission: app is 100% offline -->
+
+    <!--
+         ACCESS_NETWORK_STATE is pulled in transitively by androidx.media3:media3-common (its
+         adaptive-streaming bandwidth/network-type observers) and androidx.glance:glance-appwidget,
+         confirmed via app/build/outputs/logs/manifest-merger-release-report.txt. RollaMusicPlayer
+         never exercises Media3's HTTP/adaptive-streaming data sources (:core:media plays local
+         content:// URIs only; no HttpDataSource/DefaultBandwidthMeter usage anywhere in the
+         codebase), so this permission is unused dead weight that contradicts the offline/privacy
+         architecture (see CLAUDE.md). Removed at manifest-merge time; enforced going forward by
+         :app:checkReleaseManifestNoInternet.
+    -->
+    <uses-permission
+        android:name="android.permission.ACCESS_NETWORK_STATE"
+        tools:node="remove" />
+
     <application
         android:name=".RollaApp"
         android:label="RollaMusicPlayer"

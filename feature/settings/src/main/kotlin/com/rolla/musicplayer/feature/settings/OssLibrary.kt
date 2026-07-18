@@ -28,6 +28,7 @@ internal val OSS_LIBRARIES = listOf(
     OssLibrary("AndroidX Room", "Android Open Source Project", "Apache-2.0"),
     OssLibrary("AndroidX DataStore", "Android Open Source Project", "Apache-2.0"),
     OssLibrary("AndroidX Glance", "Android Open Source Project", "Apache-2.0"),
+    OssLibrary("AndroidX ProfileInstaller", "Android Open Source Project", "Apache-2.0"),
     OssLibrary("Dagger Hilt", "Google", "Apache-2.0"),
     OssLibrary("Coil", "Coil Contributors", "Apache-2.0"),
     OssLibrary("jaudiotagger (Android fork)", "Paul Taylor / Adonai", "LGPL-2.1"),
