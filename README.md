@@ -1,291 +1,216 @@
-# RollaMusicPlayer - Development Plan
+# RollaMusicPlayer
 
-## Overview
+**RollaMusicPlayer** is a feature-rich, fully offline Android music player, built with Kotlin and
+Jetpack Compose. It plays local audio files, manages playlists, includes an 8-band equalizer and a
+full ID3 tag editor, and ships a home-screen widget — with zero network access, by design.
 
-This repository contains a comprehensive development plan for **RollaMusicPlayer**, a feature-rich, fully offline Android music player. The plan is structured to work with Claude Code and includes specialized agents, reusable skills, coding conventions, and quick commands.
+**Status: v1.0.0 — feature-complete.** See [`CLAUDE.md`](CLAUDE.md) for full shipped-feature history,
+architecture decisions, and the current backlog.
 
 ## 🔒 Offline & Privacy First
 
-**RollaMusicPlayer is designed as a fully offline, privacy-focused music player that operates entirely on your device.**
+**RollaMusicPlayer operates entirely on your device. There is no server, no account, and no network
+permission.**
 
-### Core Principles
+- ✅ **100% Offline Operation** — no internet connection required, at any point, for any feature
+- 🔒 **Complete Privacy** — zero data collection, no analytics, no crash reporting to external services
+- 💾 **Local Storage Only** — music files, playlists, equalizer presets, and settings all stay on-device (Room database + DataStore)
+- 🚫 **No Cloud Features** — no sync, no cloud backup, no online accounts
+- 📱 **Minimal Permissions** — local audio read only (`READ_MEDIA_AUDIO` on Android 13+, `READ_EXTERNAL_STORAGE` on older versions); no `INTERNET` permission is requested, and a release-build Gradle check (`checkReleaseManifestNoInternet`) fails the build if one ever sneaks in transitively
+- 🎵 **Full Control** — your music library, your device, nobody else's servers
 
-- ✅ **100% Offline Operation** - No internet connection required at any time
-- 🔒 **Complete Privacy** - Zero data collection, no analytics, no external communication
-- 💾 **Local Storage Only** - All data stored on your device (music files, playlists, settings, equalizer presets)
-- 🚫 **No Cloud Features** - No sync, no cloud backup, no online accounts
-- 📱 **Minimal Permissions** - Local audio read only (READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE)
-- 🎵 **Full Control** - You own and control your music library
+This isn't a settings toggle — there is no networking library in the dependency graph (no
+Retrofit/OkHttp, no Firebase, no analytics SDK), so there's nothing to turn off.
 
-### What This Means
+## Features
 
-- **No Internet Permission**: The app does not request or use internet connectivity
-- **Local Data Only**: Music files, playlists, equalizer presets, and settings are stored locally
-- **Privacy Guaranteed**: No user data is collected, transmitted, or shared
-- **Works Anywhere**: Use the app in airplane mode or with no connectivity
-- **Your Music, Your Device**: All music remains on your device under your control
+### Core
+- Local playback: MP3, FLAC, WAV, OGG, M4A, AAC
+- Playlist management (create, edit, delete, reorder) plus smart playlists — Recently played, Favourites, Most played
+- Shuffle and repeat (off / one / all); background playback with notification controls; playback state restored across app restarts
 
-## Project Structure
+### Library
+- Automatic scanning and indexing of local audio via MediaStore into a local Room database
+- Songs list, plus **Album detail** and **Artist detail** screens (reached from Search or from a song's album/artist)
+- Search across songs, albums, and artists (debounced, grouped results)
+- Local album-artwork extraction with a bounded on-disk cache
 
-```
-RollaMusicPlayer/
-├── CLAUDE.md                              # Project memory (always loaded by Claude)
-├── README.md                              # This file
-└── .claude/                               # Claude configuration directory
-    ├── settings-guide.md                  # Guide for settings.json configuration
-    ├── agents/                            # Specialized AI agents
-    │   ├── audio-engineer.md              # ExoPlayer, MediaSession, background playback
-    │   ├── equalizer-agent.md             # 8-band equalizer effect & presets
-    │   ├── data-layer-agent.md            # Room schema, DAOs, migrations (exclusive owner)
-    │   ├── media-scanning-agent.md        # MediaStore indexing into Room
-    │   ├── tag-editor-agent.md            # ID3/metadata read-write (scoped storage)
-    │   ├── ui-builder.md                  # Jetpack Compose screens & components
-    │   ├── m3-design-system-agent.md      # Theme tokens, colors, typography (exclusive owner)
-    │   ├── compose-animation-agent.md     # Animations & transitions
-    │   ├── compose-performance-auditor.md # Recomposition/perf analysis (read-only)
-    │   ├── viewmodel-architect.md         # MVVM/StateFlow/UiState patterns
-    │   ├── navigation-agent.md            # Navigation graph & type-safe routes (exclusive owner)
-    │   ├── permissions-agent.md           # Runtime media permission flow
-    │   ├── widget-agent.md                # Home screen widget (Glance, exclusive owner)
-    │   ├── build-tooling-agent.md         # Gradle, version catalog, R8, CI (exclusive owner)
-    │   ├── code-reviewer.md               # Code quality & offline compliance (read-only)
-    │   └── test-writer.md                 # Unit, integration & UI tests
-    ├── skills/                            # Multi-step workflows
-    │   ├── add-new-screen/
-    │   ├── add-room-database/
-    │   ├── add-dependency-injection-hilt/
-    │   ├── implement-repository-pattern/
-    │   ├── implement-use-cases/
-    │   ├── implement-state-management/
-    │   ├── implement-navigation-graph/
-    │   ├── setup-modularization/
-    │   ├── bootstrap-project/
-    │   ├── handle-runtime-permissions/
-    │   ├── implement-media-scanning/
-    │   ├── implement-equalizer/
-    │   ├── implement-tag-editor/
-    │   ├── implement-home-widget/
-    │   ├── implement-datastore/
-    │   ├── implement-image-loading-coil/
-    │   ├── implement-edge-to-edge-and-insets/
-    │   ├── generate-baseline-profile/
-    │   ├── setup-static-analysis/
-    │   ├── add-animations-transitions/
-    │   ├── add-unit-testing/
-    │   ├── add-ui-testing-compose/
-    │   ├── debug-playback-issue/
-    │   └── release-build/
-    ├── rules/                             # Coding standards & conventions
-    │   ├── kotlin-style.md
-    │   ├── compose-conventions.md
-    │   ├── media3-playback.md
-    │   ├── navigation-conventions.md
-    │   ├── model-vocabulary.md
-    │   └── ui-style-guide.md
-    └── commands/                          # Quick reference commands
-        └── run-emulator.md
-```
+### Advanced Audio
+- 8-band graphic equalizer (40Hz, 80Hz, 160Hz, 315Hz, 630Hz, 1.25kHz, 2.5kHz, 5kHz, 10kHz) with save/load custom presets
+- Gains-driven equalizer response curve while adjusting — visual only; there's no live audio capture (a real `Visualizer` would need `RECORD_AUDIO`, which conflicts with the privacy-first design, so it was deliberately rejected)
 
-## Key Features
+### Tag Editor
+- Full ID3 / Vorbis / MP4 tag editing: title, artist, album, genre, year, track number, album artist, composer, and embedded artwork
+- Single-song and batch editing, with scoped-storage write consent handled per Android version (`createWriteRequest` on 30+, `RecoverableSecurityException` recovery on 29, legacy `WRITE_EXTERNAL_STORAGE` below that)
 
-### 🎵 Core
-- Fully offline, privacy-focused local playback (MP3, FLAC, WAV, OGG, M4A, AAC)
-- Complete playlist management; shuffle and repeat modes
-- Background playback with notification controls; persistent playback state
+### Home Screen Widget
+- Album artwork, progress bar, previous / −15s / play-pause / +15s / next controls, tap to open the app — all driven by local playback state, no polling
 
-### 🎚️ Advanced Audio
-- 8-band graphic equalizer (40Hz–10kHz) with preset management
-- Real-time audio visualization
+### Accessibility
+- TalkBack support across every screen, ≥48dp touch targets, WCAG AA contrast in both light and dark themes, and correct layout at 1.5x font scale
 
-### 📚 Library Management
-- Automatic music scanning and indexing (MediaStore → Room)
-- Advanced search and filtering; album artwork extraction and caching
-- Custom tag system; full ID3 tag editing (single and batch)
-
-### 📱 Home Screen Widget
-- Album artwork, visual timeline/progress bar
-- 15-second skip controls, previous/next, play/pause toggle, real-time updates
+### Not in v1.0 (deliberate cuts, not defects)
+A few things described in the design docs were consciously scoped out — see `CLAUDE.md`'s "Post-1.0
+cuts" for the reasoning:
+- A user-defined **custom tag system** on top of the standard ID3 fields above
+- An **A–Z fast-scroll index** on list screens
+- A **Songs/Albums/Artists/Folders tab bar** and **Folders browsing** (album/artist browsing works today via Search and the detail screens, just not via a library tab bar)
 
 ## Tech Stack
 
 - **Language**: Kotlin
-- **UI**: Jetpack Compose with Material Design 3
-- **Architecture**: MVVM (Model-View-ViewModel)
-- **Audio**: Media3 ExoPlayer
+- **UI**: Jetpack Compose with Material Design 3 (One UI–inspired dark theme — see [`ui-style-guide.md`](.claude/rules/ui-style-guide.md))
+- **Architecture**: MVVM, multi-module (hybrid feature + core, Now in Android–style)
+- **Audio**: Media3 ExoPlayer, `MediaSessionService`
 - **Database**: Room (local SQLite)
+- **Settings/state**: Jetpack DataStore
 - **DI**: Hilt
 - **Async**: Coroutines & Flow
 - **Widget**: Jetpack Glance
-- **Testing**: JUnit, MockK, Turbine, Compose Test
-- **Storage**: Local file system only (no networking libraries)
+- **Images**: Coil, with a local album-artwork disk cache
+- **Testing**: JUnit, MockK, Turbine, Robolectric, Compose UI tests, Macrobenchmark/Baseline Profile
+- **Build**: Gradle Kotlin DSL, a version catalog, and convention plugins (`build-logic/`)
 
-**Note**: No networking libraries or internet permissions — fully offline architecture.
+No networking libraries anywhere in the dependency graph — fully offline architecture, enforced at
+the build level (see `build-tooling-agent` and the static-analysis "no network dependency" check).
 
-## Using the Development Plan
+## Building the App
 
-### 1. Project Memory (CLAUDE.md)
+**Requirements**: JDK 17, Android Studio (or the command line), Android SDK with API 34 installed. Min SDK 24 (Android 7.0); target/compile SDK 34.
 
-[`CLAUDE.md`](CLAUDE.md) is automatically loaded by Claude and contains the project overview, tech-stack decisions, development phases, and current status. **Keep it updated** as the project progresses.
+```bash
+git clone https://github.com/vkrpan/RollaMusicPlayer.git
+cd RollaMusicPlayer
 
-### 2. Specialized Agents
+# Debug build — installable as-is
+./gradlew assembleDebug
 
-Located in [`.claude/agents/`](.claude/agents/). Several agents are **exclusive owners** of a package or directory to prevent concurrent-edit conflicts.
+# Run the full check suite: unit tests, detekt, ktlint (Spotless), the no-network gate
+./gradlew check
+```
 
-#### Audio & Playback
-- **[Audio Engineer](/.claude/agents/audio-engineer.md)** — ExoPlayer, MediaSession, foreground service, audio focus, gapless playback. Exposes the audio session id for the equalizer (does not own the effect).
-- **[Equalizer Agent](/.claude/agents/equalizer-agent.md)** — owns `audio/equalizer/`. Binds the AudioFx Equalizer to the player's session, maps the 8 target bands, applies gains, and manages presets.
+### Release build (signed, R8-minified)
 
-#### Data & Library
-- **[Data Layer Agent](/.claude/agents/data-layer-agent.md)** — exclusive owner of all Room components (entities, DAOs, migrations, repositories).
-- **[Media Scanning Agent](/.claude/agents/media-scanning-agent.md)** — owns `data/scanner/`. MediaStore querying and incremental indexing into Room.
-- **[Tag Editor Agent](/.claude/agents/tag-editor-agent.md)** — owns `tageditor/`. ID3/metadata read-write with scoped-storage write consent and batch editing.
+The release build type (`versionCode 1` / `versionName "1.0.0"`) is minified with
+`shrinkResources`, with keep rules verified for kotlinx-serialization's `@Serializable` routes,
+jaudiotagger's reflection-heavy tag I/O, Media3, Glance receivers, Room, and Hilt.
 
-#### UI & Design
-- **[UI Builder](/.claude/agents/ui-builder.md)** — Compose screens, components, and interactive controls.
-- **[M3 Design System Agent](/.claude/agents/m3-design-system-agent.md)** — exclusive owner of `ui/theme/`. Colors, typography, shapes; zero hardcoded values.
-- **[Compose Animation Agent](/.claude/agents/compose-animation-agent.md)** — animations, transitions, gesture-driven motion at 60fps.
-- **[Compose Performance Auditor](/.claude/agents/compose-performance-auditor.md)** — read-only recomposition/jank analysis.
+Signing reads from `local.properties` (never committed — see `.gitignore`) or matching environment
+variables (for CI signing without a checked-in properties file):
 
-#### Architecture & Navigation
-- **[ViewModel Architect](/.claude/agents/viewmodel-architect.md)** — StateFlow/UiState patterns, events, coroutine management.
-- **[Navigation Agent](/.claude/agents/navigation-agent.md)** — exclusive owner of the navigation graph and type-safe `@Serializable` routes.
+```properties
+RELEASE_STORE_FILE=keystore/rolla-release.jks
+RELEASE_STORE_PASSWORD=...
+RELEASE_KEY_ALIAS=...
+RELEASE_KEY_PASSWORD=...
+```
 
-#### Platform Features
-- **[Permissions Agent](/.claude/agents/permissions-agent.md)** — owns `permission/`. Version-aware media permission flow, rationale and Settings routing.
-- **[Widget Agent](/.claude/agents/widget-agent.md)** — exclusive owner of `widget/`. The Glance home screen widget, driven by local playback state.
+```bash
+./gradlew assembleRelease
+```
 
-#### Build & Tooling
-- **[Build Tooling Agent](/.claude/agents/build-tooling-agent.md)** — exclusive owner of the Gradle build files, `libs.versions.toml`, convention plugins, R8 rules, benchmark/static-analysis config, and CI. The build-level gate for the no-network-dependency rule.
+If no signing config is present, the release build type still builds — **unsigned, with a Gradle
+warning** — rather than silently falling back to debug signing (an obviously-unsigned APK is safer
+than one that looks legitimate but isn't release-signed).
 
-#### Quality
-- **[Code Reviewer](/.claude/agents/code-reviewer.md)** — read-only review for MVVM compliance, offline/privacy, memory leaks, performance.
-- **[Test Writer](/.claude/agents/test-writer.md)** — unit, integration, and UI tests with offline verification.
+A `checkReleaseManifestNoInternet` task reads the real merged manifest of the release build and
+fails if an `INTERNET` permission (or similar) is ever pulled in transitively; it's wired into
+`./gradlew check`.
 
-### 3. Reusable Skills
+## Project Structure
 
-Located in [`.claude/skills/`](.claude/skills/). Step-by-step workflows.
+Multi-module, hybrid feature + core (Now in Android style). The app shell wires everything;
+`:core:*` modules hold shared concerns; `:feature:*` modules hold one screen-area each. Full graph,
+convention plugins, and dependency rules: [`setup-modularization`](.claude/skills/setup-modularization/) skill.
 
-#### Architecture & Setup
-- **add-new-screen** — full workflow for adding a screen (UI → state → ViewModel → nav → tests)
-- **add-room-database** — entities, DAOs, migrations, type converters
-- **add-dependency-injection-hilt** — Hilt modules and scoping
-- **implement-repository-pattern** — repository interfaces and implementations
-- **implement-use-cases** — domain/business-logic layer
-- **implement-state-management** — StateFlow/UiState wiring
-- **implement-navigation-graph** — type-safe navigation graph
-- **implement-datastore** — DataStore for settings/equalizer active-state (replaces SharedPreferences)
-- **setup-modularization** — hybrid feature + core multi-module structure (graph, convention plugins, ownership)
-- **bootstrap-project** — run-once Phase 0: scaffold → `:core:model` → first vertical slice, end-to-end
+```
+:app                    # Application, MainActivity, NavHost wiring, DI root, app theme entry
 
-#### Feature Implementation
-- **handle-runtime-permissions** — version-aware media permission + Compose gate
-- **implement-media-scanning** — MediaStore query and incremental Room indexing
-- **implement-equalizer** — 8-band equalizer effect, presets, visualization
-- **implement-tag-editor** — ID3 read/write with scoped-storage consent and batch edits
-- **implement-home-widget** — Glance home screen widget with playback controls
+:core
+├── :core:model         # Domain models + enums (Song, Album, Artist, Playlist, ...). Pure Kotlin.
+├── :core:common        # Empty placeholder — not yet consolidated (each feature declares its own dispatcher qualifier today)
+├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
+├── :core:datastore     # DataStore: app settings, equalizer active-state, recent searches
+├── :core:data          # Repositories, media scanner, album artwork cache
+├── :core:media         # Media3 playback service, MediaSession, audio session, equalizer effect
+├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
+├── :core:ui            # Model-aware shared composables (SongListItem, AlbumCard, AlbumArtwork)
+├── :core:permissions   # Runtime media permission gate + flow
+└── :core:testing       # Fakes, fixtures, test rules
 
-#### Performance & UI Polish
-- **generate-baseline-profile** — Macrobenchmark + Baseline Profiles for startup/scroll
-- **implement-image-loading-coil** — tuned Coil ImageLoader for album artwork
-- **implement-edge-to-edge-and-insets** — edge-to-edge drawing and window insets
-- **add-animations-transitions** — Compose animation patterns
+:feature
+├── :feature:library    # Songs list, Album detail, Artist detail
+├── :feature:search     # Local search across the library
+├── :feature:player     # Now-playing + mini-player
+├── :feature:equalizer  # Equalizer screen (band sliders, presets UI)
+├── :feature:playlists  # Playlist management + reordering
+├── :feature:tageditor  # ID3 read/write screen + scoped-storage consent
+├── :feature:settings   # App settings
+└── :feature:widget     # Glance home screen widget
 
-#### Build, Testing & Ops
-- **setup-static-analysis** — detekt + ktlint with a no-network build gate
-- **add-unit-testing** — ViewModel/repository/use-case tests
-- **add-ui-testing-compose** — Compose UI tests
-- **debug-playback-issue** — systematic audio debugging
-- **release-build** — production release preparation and signing
+:baselineprofile        # Macrobenchmark + Baseline Profile generator (test module)
+build-logic/            # Convention plugins (included build)
+```
 
-### 4. Coding Rules
+**Dependency direction**: `:feature → :core → :core:model`. Features never depend on each other;
+core never depends on a feature; no cycles.
 
-Located in [`.claude/rules/`](.claude/rules/):
+## Development Tooling (Claude Code)
 
-- **[kotlin-style](/.claude/rules/kotlin-style.md)** — naming, formatting, language features, offline checklist
-- **[compose-conventions](/.claude/rules/compose-conventions.md)** — composable structure, state, Material 3, accessibility
-- **[media3-playback](/.claude/rules/media3-playback.md)** — ExoPlayer, MediaSession, notifications, background playback
-- **[navigation-conventions](/.claude/rules/navigation-conventions.md)** — type-safe `@Serializable` routes, argument and back-stack rules
-- **[model-vocabulary](/.claude/rules/model-vocabulary.md)** — canonical domain model names (`Song`, never `Track`)
-- **[ui-style-guide](/.claude/rules/ui-style-guide.md)** — visual contract: colors, typography, shapes, per-screen layout, widget style (implemented in `:core:designsystem`)
+This repo was built with [Claude Code](https://claude.com/claude-code), and the tooling that shaped
+it lives on in `.claude/` — specialized agents, step-by-step skills, and binding coding-convention
+rules. They're kept up to date because the codebase still uses them for ongoing work.
 
-### 5. Quick Commands
+```
+.claude/
+├── settings-guide.md      # settings.json structure (agents, skills, rules, permissions)
+├── agents/                # Specialized agents, several with exclusive ownership of a module
+├── skills/                 # Multi-step workflows (add a screen, wire DI, generate a baseline profile, ...)
+├── rules/                  # Binding coding conventions (Kotlin style, Compose conventions, Media3, navigation, model vocabulary, UI style guide)
+└── commands/                # Quick references (e.g. run-emulator)
+```
 
-Located in [`.claude/commands/`](.claude/commands/):
+### Agents
 
-- **[run-emulator](/.claude/commands/run-emulator.md)** — start emulators, install apps, view logs, troubleshoot
+Several agents are **exclusive owners** of a package or directory, to prevent concurrent-edit
+conflicts on the same code:
 
-## Development Phases
+| Area | Agent(s) |
+|---|---|
+| Audio/playback | `audio-engineer` (ExoPlayer, MediaSession, foreground service) · `equalizer-agent` (owns the equalizer effect + presets) |
+| Data & library | `data-layer-agent` (exclusive owner of all Room components) · `media-scanning-agent` (MediaStore → Room) · `tag-editor-agent` (owns `tageditor/`) |
+| UI & design | `ui-builder` · `m3-design-system-agent` (exclusive owner of the theme tokens) · `compose-animation-agent` · `compose-performance-auditor` (read-only) |
+| Architecture & navigation | `viewmodel-architect` · `navigation-agent` (exclusive owner of the nav graph and typed routes) |
+| Platform | `permissions-agent` (owns `permission/`) · `widget-agent` (exclusive owner of `widget/`) |
+| Build & quality | `build-tooling-agent` (exclusive owner of Gradle/version catalog/R8/CI) · `code-reviewer` (read-only) · `test-writer` |
 
-### Phase 1: Foundation (Weeks 1-2)
-- Project setup and dependencies; basic Compose structure; Room schema; media scanning
+### Skills
 
-### Phase 2: Core Playback (Weeks 3-4)
-- ExoPlayer integration; playback service with MediaSession; notification controls; player UI
+Step-by-step workflows in `.claude/skills/` — architecture/setup (`add-new-screen`,
+`add-room-database`, `setup-modularization`, `bootstrap-project`, ...), feature implementation
+(`handle-runtime-permissions`, `implement-media-scanning`, `implement-equalizer`,
+`implement-tag-editor`, `implement-home-widget`, ...), performance/UI polish
+(`generate-baseline-profile`, `implement-image-loading-coil`,
+`implement-edge-to-edge-and-insets`, ...), and build/testing/ops (`setup-static-analysis`,
+`add-unit-testing`, `add-ui-testing-compose`, `debug-playback-issue`, `release-build`).
 
-### Phase 3: Library Management (Weeks 5-6)
-- Library screens; search and filtering; album artwork; navigation
+### Rules
 
-### Phase 4: Playlists (Week 7)
-- Playlist creation/management; drag-and-drop reordering
-
-### Phase 5: Advanced Features (Weeks 8-9)
-- 8-band equalizer and presets; visualization; tag editor (single + batch); custom tags
-
-### Phase 6: Widget & Polish (Week 10)
-- Home screen widget; UI/UX refinements; performance optimization
-
-### Phase 7: Testing & Release (Weeks 11-12)
-- Comprehensive testing; documentation; release preparation
-
-## Getting Started
-
-### For Development
-
-1. **Review the project memory** — read `CLAUDE.md` for context.
-2. **Choose the right agent** for the task:
-   - Audio/playback → Audio Engineer; equalizer → Equalizer Agent
-   - Database → Data Layer Agent; scanning → Media Scanning Agent; tags → Tag Editor Agent
-   - UI → UI Builder; theme → M3 Design System; motion → Compose Animation; perf → Performance Auditor
-   - State → ViewModel Architect; navigation → Navigation Agent
-   - Permissions → Permissions Agent; widget → Widget Agent
-   - Review → Code Reviewer; tests → Test Writer
-3. **Follow the relevant skill** for multi-step tasks.
-4. **Apply the coding rules** throughout.
-
-### For Claude Code
-
-1. **CLAUDE.md is auto-loaded** — it provides project context.
-2. **Reference agents** for specialized expertise; respect exclusive-ownership boundaries.
-3. **Use skills** for step-by-step guidance.
-4. **Follow rules** for consistency.
-5. **Use commands** for quick reference.
-
-## Configuration
-
-See [`.claude/settings-guide.md`](.claude/settings-guide.md) for the `settings.json` structure (agents, skills, rules, permissions). It reflects the full offline configuration.
-
-## Best Practices
-
-### When Starting a New Feature
-1. Review the relevant agent documentation
-2. Follow the appropriate skill workflow
-3. Apply coding rules throughout
-4. Write tests as you go
-5. Request code review before completion
-
-### Before Release
-1. Follow the Release Build skill completely
-2. Run all tests; perform manual testing
-3. Review with the Code Reviewer agent
-4. Verify offline operation in airplane mode
+Binding conventions in `.claude/rules/`:
+- [`kotlin-style`](.claude/rules/kotlin-style.md) — naming, formatting, language features, offline checklist
+- [`compose-conventions`](.claude/rules/compose-conventions.md) — composable structure, state, Material 3, accessibility
+- [`media3-playback`](.claude/rules/media3-playback.md) — ExoPlayer, MediaSession, notifications, background playback
+- [`navigation-conventions`](.claude/rules/navigation-conventions.md) — type-safe `@Serializable` routes, argument and back-stack rules
+- [`model-vocabulary`](.claude/rules/model-vocabulary.md) — canonical domain model names (`Song`, never `Track`)
+- [`ui-style-guide`](.claude/rules/ui-style-guide.md) — the visual contract: colors, typography, shapes, per-screen layout, widget style
 
 ## Contributing
 
-When extending this plan:
-1. **New Agents** → `.claude/agents/` with clear scope and ownership boundaries
-2. **New Skills** → `.claude/skills/<name>/SKILL.md` with step-by-step workflows
-3. **New Rules** → `.claude/rules/` with examples and anti-patterns
-4. **New Commands** → `.claude/commands/` with usage examples
+1. Read `CLAUDE.md` for project context and current status.
+2. Pick the agent that owns the area you're touching (see above) and respect exclusive-ownership boundaries.
+3. Follow the relevant skill for multi-step work; apply the rules throughout.
+4. Write tests; run `./gradlew check` before proposing a change.
+5. Get a `code-reviewer` pass before merging — MVVM compliance, offline/privacy, memory leaks, performance.
 
 ## Resources
 
@@ -302,7 +227,3 @@ When extending this plan:
 ## Contact
 
 [To be determined]
-
----
-
-**Note**: This is a planning repository. The actual Android project will be created in the implementation phase following this plan.
