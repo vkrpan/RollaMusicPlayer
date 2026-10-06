@@ -4,6 +4,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.ColorFilter
@@ -11,6 +13,7 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
+import androidx.glance.LocalSize
 import androidx.glance.action.Action
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -22,6 +25,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.ContentScale
 import androidx.glance.layout.Row
+import androidx.glance.layout.RowScope
 import androidx.glance.layout.Spacer
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
@@ -49,6 +53,7 @@ import androidx.glance.text.TextStyle
 @Composable
 internal fun MusicWidgetContent(context: Context, state: MusicWidgetState, artwork: Bitmap?) {
     val openAppAction = actionStartActivity(ComponentName(context.packageName, MAIN_ACTIVITY_CLASS_NAME))
+    val artworkSize = artworkSizeFor(LocalSize.current)
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -58,14 +63,16 @@ internal fun MusicWidgetContent(context: Context, state: MusicWidgetState, artwo
             .semantics { contentDescription = context.getString(R.string.widget_action_open_app) },
     ) {
         Column(modifier = GlanceModifier.fillMaxSize()) {
-            WidgetHeaderRow(context = context, state = state, artwork = artwork)
-            Spacer(modifier = GlanceModifier.height(WidgetDimens.SectionSpacing))
-            LinearProgressIndicator(
-                modifier = GlanceModifier.fillMaxWidth().height(WidgetDimens.ProgressHeight),
-                progress = state.progress,
-                color = GlanceTheme.colors.primary,
-                backgroundColor = GlanceTheme.colors.surfaceVariant,
+            // Header takes all height the fixed progress/controls rows leave: no dead space below.
+            WidgetHeaderRow(
+                context = context,
+                state = state,
+                artwork = artwork,
+                artworkSize = artworkSize,
+                modifier = GlanceModifier.fillMaxWidth().defaultWeight(),
             )
+            Spacer(modifier = GlanceModifier.height(WidgetDimens.SectionSpacing))
+            WidgetProgressBar(progress = state.progress)
             Spacer(modifier = GlanceModifier.height(WidgetDimens.SectionSpacing))
             WidgetControlsRow(context = context, state = state)
         }
@@ -73,18 +80,46 @@ internal fun MusicWidgetContent(context: Context, state: MusicWidgetState, artwo
 }
 
 @Composable
-private fun WidgetHeaderRow(context: Context, state: MusicWidgetState, artwork: Bitmap?) {
-    Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Vertical.CenterVertically) {
-        WidgetArtwork(context = context, artwork = artwork, title = state.title)
+private fun WidgetProgressBar(progress: Float) {
+    LinearProgressIndicator(
+        modifier = GlanceModifier.fillMaxWidth().height(WidgetDimens.ProgressHeight),
+        progress = progress,
+        color = GlanceTheme.colors.primary,
+        backgroundColor = GlanceTheme.colors.surfaceVariant,
+    )
+}
+
+/**
+ * Grows the artwork into the header's leftover height (widget height minus padding and the fixed
+ * progress/controls rows), capped by a fraction of the width so the title keeps room, and clamped
+ * to `[ArtworkMinSize, ArtworkMaxSize]`.
+ */
+private fun artworkSizeFor(widgetSize: DpSize): Dp {
+    val headerHeight = widgetSize.height - WidgetDimens.CardPadding * 2 - WidgetDimens.SectionSpacing * 2 -
+        WidgetDimens.ProgressHeight - WidgetDimens.ControlTouchSize
+    val widthCap = widgetSize.width * ARTWORK_MAX_WIDTH_FRACTION
+    return minOf(headerHeight, widthCap).coerceIn(WidgetDimens.ArtworkMinSize, WidgetDimens.ArtworkMaxSize)
+}
+
+@Composable
+private fun WidgetHeaderRow(
+    context: Context,
+    state: MusicWidgetState,
+    artwork: Bitmap?,
+    artworkSize: Dp,
+    modifier: GlanceModifier = GlanceModifier,
+) {
+    Row(modifier = modifier, verticalAlignment = Alignment.Vertical.CenterVertically) {
+        WidgetArtwork(context = context, artwork = artwork, title = state.title, size = artworkSize)
         Spacer(modifier = GlanceModifier.width(WidgetDimens.RowSpacing))
-        WidgetMetadata(context = context, state = state)
+        WidgetMetadata(context = context, state = state, isLarge = artworkSize >= WidgetDimens.LargeTextArtworkSize)
     }
 }
 
 @Composable
-private fun WidgetArtwork(context: Context, artwork: Bitmap?, title: String) {
+private fun WidgetArtwork(context: Context, artwork: Bitmap?, title: String, size: Dp) {
     val artworkModifier = GlanceModifier
-        .size(WidgetDimens.ArtworkSize)
+        .size(size)
         .background(ImageProvider(R.drawable.widget_card_background))
     if (artwork != null) {
         Image(
@@ -106,17 +141,17 @@ private fun WidgetArtwork(context: Context, artwork: Bitmap?, title: String) {
 }
 
 @Composable
-private fun WidgetMetadata(context: Context, state: MusicWidgetState) {
+private fun WidgetMetadata(context: Context, state: MusicWidgetState, isLarge: Boolean) {
     val hasSong = state.title.isNotBlank()
     val title = if (hasSong) state.title else context.getString(R.string.widget_empty_title)
     val artist = if (hasSong) state.artist else context.getString(R.string.widget_empty_artist)
     Column(modifier = GlanceModifier.fillMaxWidth()) {
         Text(
             text = title,
-            maxLines = 1,
+            maxLines = if (isLarge) 2 else 1,
             style = TextStyle(
                 color = GlanceTheme.colors.onSurface,
-                fontSize = WidgetDimens.TitleFontSize,
+                fontSize = if (isLarge) WidgetDimens.TitleFontSizeLarge else WidgetDimens.TitleFontSize,
                 fontWeight = FontWeight.Medium,
             ),
         )
@@ -125,16 +160,17 @@ private fun WidgetMetadata(context: Context, state: MusicWidgetState) {
             maxLines = 1,
             style = TextStyle(
                 color = GlanceTheme.colors.onSurfaceVariant,
-                fontSize = WidgetDimens.ArtistFontSize,
+                fontSize = if (isLarge) WidgetDimens.ArtistFontSizeLarge else WidgetDimens.ArtistFontSize,
             ),
         )
     }
 }
 
+/** Each control sits in an equal-weight cell, so the five spread across the full card width. */
 @Suppress("LongMethod")
 @Composable
 private fun WidgetControlsRow(context: Context, state: MusicWidgetState) {
-    Row(modifier = GlanceModifier.fillMaxWidth(), horizontalAlignment = Alignment.Horizontal.CenterHorizontally) {
+    Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Vertical.CenterVertically) {
         WidgetIconButton(
             iconRes = R.drawable.widget_ic_previous,
             contentDescription = context.getString(R.string.widget_action_previous),
@@ -173,16 +209,18 @@ private fun WidgetControlsRow(context: Context, state: MusicWidgetState) {
  * down to the icon's inner (24dp) box, silently failing the 48dp touch-target requirement.
  */
 @Composable
-private fun WidgetIconButton(iconRes: Int, contentDescription: String, action: Action) {
-    Image(
-        provider = ImageProvider(iconRes),
-        contentDescription = contentDescription,
-        modifier = GlanceModifier
-            .size(WidgetDimens.ControlTouchSize)
-            .clickable(action)
-            .padding(WidgetDimens.ControlIconPadding),
-        colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface),
-    )
+private fun RowScope.WidgetIconButton(iconRes: Int, contentDescription: String, action: Action) {
+    Box(modifier = GlanceModifier.defaultWeight(), contentAlignment = Alignment.Center) {
+        Image(
+            provider = ImageProvider(iconRes),
+            contentDescription = contentDescription,
+            modifier = GlanceModifier
+                .size(WidgetDimens.ControlTouchSize)
+                .clickable(action)
+                .padding(WidgetDimens.ControlIconPadding),
+            colorFilter = ColorFilter.tint(GlanceTheme.colors.onSurface),
+        )
+    }
 }
 
 /**
@@ -194,16 +232,23 @@ private fun WidgetIconButton(iconRes: Int, contentDescription: String, action: A
  */
 private const val MAIN_ACTIVITY_CLASS_NAME = "com.rolla.musicplayer.MainActivity"
 
+/** Artwork never takes more than this share of the card width, so title/artist keep room. */
+private const val ARTWORK_MAX_WIDTH_FRACTION = 0.4f
+
 /** Dimension tokens for [MusicWidgetContent] -- sized per `ui-style-guide.md` §5/§8. */
 private object WidgetDimens {
     val CardPadding = 12.dp
     val RowSpacing = 12.dp
     val SectionSpacing = 8.dp
-    val ArtworkSize = 56.dp
+    val ArtworkMinSize = 56.dp
+    val ArtworkMaxSize = 160.dp
+    val LargeTextArtworkSize = 80.dp
     val PlaceholderIconSize = 28.dp
     val ProgressHeight = 4.dp
     val ControlTouchSize = 48.dp
     val ControlIconPadding = 12.dp
     val TitleFontSize = 14.sp
     val ArtistFontSize = 12.sp
+    val TitleFontSizeLarge = 16.sp
+    val ArtistFontSizeLarge = 14.sp
 }

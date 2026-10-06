@@ -13,10 +13,15 @@ private val WidgetSurfaceContainer = Color(0xFF1C1C1E)
 private val WidgetSurfaceContainerHigh = Color(0xFF2A2A2C)
 private val WidgetOnSurface = Color(0xFFFFFFFF)
 private val WidgetOnSurfaceVariant = Color(0xFF9CA0A6)
-private val WidgetPrimary = Color(0xFF3D7BFF)
+
+// Primary + track synced with colors.xml / :core:designsystem's 2026-07-15 WCAG audit values. The
+// old #3A3A3C track only cleared ~1.5:1 against the card, so an early-in-track progress bar read as
+// "missing". (onPrimary is deliberately NOT synced to #001B3F here: this scheme also maps it onto
+// the navy *Container roles below, where navy-on-navy text would be unreadable.)
+private val WidgetPrimary = Color(0xFF4780FF)
 private val WidgetOnPrimary = Color(0xFFFFFFFF)
 private val WidgetPrimaryContainer = Color(0xFF1E3A66)
-private val WidgetTrack = Color(0xFF3A3A3C)
+private val WidgetTrack = Color(0xFF6E6E73)
 private val WidgetOutlineVariant = Color(0xFF2C2C2E)
 private val WidgetError = Color(0xFFFF5A5A)
 

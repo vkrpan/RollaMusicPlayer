@@ -5,6 +5,9 @@ import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import com.rolla.musicplayer.core.media.PlaybackController
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * The five widget control taps, each its own [ActionCallback] (Glance instantiates these itself
@@ -39,12 +42,35 @@ import com.rolla.musicplayer.core.media.PlaybackController
  * `withConnectedController` queuing (the same mechanism `play()` always used) -- a command issued
  * pre-connection is queued on the future and executes exactly once when it resolves, verified by
  * `PlaybackControllerTest`. The very first cold tap therefore works; no second tap is needed.
+ *
+ * ### Threading -- the reason the buttons used to be dead
+ * Glance runs [ActionCallback.onAction] on `Dispatchers.Default`, but [PlaybackController] drives a
+ * [androidx.media3.session.MediaController], which throws `IllegalStateException("MediaController
+ * method is called from a wrong thread")` for any call off its application (main) thread -- and
+ * Glance's receiver catches and only logs it. Once the controller was connected (i.e. whenever the
+ * app had been opened), every tap died that way. [dispatchToController] hops to the main thread for
+ * both `connect()` (which also keeps `PlaybackController`'s unsynchronized future field main-only)
+ * and the command.
  */
 private suspend fun withController(context: Context, glanceId: GlanceId, block: (PlaybackController) -> Unit) {
-    val controller = WidgetEntryPoint.get(context).playbackController()
-    controller.connect()
-    block(controller)
+    dispatchToController(WidgetEntryPoint.get(context).playbackController(), command = block)
     MusicWidget().update(context, glanceId)
+}
+
+/**
+ * Connects [controller] and runs [command] against it on [mainDispatcher] -- see "Threading" above.
+ * `internal` with an injectable dispatcher so `DispatchToControllerTest` can prove the hop on a
+ * plain JVM (no Android main looper there).
+ */
+internal suspend fun dispatchToController(
+    controller: PlaybackController,
+    mainDispatcher: CoroutineDispatcher = Dispatchers.Main.immediate,
+    command: (PlaybackController) -> Unit,
+) {
+    withContext(mainDispatcher) {
+        controller.connect()
+        command(controller)
+    }
 }
 
 /** [Previous][PlaybackController.previous] -- mirrors the notification/in-app "previous" action. */

@@ -105,6 +105,19 @@ class PlaybackService : MediaSessionService() {
             serviceScope.launch { playbackUpdateDispatcher.dispatch() }
         }
 
+        // Seeks (including while paused) and auto-transitions move the position without the 1s
+        // ticker seeing it -- the ticker only writes while playing. Without this the holder kept the
+        // pre-seek position: the widget's progress bar didn't move after a paused seek, and repeated
+        // widget ±15s taps all computed their target from the same stale position.
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            playbackStateHolder.setPositionMs(newPosition.positionMs.coerceAtLeast(0L))
+            serviceScope.launch { playbackUpdateDispatcher.dispatch() }
+        }
+
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_READY) {
                 playbackStateHolder.setDurationMs(player.duration.coerceAtLeast(0L))

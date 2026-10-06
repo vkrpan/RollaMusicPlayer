@@ -1,7 +1,10 @@
 package com.rolla.musicplayer.feature.widget
 
+import app.cash.turbine.test
 import com.rolla.musicplayer.core.media.PlaybackStateHolder
 import com.rolla.musicplayer.core.model.Song
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
@@ -69,6 +72,32 @@ class WidgetStateProviderTest {
         val state = provider.current()
 
         assertEquals(DURATION_MS, state.durationMs)
+    }
+
+    @Test
+    fun `states emits a fresh snapshot whenever the holder's position or play state changes`() = runTest {
+        playbackStateHolder.setCurrentSong(testSong())
+        playbackStateHolder.setDurationMs(DURATION_MS)
+
+        provider.states.test {
+            assertEquals(0L, awaitItem().positionMs)
+
+            playbackStateHolder.setPositionMs(POSITION_MS)
+            assertEquals(POSITION_MS, awaitItem().positionMs)
+
+            playbackStateHolder.setIsPlaying(true)
+            assertEquals(true, awaitItem().isPlaying)
+        }
+    }
+
+    @Test
+    fun `states maps exactly like current`() = runTest {
+        playbackStateHolder.setCurrentSong(testSong())
+        playbackStateHolder.setIsPlaying(true)
+        playbackStateHolder.setPositionMs(POSITION_MS)
+        playbackStateHolder.setDurationMs(DURATION_MS)
+
+        assertEquals(provider.current(), provider.states.first())
     }
 
     private companion object {
