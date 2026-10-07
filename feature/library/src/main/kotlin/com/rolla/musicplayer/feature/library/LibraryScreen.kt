@@ -62,6 +62,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
@@ -349,9 +350,9 @@ private fun LibrarySelectionTopBar(
 @Composable
 private fun EditTagsAction(onClick: () -> Unit, modifier: Modifier = Modifier) {
     TextButton(onClick = onClick, modifier = modifier.heightIn(min = MinTouchTarget)) {
-        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(imageVector = Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.accentText)
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = "Edit tags", color = MaterialTheme.colorScheme.primary)
+        Text(text = "Edit tags", color = MaterialTheme.colorScheme.accentText)
     }
 }
 

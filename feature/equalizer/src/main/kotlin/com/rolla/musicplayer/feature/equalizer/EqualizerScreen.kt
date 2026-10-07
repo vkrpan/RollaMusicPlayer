@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 import com.rolla.musicplayer.core.media.equalizer.BUILT_IN_EQUALIZER_PRESETS
@@ -687,7 +688,7 @@ private fun SaveAsPresetButton(onClick: () -> Unit, modifier: Modifier = Modifie
         Text(
             text = "Save as preset",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.accentText,
         )
     }
 }

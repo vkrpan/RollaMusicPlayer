@@ -8,6 +8,12 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        unitTests {
+            // Robolectric Compose tests need the merged manifest (ComponentActivity from ui-test-manifest).
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -19,4 +25,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.androidx.junit)
+    testImplementation(composeBom)
+    testImplementation(libs.androidx.compose.ui.test.junit4)
+    // testImplementation, not debugImplementation: `check` also runs testReleaseUnitTest, which needs ComponentActivity.
+    testImplementation(libs.androidx.compose.ui.test.manifest)
 }

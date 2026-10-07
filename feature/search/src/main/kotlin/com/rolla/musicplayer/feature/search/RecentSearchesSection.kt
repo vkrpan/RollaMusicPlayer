@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
 
 private val MinTouchTarget = 48.dp
@@ -86,7 +87,7 @@ private fun RecentSearchesHeader(onClearRecentSearches: () -> Unit, modifier: Mo
                 .heightIn(min = MinTouchTarget)
                 .semantics { contentDescription = "Clear recent searches" },
         ) {
-            Text(text = "Clear", color = MaterialTheme.colorScheme.primary)
+            Text(text = "Clear", color = MaterialTheme.colorScheme.accentText)
         }
     }
 }

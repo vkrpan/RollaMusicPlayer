@@ -4,183 +4,263 @@ import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 
 /**
- * Color tokens for RollaMusicPlayer.
+ * Color tokens for the One UI redesign (spec §5.1, docs/superpowers/specs/2026-10-06-oneui-redesign-design.md).
  *
- * Implements `.claude/rules/ui-style-guide.md` §2 (One UI–inspired dark: OLED black,
- * single blue accent, soft rounded dark surfaces). Dark is the primary theme; light is
- * first-class parity. The accent (`primary`) stays the same brand hue (~221°) in both
- * schemes, but is NOT the same hex in both — see the WCAG note below.
+ * The values are measured from the Samsung Music reference screenshots (docs/design/oneui-measurements.md).
+ * Four are documented AA-safe substitutes for what was measured:
+ *  - primary #2F6FF0 (measured #377AFF; white text on it only reached 3.9:1)
+ *  - accentText #6094FF (measured #5B8FFD; 4.45:1 on surfaceContainerHigh)
+ *  - sliderInactiveTrack #646466 (measured #5F5F61; 2.8:1 on the panel)
+ *  - seekTrackInactive white @ 37 % dark / black @ 44 % light (measured 30 % / 25 %; below 3:1 on the Now Playing
+ *    gradient), the lowest alphas that clear 3:1 over both its middle and washEnd
  *
- * Owned by m3-design-system-agent. Never hardcode colors elsewhere — reference
- * `MaterialTheme.colorScheme.*` or the semantic extensions at the bottom of this file.
+ * Every pairing the UI uses is asserted by ContrastTest. Change a value here only together with that test.
+ * Owned by m3-design-system-agent. Never hardcode colors elsewhere: read MaterialTheme.colorScheme.* or the semantic
+ * extensions at the bottom of this file.
  */
 
-// ---- Brand accent (WCAG AA audit 2026-07-15) ----
-// A single #3D7BFF blue could NOT simultaneously satisfy (a) white-on-it >= 4.5:1 and
-// (b) it-as-text-on-dark-surfaceContainer #1C1C1E >= 4.5:1 -- the two luminance windows
-// don't intersect (proven by the audit). Fixed with the M3-canonical per-scheme split
-// below: same ~221° hue, different lightness per theme, chosen so both the
-// fill-with-onPrimary-text case and the primary-as-text case clear their thresholds in
-// their own scheme. Do not re-merge these into one shared constant.
-//
-// Dark: relative luminance must be >= ~0.228 to clear 4.5:1 as text on surfaceContainer
-// #1C1C1E (the tightest of background/surface/surfaceContainer, since surfaceContainer is
-// the lightest of the three dark surfaces). #4780FF measures ~0.240 -- clears with margin.
-private val DarkPrimary = Color(0xFF4780FF)
+/** Static Now Playing background colors, drawn by Modifier.nowPlayingBackground (spec §5.1). */
+@Immutable
+data class NowPlayingGradient(
+    val top: Color,
+    val middle: Color,
+    val washStart: Color,
+    val washEnd: Color,
+)
 
-// Lifted primary is too light for white text to clear 4.5:1 (~3.7:1) -- pair it with a
-// near-black navy on-color instead (luminance <= ~0.0144 required at this primary lightness).
-private val DarkOnPrimary = Color(0xFF001B3F)
+/** One scheme's complete palette: Material roles plus semantic extensions. Internal so ContrastTest can audit it. */
+@Suppress("LongParameterList")
+@Immutable
+internal data class RollaPalette(
+    val background: Color,
+    val onSurface: Color,
+    val surfaceVariant: Color,
+    val onSurfaceVariant: Color,
+    val surfaceContainerLowest: Color,
+    val surfaceContainerLow: Color,
+    val surfaceContainer: Color,
+    val surfaceContainerHigh: Color,
+    val surfaceContainerHighest: Color,
+    val primary: Color,
+    val onPrimary: Color,
+    val primaryContainer: Color,
+    val onPrimaryContainer: Color,
+    val onSecondary: Color,
+    val outline: Color,
+    val outlineVariant: Color,
+    val error: Color,
+    val onError: Color,
+    val accentText: Color,
+    val tabUnselected: Color,
+    val artworkPlaceholder: Color,
+    val artworkPlaceholderLarge: Color,
+    val artworkPlaceholderGlyph: Color,
+    val miniPlayerContainer: Color,
+    val miniPlayerArtPlaceholder: Color,
+    val miniPlayerArtGlyph: Color,
+    val sliderInactiveTrack: Color,
+    val switchThumb: Color,
+    val fastScrollTrack: Color,
+    val eqGridLine: Color,
+    val seekTrackActive: Color,
+    val seekTrackInactive: Color,
+    val nowPlayingGradient: NowPlayingGradient,
+)
 
-// Light: relative luminance must be <= ~0.160 to clear 4.5:1 as text on light
-// surfaceContainer #F2F3F5 (the tightest surface -- lower luminance than #FFFFFF
-// background, so it's the binding constraint). #0F5CFF measures ~0.150 -- clears with
-// margin, and white text on this darker fill clears 4.5:1 too (with more margin still).
-private val LightPrimary = Color(0xFF0F5CFF)
-private val LightOnPrimary = Color(0xFFFFFFFF)
-
-// ---- Dark palette ----
-private val DarkBackground = Color(0xFF000000)
-private val DarkOnBackground = Color(0xFFFFFFFF)
-private val DarkSurface = Color(0xFF0E0E0E)
-private val DarkOnSurface = Color(0xFFFFFFFF)
-private val DarkSurfaceVariant = Color(0xFF2A2A2C)
-private val DarkOnSurfaceVariant = Color(0xFF9CA0A6)
-private val DarkSurfaceContainerLowest = Color(0xFF000000)
-private val DarkSurfaceContainerLow = Color(0xFF141416)
-private val DarkSurfaceContainer = Color(0xFF1C1C1E)
-private val DarkSurfaceContainerHigh = Color(0xFF2A2A2C)
-private val DarkSurfaceContainerHighest = Color(0xFF333335)
-private val DarkPrimaryContainer = Color(0xFF1E3A66)
-private val DarkOnPrimaryContainer = Color(0xFFD6E2FF)
-private val DarkOutline = Color(0xFF5A5A5C)
-private val DarkOutlineVariant = Color(0xFF2C2C2E)
-private val DarkError = Color(0xFFFF5A5A)
-private val DarkOnError = Color(0xFF000000)
-
-// ---- Light palette ----
-private val LightBackground = Color(0xFFFFFFFF)
-private val LightOnBackground = Color(0xFF111111)
-private val LightSurface = Color(0xFFFFFFFF)
-private val LightOnSurface = Color(0xFF111111)
-private val LightSurfaceVariant = Color(0xFFE2E3E5)
-private val LightOnSurfaceVariant = Color(0xFF5F6368)
-private val LightSurfaceContainerLowest = Color(0xFFFFFFFF)
-private val LightSurfaceContainerLow = Color(0xFFF6F7F8)
-private val LightSurfaceContainer = Color(0xFFF2F3F5)
-private val LightSurfaceContainerHigh = Color(0xFFECEDEF)
-private val LightSurfaceContainerHighest = Color(0xFFE6E7E9)
-private val LightPrimaryContainer = Color(0xFFD6E2FF)
-private val LightOnPrimaryContainer = Color(0xFF001A41)
-private val LightOutline = Color(0xFF74777C)
-private val LightOutlineVariant = Color(0xFFC4C6CA)
-private val LightError = Color(0xFFBA1A1A)
-private val LightOnError = Color(0xFFFFFFFF)
-
-val DarkColorScheme: ColorScheme = darkColorScheme(
-    primary = DarkPrimary,
-    onPrimary = DarkOnPrimary,
-    primaryContainer = DarkPrimaryContainer,
-    onPrimaryContainer = DarkOnPrimaryContainer,
-    secondary = DarkOnSurfaceVariant,
+internal val DarkPalette = RollaPalette(
+    background = Color(0xFF000000),
+    onSurface = Color(0xFFFCFCFE),
+    surfaceVariant = Color(0xFF2D2D2F),
+    onSurfaceVariant = Color(0xFF9B9B9D),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceContainerLow = Color(0xFF0F0F10),
+    surfaceContainer = Color(0xFF171719),
+    surfaceContainerHigh = Color(0xFF2D2D2F),
+    surfaceContainerHighest = Color(0xFF333333),
+    primary = Color(0xFF2F6FF0),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFF1E3A66),
+    onPrimaryContainer = Color(0xFFD6E2FF),
     onSecondary = Color(0xFF000000),
-    secondaryContainer = DarkSurfaceContainerHigh,
-    onSecondaryContainer = Color(0xFFE2E2E5),
-    tertiary = DarkPrimary,
-    onTertiary = DarkOnPrimary,
-    background = DarkBackground,
-    onBackground = DarkOnBackground,
-    surface = DarkSurface,
-    onSurface = DarkOnSurface,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = DarkOnSurfaceVariant,
-    surfaceContainerLowest = DarkSurfaceContainerLowest,
-    surfaceContainerLow = DarkSurfaceContainerLow,
-    surfaceContainer = DarkSurfaceContainer,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    surfaceContainerHighest = DarkSurfaceContainerHighest,
-    outline = DarkOutline,
-    outlineVariant = DarkOutlineVariant,
-    error = DarkError,
-    onError = DarkOnError,
-    scrim = Color(0xFF000000),
+    outline = Color(0xFF5A5A5C),
+    outlineVariant = Color(0xFF3A3A3C),
+    error = Color(0xFFFF5A5A),
+    onError = Color(0xFF000000),
+    accentText = Color(0xFF6094FF),
+    tabUnselected = Color(0xFF7E7E80),
+    artworkPlaceholder = Color(0xFF454547),
+    artworkPlaceholderLarge = Color(0xFF3B3B3B),
+    artworkPlaceholderGlyph = Color(0xFFFCFCFE),
+    miniPlayerContainer = Color(0xFF282035),
+    miniPlayerArtPlaceholder = Color(0x2EFFFFFF), // white @ 18 % over the pill = #4F4859 (measured #504C5A)
+    miniPlayerArtGlyph = Color(0xFFFCFCFE),
+    sliderInactiveTrack = Color(0xFF646466),
+    switchThumb = Color(0xFFFCFCFE),
+    fastScrollTrack = Color(0xFF333333),
+    eqGridLine = Color(0xFF1D1D1F),
+    seekTrackActive = Color(0xFFFCFCFE),
+    seekTrackInactive = Color(0x5EFFFFFF), // white @ 37 %: lowest whole % reaching 3.1:1 on middle and washEnd
+    nowPlayingGradient = NowPlayingGradient(
+        top = Color(0xFF000000),
+        middle = Color(0xFF120F16),
+        washStart = Color(0xFF231C2C),
+        washEnd = Color(0xFF293332),
+    ),
 )
 
-val LightColorScheme: ColorScheme = lightColorScheme(
-    primary = LightPrimary,
-    onPrimary = LightOnPrimary,
-    primaryContainer = LightPrimaryContainer,
-    onPrimaryContainer = LightOnPrimaryContainer,
-    secondary = LightOnSurfaceVariant,
+internal val LightPalette = RollaPalette(
+    background = Color(0xFFF4F4F6),
+    onSurface = Color(0xFF111113),
+    surfaceVariant = Color(0xFFE8E8EA),
+    onSurfaceVariant = Color(0xFF646467),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFFAFAFB),
+    surfaceContainer = Color(0xFFFFFFFF),
+    surfaceContainerHigh = Color(0xFFE8E8EA),
+    surfaceContainerHighest = Color(0xFFEBEBED),
+    primary = Color(0xFF2F6FF0),
+    onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFD6E2FF),
+    onPrimaryContainer = Color(0xFF001A41),
     onSecondary = Color(0xFFFFFFFF),
-    secondaryContainer = LightSurfaceContainerHigh,
-    onSecondaryContainer = Color(0xFF1A1C1E),
-    tertiary = LightPrimary,
-    onTertiary = LightOnPrimary,
-    background = LightBackground,
-    onBackground = LightOnBackground,
-    surface = LightSurface,
-    onSurface = LightOnSurface,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = LightOnSurfaceVariant,
-    surfaceContainerLowest = LightSurfaceContainerLowest,
-    surfaceContainerLow = LightSurfaceContainerLow,
-    surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = LightSurfaceContainerHigh,
-    surfaceContainerHighest = LightSurfaceContainerHighest,
-    outline = LightOutline,
-    outlineVariant = LightOutlineVariant,
-    error = LightError,
-    onError = LightOnError,
-    scrim = Color(0xFF000000),
+    outline = Color(0xFF8A8A8E),
+    outlineVariant = Color(0xFFDEDEE0),
+    error = Color(0xFFBA1A1A),
+    onError = Color(0xFFFFFFFF),
+    accentText = Color(0xFF1F5FE0),
+    tabUnselected = Color(0xFF646467),
+    artworkPlaceholder = Color(0xFFE6E6E8),
+    artworkPlaceholderLarge = Color(0xFFE9E9EB),
+    artworkPlaceholderGlyph = Color(0xFF7A7A7E),
+    miniPlayerContainer = Color(0xFFE9E4F2),
+    miniPlayerArtPlaceholder = Color(0x1A000000), // black @ 10 %
+    miniPlayerArtGlyph = Color(0xFF707074),
+    sliderInactiveTrack = Color(0xFF8A8A8E),
+    switchThumb = Color(0xFFFFFFFF),
+    fastScrollTrack = Color(0xFFF0F0F2),
+    eqGridLine = Color(0xFFEEEEF0),
+    seekTrackActive = Color(0xFF111113),
+    seekTrackInactive = Color(0x70000000), // black @ 44 %: lowest whole % reaching 3.1:1 on middle and washEnd
+    nowPlayingGradient = NowPlayingGradient(
+        top = Color(0xFFFFFFFF),
+        middle = Color(0xFFF7F5FA),
+        washStart = Color(0xFFEFE9F5),
+        washEnd = Color(0xFFE9F1EF),
+    ),
 )
+
+// surfaceTint is transparent: One UI surfaces are flat, so M3 tonal elevation must not tint them blue.
+private fun RollaPalette.toColorScheme(base: ColorScheme): ColorScheme = base.copy(
+    primary = primary,
+    onPrimary = onPrimary,
+    primaryContainer = primaryContainer,
+    onPrimaryContainer = onPrimaryContainer,
+    secondary = onSurfaceVariant,
+    onSecondary = onSecondary,
+    secondaryContainer = surfaceContainerHigh,
+    onSecondaryContainer = onSurface,
+    tertiary = primary,
+    onTertiary = onPrimary,
+    background = background,
+    onBackground = onSurface,
+    surface = background,
+    onSurface = onSurface,
+    surfaceVariant = surfaceVariant,
+    onSurfaceVariant = onSurfaceVariant,
+    surfaceTint = Color.Transparent,
+    surfaceContainerLowest = surfaceContainerLowest,
+    surfaceContainerLow = surfaceContainerLow,
+    surfaceContainer = surfaceContainer,
+    surfaceContainerHigh = surfaceContainerHigh,
+    surfaceContainerHighest = surfaceContainerHighest,
+    outline = outline,
+    outlineVariant = outlineVariant,
+    error = error,
+    onError = onError,
+    scrim = Color.Black,
+)
+
+val DarkColorScheme: ColorScheme = DarkPalette.toColorScheme(darkColorScheme())
+
+val LightColorScheme: ColorScheme = LightPalette.toColorScheme(lightColorScheme())
 
 /**
- * Semantic colors not covered by the Material role set (ui-style-guide §2).
- *
- * Implemented as theme-aware extensions so call sites read `MaterialTheme.colorScheme.miniPlayerContainer`.
- * (Alternative: promote these to a CompositionLocal-backed `RollaColors` if the set grows.)
- * Must be read inside a composable under RollaMusicPlayerTheme.
- *
- * These branch on [LocalRollaDarkTheme] -- the *resolved* theme RollaMusicPlayerTheme is actually
- * rendering -- not `isSystemInDarkTheme()`. The two diverge whenever the user forces Light/Dark in
- * Settings against the device's own system setting; reading the system flag here would silently
- * pick the wrong branch (e.g. Dark forced on a light-mode device would render this pill in the
- * *light* palette while `onSurface` text above it is already the *dark* palette's white -- a
- * contrast failure, not just a cosmetic mismatch).
- *
- * WCAG audit 2026-07-15: verified passing, unchanged -- `onSurface`/`onSurfaceVariant` text on
- * this pill both clear 4.5:1 in both themes. `primary` was NOT checked as text on this pill and
- * must never be used that way (it is not one of the audited pairings) -- treat any future
- * primary-as-text-on-miniPlayerContainer usage as a new pairing requiring its own audit.
+ * The palette of the theme RollaMusicPlayerTheme is actually rendering. It branches on LocalRollaDarkTheme, never
+ * isSystemInDarkTheme(): the two diverge whenever the user forces Light or Dark in Settings (ThemeTokensTest).
  */
+private val currentPalette: RollaPalette
+    @Composable @ReadOnlyComposable
+    get() = if (LocalRollaDarkTheme.current) DarkPalette else LightPalette
+
+/** Blue value/link text. Never use `primary` for text (it is a fill color). */
+val ColorScheme.accentText: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.accentText
+
+val ColorScheme.tabUnselected: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.tabUnselected
+
+val ColorScheme.artworkPlaceholder: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.artworkPlaceholder
+
+val ColorScheme.artworkPlaceholderLarge: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.artworkPlaceholderLarge
+
+val ColorScheme.artworkPlaceholderGlyph: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.artworkPlaceholderGlyph
+
+/** The floating mini-player pill. Text on it is always `onSurface` (audited); never `primary`. */
 val ColorScheme.miniPlayerContainer: Color
     @Composable @ReadOnlyComposable
-    get() = if (LocalRollaDarkTheme.current) Color(0xFF241F2E) else Color(0xFFECEAF2)
+    get() = currentPalette.miniPlayerContainer
 
-// WCAG audit 2026-07-15: the old #3A3A3C (dark) / #C4C6CA (light) only cleared 1.5-1.9:1
-// against the surfaces they're drawn on -- far under the 3:1 UI-component floor.
-// Dark: needs relative luminance >= ~0.135 to clear 3:1 vs the lightest dark surface it's
-// drawn on (surfaceContainer #1C1C1E). #6E6E73 measures ~0.157 -- clears with margin, and
-// stays well under DarkPrimary's ~0.240 so the active track still reads as more prominent.
-// Light: needs relative luminance <= ~0.265 to clear 3:1 vs the tightest light surface
-// (surfaceContainer #F2F3F5, darker than #FFFFFF background). #838890 measures ~0.245 --
-// clears with margin, and stays well above LightPrimary's ~0.150 (active track is darker/
-// more saturated, so it still reads as more prominent in light mode too).
+val ColorScheme.miniPlayerArtPlaceholder: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.miniPlayerArtPlaceholder
+
+/** The music-note glyph drawn on miniPlayerArtPlaceholder inside the pill (audited over the composite). */
+val ColorScheme.miniPlayerArtGlyph: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.miniPlayerArtGlyph
+
 val ColorScheme.sliderInactiveTrack: Color
     @Composable @ReadOnlyComposable
-    get() = if (LocalRollaDarkTheme.current) Color(0xFF6E6E73) else Color(0xFF838890)
+    get() = currentPalette.sliderInactiveTrack
 
-// WCAG audit 2026-07-15: at 60% alpha over surfaceContainer this token was UNUSED but
-// authored broken -- the composited result only cleared ~3.2:1 (dark) / ~2.5:1 (light)
-// against surfaceContainer, both under the 4.5:1 text floor a 12sp fast-scroll letter needs.
-// Fixed to full-opacity `onSurfaceVariant`, which already clears 4.5:1 as text on
-// background/surface/surfaceContainer in both themes (6.5:1 dark / 5.4:1 light against
-// surfaceContainer, the tightest of the three) -- do not reintroduce alpha here.
+val ColorScheme.switchThumb: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.switchThumb
+
+val ColorScheme.fastScrollTrack: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.fastScrollTrack
+
+/** A–Z letters: full-opacity onSurfaceVariant (4.55:1 dark / 5.18:1 light on fastScrollTrack). */
 val ColorScheme.fastScrollIndex: Color
     @Composable @ReadOnlyComposable
     get() = onSurfaceVariant
+
+val ColorScheme.eqGridLine: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.eqGridLine
+
+val ColorScheme.seekTrackActive: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.seekTrackActive
+
+val ColorScheme.seekTrackInactive: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.seekTrackInactive
+
+val ColorScheme.nowPlayingGradient: NowPlayingGradient
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.nowPlayingGradient

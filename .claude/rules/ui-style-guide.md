@@ -1,5 +1,12 @@
 # RollaMusicPlayer — Visual Style Guide (Jetpack Compose)
 
+> **SUPERSEDED (2026-10-06) for every token value and component spec.** The binding visual spec is now
+> [`docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`](../../docs/superpowers/specs/2026-10-06-oneui-redesign-design.md)
+> §5 (tokens) and §6 (component kit), implemented in `:core:designsystem` (`theme/`, `icon/`, `component/`, `motion/`).
+> Where this guide disagrees with the spec, the spec wins. In particular: the accent is `#2F6FF0`, and blue **text**
+> always uses `accentText`, never `primary`; radii, sizes and type come from `RollaDimens` / `RollaShapes` / the semantic
+> typography extensions; the library tab is labelled "Tracks" (the model stays `Song`). The principles in §1 still apply.
+
 The look-and-feel spec for RollaMusicPlayer, derived from a One UI–style dark music UI. It defines the
 visual language, tokens, and per-screen layouts that `m3-design-system-agent` implements in
 `:core:designsystem` and that `ui-builder` builds against in `:core:ui` / `:feature:*`.

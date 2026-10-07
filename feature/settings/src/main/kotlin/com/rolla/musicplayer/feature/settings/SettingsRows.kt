@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
 import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 
@@ -156,7 +157,7 @@ fun SettingsValueNavRow(
             value != null -> Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.accentText,
             )
             else -> Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

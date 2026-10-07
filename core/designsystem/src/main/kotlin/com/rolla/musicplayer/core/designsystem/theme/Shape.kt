@@ -2,26 +2,28 @@ package com.rolla.musicplayer.core.designsystem.theme
 
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 
 /**
- * Shape tokens for RollaMusicPlayer.
- *
- * Implements `.claude/rules/ui-style-guide.md` §4. Soft, heavily-rounded surfaces.
- * Owned by m3-design-system-agent. Use `MaterialTheme.shapes.*`; for pills/circles use
- * `CircleShape` directly (chips, the mini-player container, the round Play button).
- *
- * Mapping:
- *  - extraSmall (8dp)   small inner elements
- *  - small      (12dp)  list/thumbnail artwork
- *  - medium     (16dp)  inline cards, dialogs
- *  - large      (24dp)  content surface panel, settings group cards
- *  - extraLarge (28dp)  big feature cards, now-playing artwork
+ * One UI shape scale (spec §5.3). `large` and `extraLarge` share the measured 26 dp panel radius. Stock M3 dialogs
+ * and sheets default to `extraLarge`, so they match the panels without overrides. Owned by m3-design-system-agent.
  */
 val RollaShapes: Shapes = Shapes(
     extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(12.dp),
+    small = RoundedCornerShape(11.dp),
     medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(24.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    large = RoundedCornerShape(RollaDimens.panelRadius),
+    extraLarge = RoundedCornerShape(RollaDimens.panelRadius),
 )
+
+private val FeatureCardShape = RoundedCornerShape(20.dp)
+private val PanelTopShape = RoundedCornerShape(topStart = RollaDimens.panelRadius, topEnd = RollaDimens.panelRadius)
+
+/** Playlist feature cards and album-grid cards (143 dp, 20 dp radius). */
+val Shapes.featureCard: Shape
+    get() = FeatureCardShape
+
+/** The content panel: rounded top corners only; it runs to the bottom edge of the screen. */
+val Shapes.panelTop: Shape
+    get() = PanelTopShape

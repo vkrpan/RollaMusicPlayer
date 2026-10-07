@@ -31,6 +31,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 
 private val ContentPadding = 16.dp
@@ -108,7 +109,7 @@ private fun OssLibraryRow(library: OssLibrary, modifier: Modifier = Modifier) {
         Text(
             text = library.license,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
+            color = MaterialTheme.colorScheme.accentText,
         )
     }
 }

@@ -23,7 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 internal val LocalRollaDarkTheme = staticCompositionLocalOf { false }
 
 /**
- * The RollaMusicPlayer theme. Implements `.claude/rules/ui-style-guide.md`.
+ * The RollaMusicPlayer theme. Implements `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md` §5.
  *
  * - Dark is the primary, fully-designed theme (true-black OLED).
  * - The brand accent (blue) is **stable**: dynamic color is OFF by default, and even when
