@@ -49,9 +49,12 @@ class MiniPlayerSmokeTest {
         var bodyClicked = false
         setContent(onBodyClick = { bodyClicked = true })
 
+        // Tap the title, not the merged body node: performClick() taps a node's centre, and on a 360 dp-wide screen
+        // the pill's centre lands on the Previous button, which consumes the tap.
         composeTestRule
             .onNodeWithContentDescription("Now playing: ${fakeSong.title} by ${fakeSong.artist}. Open player.")
-            .performClick()
+            .assertExists()
+        composeTestRule.onNodeWithText(fakeSong.title, useUnmergedTree = true).performClick()
 
         assertTrue(bodyClicked)
     }

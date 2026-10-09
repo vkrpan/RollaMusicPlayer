@@ -1,24 +1,35 @@
 package com.rolla.musicplayer.core.designsystem.component
 
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.IntrinsicMeasurable
+import androidx.compose.ui.layout.IntrinsicMeasureScope
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.layout.MeasurePolicy
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.MeasureResult
+import androidx.compose.ui.layout.MeasureScope
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Constraints
@@ -37,7 +48,9 @@ import kotlin.math.roundToInt
  * scale and color, so a swipe animates continuously without recomposing.
  *
  * Each tab's touch target is its whole slot: the scaled label plus half the spacing on each side, at the full row
- * height (at least [RollaDimens.tabRowHeight]), so the row has no dead zones between or around labels.
+ * height (at least [RollaDimens.tabRowHeight]), so the row has no dead zones between or around labels. A press draws
+ * its ripple in a pill, not across the slot: the pill is the slot's width at the label's height, centered vertically.
+ * Its clip sits on a separate child with no pointer input, so it doesn't shrink the touch target (see [TabLabel]).
  *
  * Caller contract:
  * - [titles] has exactly [PagerState.pageCount] entries, one per page.
@@ -110,8 +123,23 @@ private data class TabLabelColors(val selected: Color, val unselected: Color)
 private fun tabLabelColors(): TabLabelColors =
     MaterialTheme.colorScheme.let { TabLabelColors(selected = it.onSurface, unselected = it.tabUnselected) }
 
-// Eight distinct inputs of one private label; a holder type for them would only add indirection.
-@Suppress("LongParameterList")
+/** Test tag of each tab's press pill (see [TabLabel]). */
+internal const val TAB_PILL_TEST_TAG = "OneUiTabRow.pill"
+
+/**
+ * One tab: its whole slot is the touch target, and a press draws the ripple inside a pill.
+ *
+ * The slot carries `selectable` with no indication of its own; the press interactions go through a shared
+ * [MutableInteractionSource] to a separate, input-free pill child that draws the ripple. The pill is as wide as the
+ * slot and as tall as the label (the unscaled text plus [RollaDimens.tabLabelVerticalPadding] above and below),
+ * centered vertically, so the ripple has fully rounded ends instead of filling the rectangular slot.
+ *
+ * The pill's clip is a graphics layer, and a clip layer limits hit testing to its outline for the pointer input it
+ * wraps. Here it wraps only the pill, a sibling of the label with no pointer input, and never the slot's `selectable`,
+ * so the slot stays clickable everywhere, corners included. A disabled tab emits no press interactions, so it shows
+ * no ripple.
+ */
+@Suppress("LongParameterList") // Eight distinct inputs of one private label; a holder type would only add indirection.
 @Composable
 private fun TabLabel(
     title: String,
@@ -123,12 +151,31 @@ private fun TabLabel(
     enabled: Boolean,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Layout(
+        content = {
+            TabPressPill(interactionSource = interactionSource, color = colors.selected)
+            TabText(title = title, emphasis = emphasis, minScale = minScale, style = style, colors = colors)
+        },
+        // On the slot, outside every clip and scaling layer, so the touch target is the full-height slot.
+        modifier = Modifier.selectable(
+            selected = selected,
+            interactionSource = interactionSource,
+            indication = null,
+            enabled = enabled,
+            role = Role.Tab,
+            onClick = onClick,
+        ),
+        measurePolicy = TabSlotMeasurePolicy,
+    )
+}
+
+/** The tab's label: scale and color follow the pager in draw (via [emphasis]), never in composition. */
+@Composable
+private fun TabText(title: String, emphasis: () -> Float, minScale: Float, style: TextStyle, colors: TabLabelColors) {
     BasicText(
         text = title,
         modifier = Modifier
-            // Outside the scaling layer, so the touch target is the unscaled, full-height slot.
-            .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = onClick)
-            .tabSlot()
             .graphicsLayer {
                 val scale = tabScale(minScale, emphasis())
                 scaleX = scale
@@ -142,17 +189,53 @@ private fun TabLabel(
 }
 
 /**
- * Fills the size the row measures the tab at (its slot) and centers the unscaled label in it. Unconstrained (the
- * row's intrinsic queries), it reports the label's own size.
+ * The input-free pill that draws a tab's press ripple, clipped to [CircleShape]. [TabSlotMeasurePolicy] sizes and
+ * places it. The ripple takes the selected label color ([color]): the row usually has no Surface above it to set a
+ * content color, and the default content color (black) would vanish on the dark background.
  */
-private fun Modifier.tabSlot(): Modifier = layout { measurable, constraints ->
-    val label = measurable.measure(Constraints())
-    val width = if (constraints.hasBoundedWidth) constraints.maxWidth else label.width
-    val height = maxOf(constraints.minHeight, label.height)
-    layout(width, height) {
-        // Centering is direction-neutral, so plain place() avoids a rounding flip in RTL.
-        label.place(x = labelInset(width, label.width), y = (height - label.height) / 2)
+@Composable
+private fun TabPressPill(interactionSource: MutableInteractionSource, color: Color) {
+    Box(
+        Modifier
+            .testTag(TAB_PILL_TEST_TAG)
+            .clip(CircleShape)
+            .indication(interactionSource, ripple(color = color)),
+    )
+}
+
+/**
+ * Fills the size the row measures the tab at (its slot), centers the unscaled label in it, and lays the press pill
+ * across the slot at the label's height, centered vertically. The pill never outgrows the row because
+ * [tabRowMeasurePolicy] makes the row at least as tall as the tallest label. Intrinsics are the label's own size, which
+ * is what the row's intrinsic queries expect.
+ */
+private object TabSlotMeasurePolicy : MeasurePolicy {
+    private const val PILL = 0
+    private const val LABEL = 1
+
+    override fun MeasureScope.measure(measurables: List<Measurable>, constraints: Constraints): MeasureResult {
+        val label = measurables[LABEL].measure(Constraints())
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else label.width
+        val height = maxOf(constraints.minHeight, label.height)
+        val pill = measurables[PILL].measure(Constraints.fixed(width = width, height = label.height))
+        return layout(width, height) {
+            // Centering is direction-neutral, so plain place() avoids a rounding flip in RTL.
+            pill.place(x = 0, y = (height - label.height) / 2)
+            label.place(x = labelInset(width, label.width), y = (height - label.height) / 2)
+        }
     }
+
+    override fun IntrinsicMeasureScope.maxIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+        measurables[LABEL].maxIntrinsicWidth(Constraints.Infinity)
+
+    override fun IntrinsicMeasureScope.minIntrinsicWidth(measurables: List<IntrinsicMeasurable>, height: Int): Int =
+        measurables[LABEL].minIntrinsicWidth(Constraints.Infinity)
+
+    override fun IntrinsicMeasureScope.maxIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
+        measurables[LABEL].maxIntrinsicHeight(Constraints.Infinity)
+
+    override fun IntrinsicMeasureScope.minIntrinsicHeight(measurables: List<IntrinsicMeasurable>, width: Int): Int =
+        measurables[LABEL].minIntrinsicHeight(Constraints.Infinity)
 }
 
 /** 1 on the current page, falling linearly to 0 one page away. */

@@ -2,13 +2,22 @@ package com.rolla.musicplayer.home
 
 import android.app.Application
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -16,17 +25,23 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,11 +61,14 @@ class HomeScreenTest {
 
     private lateinit var pagerState: PagerState
     private lateinit var selection: SongSelectionState
+    private lateinit var listState: LazyListState
 
     private var searchClicks = 0
     private var settingsClicks = 0
     private var createPlaylistClicks = 0
     private var editTagsClicks = 0
+    private var rowTaps = 0
+    private var rowLongClicks = 0
 
     @Test
     fun startsOnTracksAndTitleIsRollaMusic() {
@@ -125,6 +143,52 @@ class HomeScreenTest {
         assertEquals("A swipe with no selection must page", HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
     }
 
+    // Device defect D2: with paging disabled nothing consumed a horizontal drag, so a sideways swipe that stayed
+    // inside a full-width row was delivered to the row's combinedClickable as a tap ("2 selected" became "3").
+    @Test
+    fun horizontalSwipeWhileSelectingNeitherTapsRowNorPages() {
+        setHomeWithTappableRows()
+        composeRule.runOnIdle { selection.toggle("x") }
+
+        composeRule.onNodeWithTag(rowTag(0)).performTouchInput { swipeLeft() }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(rowTag(0)).performTouchInput { swipeRight() }
+        composeRule.waitForIdle()
+
+        assertEquals("A sideways swipe while selecting must not tap the row", 0, rowTaps)
+        assertEquals("A swipe while selecting must not change the page", HomeTab.TRACKS.ordinal, pagerState.currentPage)
+
+        composeRule.onNodeWithTag(rowTag(0)).performClick()
+        composeRule.waitForIdle()
+        assertEquals("A plain tap while selecting must still reach the row", 1, rowTaps)
+    }
+
+    // The drag consumer must not swallow a stationary press: long-press still reaches the row while selecting.
+    @Test
+    fun longPressWhileSelectingReachesRowAndDoesNotPage() {
+        setHomeWithTappableRows()
+        composeRule.runOnIdle { selection.toggle("x") }
+
+        composeRule.onNodeWithTag(rowTag(0)).performTouchInput { longClick() }
+        composeRule.waitForIdle()
+
+        assertEquals("A long press while selecting must reach the row", 1, rowLongClicks)
+        assertEquals("A long press must not also tap the row", 0, rowTaps)
+        assertEquals("A long press must not change the page", HomeTab.TRACKS.ordinal, pagerState.currentPage)
+    }
+
+    @Test
+    fun verticalScrollStillWorksWhileSelecting() {
+        setHomeWithTappableRows()
+        composeRule.runOnIdle { selection.toggle("x") }
+
+        composeRule.onNodeWithTag(LIST_TAG).performTouchInput { swipeUp() }
+        composeRule.waitForIdle()
+
+        assertTrue("The Tracks list must still scroll while selecting", listState.firstVisibleItemIndex > 0)
+        assertEquals("A vertical scroll must not tap a row", 0, rowTaps)
+    }
+
     @Test
     fun overflowOpensSettings() {
         setHome()
@@ -143,6 +207,52 @@ class HomeScreenTest {
 
         assertEquals("Search must fire once", 1, searchClicks)
     }
+
+    /** Tracks page = a list of full-width combinedClickable rows (like SongListItem) that count taps. */
+    private fun setHomeWithTappableRows() {
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                pagerState = rememberHomePagerState()
+                selection = rememberSongSelectionState()
+                listState = rememberLazyListState()
+                HomeScreen(
+                    pagerState = pagerState,
+                    selection = selection,
+                    onSearchClick = {},
+                    onSettingsClick = {},
+                    onCreatePlaylistClick = {},
+                    onEditTagsForSelection = {},
+                ) { tab ->
+                    if (tab == HomeTab.TRACKS) {
+                        TappableRows()
+                    } else {
+                        Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
+    }
+
+    // A composable member: detekt's FunctionNaming wants camelCase, Compose wants PascalCase.
+    @Suppress("FunctionNaming")
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun TappableRows() {
+        LazyColumn(state = listState, modifier = Modifier.fillMaxSize().testTag(LIST_TAG)) {
+            items((0 until ROW_COUNT).toList()) { index ->
+                Text(
+                    text = "row $index",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .testTag(rowTag(index))
+                        .combinedClickable(onClick = { rowTaps++ }, onLongClick = { rowLongClicks++ }),
+                )
+            }
+        }
+    }
+
+    private fun rowTag(index: Int) = "row-$index"
 
     private fun setHome() {
         composeRule.setContent {
@@ -166,5 +276,10 @@ class HomeScreenTest {
                 }
             }
         }
+    }
+
+    private companion object {
+        const val LIST_TAG = "rows"
+        const val ROW_COUNT = 40
     }
 }

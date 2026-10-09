@@ -88,6 +88,9 @@ internal const val FEATURE_CARD_ART_IMAGE_TAG = "feature_card_art_image"
 /** Test tag on a collage cell that has no image and shows its own placeholder. */
 internal const val FEATURE_CARD_ART_CELL_PLACEHOLDER_TAG = "feature_card_art_cell_placeholder"
 
+/** Test tag on the placeholder backdrop under each collage image, shown while it loads or if it fails. */
+internal const val FEATURE_CARD_ART_IMAGE_BACKDROP_TAG = "feature_card_art_image_backdrop"
+
 @Composable
 private fun FeatureCardArt(artworkUris: List<String>, modifier: Modifier = Modifier) {
     val shape = MaterialTheme.shapes.featureCard
@@ -108,8 +111,8 @@ private fun FeatureCardArt(artworkUris: List<String>, modifier: Modifier = Modif
 
 /**
  * A 2×2 grid of cropped artwork filled in reading order (ported from the old SmartPlaylistCollage). With only 2 or 3
- * images each trailing cell shows its own small note placeholder, so the card's large centred glyph is never left
- * half-covered by the images around it.
+ * images each trailing cell shows its own small note placeholder, and every image sits on its own cell placeholder,
+ * so the card's large centred glyph is never left half-covered, whether a cell is empty, loading or failed.
  */
 @Composable
 private fun Collage(uris: List<String>, modifier: Modifier = Modifier) {
@@ -120,7 +123,7 @@ private fun Collage(uris: List<String>, modifier: Modifier = Modifier) {
                     val uri = uris.getOrNull(rowIndex * COLLAGE_CELLS_PER_SIDE + columnIndex)
                     val cellModifier = Modifier.weight(1f).fillMaxSize()
                     if (uri != null) {
-                        CroppedArtwork(uri, cellModifier)
+                        CollageImageCell(uri, cellModifier)
                     } else {
                         ArtworkPlaceholder(
                             modifier = cellModifier.testTag(FEATURE_CARD_ART_CELL_PLACEHOLDER_TAG),
@@ -131,6 +134,23 @@ private fun Collage(uris: List<String>, modifier: Modifier = Modifier) {
                 }
             }
         }
+    }
+}
+
+/**
+ * One collage image on its own cell placeholder. Without the backdrop, a loading or failed image (e.g. a MediaStore
+ * albumart URI with no art, which throws FileNotFound) leaves the cell transparent and exposes a fragment of the
+ * card's large centred glyph as a stray line. A non-blank URI can still fail, so the blank filter can't prevent it.
+ */
+@Composable
+private fun CollageImageCell(uri: String, modifier: Modifier = Modifier) {
+    Box(modifier = modifier) {
+        ArtworkPlaceholder(
+            modifier = Modifier.matchParentSize().testTag(FEATURE_CARD_ART_IMAGE_BACKDROP_TAG),
+            shape = RectangleShape,
+            large = true,
+        )
+        CroppedArtwork(uri, Modifier.matchParentSize())
     }
 }
 

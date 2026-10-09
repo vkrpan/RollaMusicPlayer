@@ -6,6 +6,7 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.ContentPanel
@@ -238,9 +240,29 @@ private fun HomeTabsAndPager(
             state = pagerState,
             userScrollEnabled = !selection.isActive,
             key = { HomeTab.entries[it].name },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .then(if (selection.isActive) Modifier.swallowHorizontalDrags() else Modifier),
         ) { page ->
             ContentPanel { pageContent(HomeTab.entries[page]) }
         }
     }
 }
+
+/**
+ * Claims horizontal drags over the pager while selecting, so a sideways swipe is a no-op instead of a tap (device
+ * defect D2). With `userScrollEnabled = false` nothing consumed a horizontal drag, and a swipe that stayed inside a
+ * full-width row reached the row's `combinedClickable` as a tap and toggled it.
+ *
+ * Gesture semantics (Compose Foundation 1.7.3):
+ * - Pointer events run the Main pass child-first, so a row's tap detector sees each move before this ancestor does.
+ *   Once horizontal movement passes touch slop, this detector consumes the change (and every later one) in Main.
+ *   `waitForUpOrCancellation`, which drives both `clickable` and `combinedClickable`, then sees the consumption in its
+ *   Final-pass check (or in Main on the next event) and cancels the press, so no click fires on release.
+ * - The slop check is horizontal-only: a vertical drag never crosses it. The Tracks `LazyColumn` (a child) claims a
+ *   vertical drag in Main first, and this detector bails when it sees the drag already consumed, so the list still
+ *   scrolls while selecting.
+ * - A tap never moves past touch slop, so it is never claimed and still toggles its row.
+ */
+private fun Modifier.swallowHorizontalDrags(): Modifier =
+    pointerInput(Unit) { detectHorizontalDragGestures { change, _ -> change.consume() } }
