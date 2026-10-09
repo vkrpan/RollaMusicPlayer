@@ -10,7 +10,7 @@ import javax.inject.Singleton
 
 /**
  * Indexes the device's MediaStore audio into Room. [sync] and [syncSongs] are called from several
- * independent, uncoordinated sites -- the library screen's permission-grant scan, the settings
+ * independent, uncoordinated sites -- Home's permission-grant scan (`HomeViewModel`), the settings
  * screen's manual "Rescan library" action, and the tag editor's post-save [syncSongs] -- any of
  * which can legitimately overlap in time (e.g. the user taps "Rescan library" while the initial
  * permission-grant scan is still running).

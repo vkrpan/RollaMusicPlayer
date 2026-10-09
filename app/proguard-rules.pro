@@ -24,8 +24,8 @@
 # intentionally generic (`class **`) and still allow obfuscation/optimization of the *members*
 # inside. The rules below are the additional, app-scoped safety net the official
 # kotlinx.serialization README recommends for R8 full mode: they guarantee the compiler-generated
-# `$$serializer` companion classes for THIS app's own @Serializable route types (Routes.kt: Library,
-# NowPlaying, Equalizer, Playlists, PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail,
+# `$$serializer` companion classes for THIS app's own @Serializable route types (Routes.kt: Home,
+# NowPlaying, Equalizer, PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail,
 # TagEditor, BatchTagEditor, Search, Settings, About, Licenses, Privacy -- consumed by
 # androidx.navigation's typed `composable<T>()` / `toRoute<T>()`) survive intact. This is the
 # single highest-risk rule in this file: if it's wrong, routes fail SILENTLY at runtime

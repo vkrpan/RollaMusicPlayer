@@ -50,6 +50,9 @@ class PlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
+    // Keeps shuffle orders start-first so Shuffle reaches every track (see StartFirstShuffleEnforcer).
+    private lateinit var shuffleEnforcer: StartFirstShuffleEnforcer
+
     private val supervisorJob = SupervisorJob()
 
     // Defense-in-depth: an uncaught exception in a root serviceScope coroutine would otherwise hit
@@ -144,6 +147,8 @@ class PlaybackService : MediaSessionService() {
         player = buildPlayer()
         playbackStateHolder.setAudioSessionId(player.audioSessionId)
         player.addListener(playerListener)
+        shuffleEnforcer = StartFirstShuffleEnforcer(player)
+        player.addListener(shuffleEnforcer)
         mediaSession = MediaSession.Builder(this, player).build()
         startPositionTicker()
         bindEqualizerToAudioSession()
@@ -154,6 +159,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         player.removeListener(playerListener)
+        player.removeListener(shuffleEnforcer)
         // Stop the session-binding collectors BEFORE releasing the effect/player, and wait for
         // them: cancelAndJoin lets an in-flight attach/apply run to its next suspension point, so
         // nothing new can land on the effect or the player after the release calls below (an

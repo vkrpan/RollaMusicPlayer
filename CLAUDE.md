@@ -289,6 +289,20 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
+> **One UI redesign in progress (branch `feat/oneui-redesign`).** The binding spec is
+> `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`, and the phases are in
+> `docs/superpowers/plans/2026-10-06-oneui-redesign-roadmap.md`. Where this file disagrees with the spec, the spec wins.
+> Landed so far:
+> - **Phase 1:** design-system tokens, `RollaIcons` and the component kit.
+> - **Phase 2:** Home is the start destination. It has a "Rolla Music" header, a center-weighted tab row, and a pager
+>   with the Playlists and Tracks tabs (`PlaylistsTab`, `TracksTab`). `LibraryScreen`, `PlaylistsScreen`, the
+>   `Library`/`Playlists` routes and the bottom nav are gone. The mini-player floats over content
+>   (`MiniPlayerHost`, `LocalMiniPlayerInset`).
+>
+> The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
+> at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the
+> Phase 7 docs pass.
+
 **Status**: **v1.0 feature-complete.** All planned phases (1–7) plus the Phase 8 polish/release pass
 are shipped: Core Playback, Library (Songs list + Album/Artist detail), Playlists, Equalizer, Tag
 Editor, Search, Settings, Home Widget, plus an accessibility pass, a baseline profile, and a signed,

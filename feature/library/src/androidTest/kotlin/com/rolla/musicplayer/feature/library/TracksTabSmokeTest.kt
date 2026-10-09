@@ -6,22 +6,20 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
-import kotlinx.coroutines.flow.MutableStateFlow
+import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * Smoke coverage for the stateless [LibraryScreen] (Flow 1's first hop: library -> tap song),
- * following `.claude/skills/add-ui-testing-compose/SKILL.md`. Hosts [LibraryScreen] directly with
- * fake songs -- never `LibraryRoute`, which pulls in [com.rolla.musicplayer.core.permissions.MediaPermissionGate]
- * and `hiltViewModel()`.
+ * Smoke coverage for the stateless [TracksTabContent] (Flow 1's first hop: library -> tap song),
+ * following `.claude/skills/add-ui-testing-compose/SKILL.md`. Hosts [TracksTabContent] directly with
+ * fake songs -- never [TracksTab], which pulls in `hiltViewModel()`.
  */
 @RunWith(AndroidJUnit4::class)
-class LibraryScreenSmokeTest {
+class TracksTabSmokeTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -64,13 +62,17 @@ class LibraryScreenSmokeTest {
     ) {
         composeTestRule.setContent {
             RollaMusicPlayerTheme {
-                LibraryScreen(
+                TracksTabContent(
                     songs = songs,
                     scanState = ScanState.Idle,
-                    userPlaylists = MutableStateFlow(emptyList<Playlist>()),
+                    selection = rememberSongSelectionState(),
+                    userPlaylists = emptyList(),
                     onSongClick = onSongClick,
+                    onShuffleClick = {},
+                    onPlayClick = {},
                     onAddSongToPlaylist = { _, _ -> },
                     onCreatePlaylistAndAddSong = { _, _ -> },
+                    onEditTagsClick = {},
                 )
             }
         }

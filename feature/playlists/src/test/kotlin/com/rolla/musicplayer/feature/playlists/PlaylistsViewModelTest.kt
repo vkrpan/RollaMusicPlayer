@@ -67,17 +67,17 @@ class PlaylistsViewModelTest {
         val summaries = received.last()
         assertEquals("smartPlaylists must always expose exactly 4 entries", 4, summaries.size)
         assertEquals(
-            "Entries must be ordered: recently played, favourites, most played, recently added",
+            "Entries must be ordered (spec §8.2): recently added, most played, recently played, favourite tracks",
             listOf(
+                SmartPlaylistKind.RECENTLY_ADDED,
+                SmartPlaylistKind.MOST_PLAYED,
                 SmartPlaylistKind.RECENTLY_PLAYED,
                 SmartPlaylistKind.FAVOURITES,
-                SmartPlaylistKind.MOST_PLAYED,
-                SmartPlaylistKind.RECENTLY_ADDED,
             ),
             summaries.map { it.kind },
         )
         assertEquals(
-            listOf("Recently played", "Favourites", "Most played", "Recently added"),
+            listOf("Recently added", "Most played", "Recently played", "Favourite tracks"),
             summaries.map { it.label },
         )
         summaries.forEach { summary ->
@@ -99,17 +99,17 @@ class PlaylistsViewModelTest {
 
         val summaries = received.last()
         assertEquals(
-            "Entries must be ordered: recently played, favourites, most played, recently added",
+            "Entries must be ordered (spec §8.2): recently added, most played, recently played, favourite tracks",
             listOf(
+                SmartPlaylistKind.RECENTLY_ADDED,
+                SmartPlaylistKind.MOST_PLAYED,
                 SmartPlaylistKind.RECENTLY_PLAYED,
                 SmartPlaylistKind.FAVOURITES,
-                SmartPlaylistKind.MOST_PLAYED,
-                SmartPlaylistKind.RECENTLY_ADDED,
             ),
             summaries.map { it.kind },
         )
         assertEquals(
-            listOf("Recently played", "Favourites", "Most played", "Recently added"),
+            listOf("Recently added", "Most played", "Recently played", "Favourite tracks"),
             summaries.map { it.label },
         )
         // The fake aliases all four repository flows to one shared list (see class doc), so
@@ -135,6 +135,53 @@ class PlaylistsViewModelTest {
         assertEquals(songs.size, summaries.first().count)
         summaries.forEach { summary ->
             assertEquals(4, summary.previewArtworkUris.size)
+        }
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun smartPlaylists_previewArtworkUris_skipsSongsWithoutArtBeforeCapping() = runTest {
+        // The first four songs have no art and the fifth does: capping before filtering would leave every card a
+        // placeholder although the playlist has art to show.
+        val songs = createTestSongs(count = 5).mapIndexed { index, song ->
+            if (index < 4) song.copy(artworkUri = "") else song
+        }
+        val received = mutableListOf<List<SmartPlaylistSummary>>()
+        val collectJob = launch { viewModel.smartPlaylists.collect { received.add(it) } }
+
+        fakeSongRepository.emit(songs)
+        advanceUntilIdle()
+
+        received.last().forEach { summary ->
+            assertEquals(
+                "${summary.kind} preview must keep the fifth song's art",
+                listOf(songs[4].artworkUri),
+                summary.previewArtworkUris,
+            )
+        }
+
+        collectJob.cancel()
+    }
+
+    @Test
+    fun smartPlaylists_previewArtworkUris_dropsDuplicateAlbumArt() = runTest {
+        // artworkUri is per album: four tracks of one album plus one of another are two covers, not five.
+        val songs = createTestSongs(count = 5).mapIndexed { index, song ->
+            if (index < 4) song.copy(artworkUri = "content://media/external/audio/albumart/1") else song
+        }
+        val received = mutableListOf<List<SmartPlaylistSummary>>()
+        val collectJob = launch { viewModel.smartPlaylists.collect { received.add(it) } }
+
+        fakeSongRepository.emit(songs)
+        advanceUntilIdle()
+
+        received.last().forEach { summary ->
+            assertEquals(
+                "${summary.kind} preview must hold each album's art once",
+                listOf(songs[0].artworkUri, songs[4].artworkUri),
+                summary.previewArtworkUris,
+            )
         }
 
         collectJob.cancel()

@@ -194,9 +194,10 @@ fun NowPlayingScreen(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
         // Top stays owned by NowPlayingTopBar (a TopAppBar, which reserves the status-bar inset
-        // itself and dominates innerPadding.top regardless of this value). No bottomBar is set on
-        // this route (the outer app Scaffold's bottomBar is hidden here), so without an explicit
-        // bottom inset the transport row would render flush under the system nav bar.
+        // itself and dominates innerPadding.top regardless of this value). The app shell neither
+        // pads this route's bottom nor shows the mini-player pill on it (MiniPlayerVisibility hides it), so
+        // without an explicit bottom inset the transport row would render flush under the system
+        // nav bar.
         contentWindowInsets = WindowInsets.navigationBars,
         topBar = {
             NowPlayingTopBar(

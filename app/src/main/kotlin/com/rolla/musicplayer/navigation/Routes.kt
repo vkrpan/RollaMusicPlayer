@@ -4,17 +4,15 @@ import kotlinx.serialization.Serializable
 
 interface Route
 
+// The start destination: the One UI Home pager (Playlists / Tracks tabs).
 @Serializable
-data object Library : Route
+data object Home : Route
 
 @Serializable
 data object NowPlaying : Route
 
 @Serializable
 data object Equalizer : Route
-
-@Serializable
-data object Playlists : Route
 
 @Serializable
 data class PlaylistDetail(val playlistId: Long) : Route
@@ -45,7 +43,7 @@ data class BatchTagEditor(val songIds: List<Long>) : Route
 @Serializable
 data class Search(val query: String? = null) : Route
 
-// Reachable from both Library and Playlists top-bar overflow menus.
+// Reachable from the Home header overflow menu.
 @Serializable
 data object Settings : Route
 

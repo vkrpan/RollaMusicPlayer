@@ -12,6 +12,7 @@ import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -19,9 +20,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.random.Random
+
+private const val SHUFFLE_SEED = 7L
 
 /**
  * Unit tests for [PlaylistDetailViewModel].
@@ -214,7 +219,7 @@ class PlaylistDetailViewModelTest {
 
         viewModel.uiState.test {
             val state = expectMostRecentItem()
-            assertEquals("Favourites", state.title)
+            assertEquals("Favourite tracks", state.title)
         }
     }
 
@@ -261,7 +266,7 @@ class PlaylistDetailViewModelTest {
 
         viewModel.uiState.test {
             val state = expectMostRecentItem()
-            assertEquals("Favourites", state.title)
+            assertEquals("Favourite tracks", state.title)
             assertEquals(songs, state.songs)
             assertEquals(false, state.isUserPlaylist)
             assertEquals(false, state.isLoading)
@@ -287,7 +292,7 @@ class PlaylistDetailViewModelTest {
     // ── playback actions ─────────────────────────────────────────────────────
 
     @Test
-    fun playAll_callsPlaybackControllerPlayAllStartingAtZero() = runTest {
+    fun playAll_turnsShuffleOffThenPlaysAllFromZero() = runTest {
         val songs = createTestSongs(3)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
@@ -299,22 +304,30 @@ class PlaylistDetailViewModelTest {
 
         viewModel.playAll()
 
-        verify { playbackController.playAll(songs, startIndex = 0) }
+        verifyOrder {
+            playbackController.setShuffle(ShuffleMode.OFF)
+            playbackController.playAll(songs, startIndex = 0)
+        }
         collectJob.cancel()
     }
 
     @Test
-    fun shuffleAll_enablesShuffleThenPlaysAllFromZero() = runTest {
+    fun shuffleAll_turnsShuffleOnThenPlaysAllFromARandomStart() = runTest {
         val songs = createTestSongs(3)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
+        viewModel.random = Random(SHUFFLE_SEED)
+        val expectedStart = Random(SHUFFLE_SEED).nextInt(songs.size)
+        assertNotEquals("Seed must pick a non-zero start, or a hardcoded 0 would pass", 0, expectedStart)
         val collectJob = launch { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
         viewModel.shuffleAll()
 
-        verify { playbackController.setShuffle(ShuffleMode.ON) }
-        verify { playbackController.playAll(songs, startIndex = 0) }
+        verifyOrder {
+            playbackController.setShuffle(ShuffleMode.ON)
+            playbackController.playAll(songs, startIndex = expectedStart)
+        }
         collectJob.cancel()
     }
 
@@ -333,15 +346,17 @@ class PlaylistDetailViewModelTest {
     }
 
     @Test
-    fun playAll_givenEmptyPlaylist_callsPlaybackControllerWithEmptyList() = runTest {
-        // favouritesFlow stays at its default empty value — no songs.
+    fun playAll_and_shuffleAll_givenEmptyPlaylist_doNothing() = runTest {
+        // favouritesFlow stays at its default empty value — a loaded, empty smart playlist.
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
         val collectJob = launch { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
         viewModel.playAll()
+        viewModel.shuffleAll()
 
-        verify { playbackController.playAll(emptyList(), startIndex = 0) }
+        verify(exactly = 0) { playbackController.playAll(any(), any()) }
+        verify(exactly = 0) { playbackController.setShuffle(any()) }
         collectJob.cancel()
     }
 

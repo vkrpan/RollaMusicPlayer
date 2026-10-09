@@ -10,16 +10,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
@@ -38,33 +35,33 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.rolla.musicplayer.core.designsystem.component.ArtworkPlaceholder
+import com.rolla.musicplayer.core.designsystem.component.InsetDivider
+import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
+import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Song
 
-private val ThumbnailSize = 56.dp
-private val RowVerticalPadding = 12.dp
-private val RowHorizontalPadding = 16.dp
-private val ArtworkToTextGap = 12.dp
-private val DividerStartPadding = 84.dp
-
 /**
- * A single song row. [onLongClick] and [selectionModeActive] together drive library-style
- * multi-select: a long press is the caller cue to enter selection mode (see LibraryScreen),
+ * A single song row (spec §8.1). [onLongClick] and [selectionModeActive] together drive library-style
+ * multi-select: a long press is the caller cue to enter selection mode (see TracksTab / SongSelectionState),
  * [selectionModeActive] then swaps the trailing "more options" icon for a [Checkbox] mirroring
  * [selected] on every row (not just the one that started the gesture), and [onClick] is left to the
  * caller to redefine as "toggle selection" for as long as selection mode stays active. All three
- * new parameters default to their single-song, non-selectable behavior so every existing call site
- * (Songs list, playlist detail, etc.) keeps compiling and rendering exactly as before.
+ * parameters default to their single-song, non-selectable behavior.
  *
  * [trackNumber] swaps the leading artwork thumbnail for a fixed-width numeric label -- intended for
  * album detail, where every row already shares the same album art, so the disc track number is the
- * more useful leading affordance (see AlbumDetailScreen in `:feature:library`). Defaults to null,
- * which keeps every existing call site's leading-artwork rendering byte-identical.
+ * more useful leading affordance (see AlbumDetailScreen in `:feature:library`). Defaults to null.
+ *
+ * Geometry comes from [RollaDimens]: a [RollaDimens.listRowHeight] pitch, the thumbnail at
+ * [RollaDimens.listThumbStart], text at [RollaDimens.listTextStart], and the trailing 48 dp target ending
+ * [RollaDimens.listOverflowEnd] before the row's end (the A–Z rail space, ruling 5).
  */
 @Suppress("LongParameterList")
 @Composable
@@ -82,7 +79,8 @@ fun SongListItem(
     selectionModeActive: Boolean = false,
     onLongClick: (() -> Unit)? = null,
 ) {
-    Column(modifier = modifier) {
+    // The hairline overlays the row's bottom edge so the row pitch stays exactly listRowHeight.
+    Box(modifier = modifier) {
         SongListItemContent(
             song = song,
             onClick = onClick,
@@ -93,10 +91,10 @@ fun SongListItem(
             selectionModeActive = selectionModeActive,
             onLongClick = onLongClick,
         )
-        HorizontalDivider(
-            modifier = Modifier.padding(start = DividerStartPadding),
-            color = MaterialTheme.colorScheme.outlineVariant,
-            thickness = 0.5.dp,
+        InsetDivider(
+            startInset = RollaDimens.listTextStart,
+            endInset = RollaDimens.listDividerEnd,
+            modifier = Modifier.align(Alignment.BottomStart),
         )
     }
 }
@@ -118,20 +116,18 @@ private fun SongListItemContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .heightIn(min = RollaDimens.listRowHeight)
             .background(rowBackground)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .selectionSemantics(selectionModeActive = selectionModeActive, selected = selected)
-            .padding(start = RowHorizontalPadding, top = RowVerticalPadding, bottom = RowVerticalPadding),
+            // End inset on the content, not the background, so the highlight still runs edge to edge.
+            .padding(end = RollaDimens.listOverflowEnd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Spacer(modifier = Modifier.width(RollaDimens.listThumbStart))
         SongItemLeading(song = song, trackNumber = trackNumber)
-        Spacer(modifier = Modifier.width(ArtworkToTextGap))
-        SongInfo(
-            title = song.title,
-            artist = song.artist,
-            subtitleColor = subtitleColorFor(selectionHighlighted = selectionModeActive && selected),
-            modifier = Modifier.weight(1f),
-        )
+        Spacer(modifier = Modifier.width(RollaDimens.listThumbTextGap))
+        SongInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
         SongItemTrailing(
             selectionModeActive = selectionModeActive,
             selected = selected,
@@ -167,44 +163,61 @@ private fun SongItemTrailing(
     moreContentDescription: String?,
 ) {
     if (selectionModeActive) {
-        Checkbox(checked = selected, onCheckedChange = null)
+        SelectionCheckbox(selected = selected)
     } else {
-        IconButton(onClick = onMoreClick) {
-            Icon(
-                imageVector = Icons.Default.MoreVert,
-                contentDescription = moreContentDescription ?: "More options for ${song.title}",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        OneUiIconButton(
+            icon = RollaIcons.More,
+            contentDescription = moreContentDescription ?: "More options for ${song.title}",
+            onClick = onMoreClick,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            iconSize = RollaDimens.overflowGlyph,
+        )
     }
 }
 
-/** The multi-select highlight fill behind a selected row; transparent outside selection mode. */
+/**
+ * The row owns the click, so the checkbox takes no onCheckedChange (and so has no 48 dp minimum of its own). The
+ * minTouchTarget box keeps its centre where the ⋮ glyph's is, so neither the glyph nor the text column moves when
+ * selection mode toggles. The row's selected/stateDescription semantics carry the state for TalkBack; the testTag is
+ * not announced.
+ */
+@Composable
+private fun SelectionCheckbox(selected: Boolean) {
+    Box(
+        modifier = Modifier.size(RollaDimens.minTouchTarget).testTag(SONG_SELECTION_CHECKBOX_TAG),
+        contentAlignment = Alignment.Center,
+    ) {
+        Checkbox(
+            checked = selected,
+            onCheckedChange = null,
+            colors = CheckboxDefaults.colors(
+                checkedColor = MaterialTheme.colorScheme.primary,
+                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                checkmarkColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        )
+    }
+}
+
+/** Test tag on the selection-mode checkbox's touch-target box. */
+internal const val SONG_SELECTION_CHECKBOX_TAG = "song_selection_checkbox"
+
+/**
+ * The multi-select highlight fill behind a selected row; transparent outside selection mode. surfaceContainerHigh
+ * keeps the onSurfaceVariant subtitle above AA (ruling 6; primaryContainer failed in dark).
+ */
 @Composable
 private fun rowBackgroundFor(selectionHighlighted: Boolean): Color =
     if (selectionHighlighted) {
-        MaterialTheme.colorScheme.primaryContainer
+        MaterialTheme.colorScheme.surfaceContainerHigh
     } else {
         Color.Transparent
-    }
-
-/**
- * onSurfaceVariant on the selected row's primaryContainer is 4.31:1 in dark theme -- under WCAG
- * AA. onPrimaryContainer clears both themes comfortably (8.7:1 / 13.2:1).
- */
-@Composable
-private fun subtitleColorFor(selectionHighlighted: Boolean): Color =
-    if (selectionHighlighted) {
-        MaterialTheme.colorScheme.onPrimaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
     }
 
 @Composable
 private fun SongInfo(
     title: String,
     artist: String,
-    subtitleColor: Color,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -218,7 +231,7 @@ private fun SongInfo(
         Text(
             text = artist,
             style = MaterialTheme.typography.artistName,
-            color = subtitleColor,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -241,36 +254,25 @@ private fun SongItemLeading(song: Song, trackNumber: Int?) {
     }
 }
 
+/** The 48 dp thumbnail: [ArtworkPlaceholder] underneath, with the Coil image drawn on top when there is art. */
 @Composable
 private fun ArtworkThumbnail(
     artworkUri: String,
     contentDescription: String?,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
-    val imageRequest = remember(artworkUri) {
-        ImageRequest.Builder(context).data(artworkUri).crossfade(true).build()
-    }
-    Box(
-        modifier = modifier
-            .size(ThumbnailSize)
-            .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(modifier = modifier.size(RollaDimens.listThumb).clip(MaterialTheme.shapes.small)) {
+        ArtworkPlaceholder(modifier = Modifier.size(RollaDimens.listThumb), shape = MaterialTheme.shapes.small)
         if (artworkUri.isNotEmpty()) {
+            val context = LocalContext.current
+            val imageRequest = remember(artworkUri) {
+                ImageRequest.Builder(context).data(artworkUri).crossfade(true).build()
+            }
             AsyncImage(
                 model = imageRequest,
                 contentDescription = contentDescription,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-            )
-        } else {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp),
             )
         }
     }
@@ -278,18 +280,18 @@ private fun ArtworkThumbnail(
 
 /**
  * Leading track-number slot, swapped in for [ArtworkThumbnail] when the row is given a non-null
- * `trackNumber` (see [SongListItem]). Sized to the same [ThumbnailSize] width so title/artist text
- * still lines up with plain, artwork-led rows elsewhere.
+ * `trackNumber` (see [SongListItem]). Sized to the same [RollaDimens.listThumb] width so title/artist text
+ * still starts at [RollaDimens.listTextStart], in line with artwork-led rows elsewhere.
  */
 @Composable
 private fun TrackNumberLabel(trackNumber: Int, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.width(ThumbnailSize),
+        modifier = modifier.width(RollaDimens.listThumb),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = trackNumber.toString(),
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.artistName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             // The merged row would otherwise open with a bare digit ("1, Death on Two Legs...");

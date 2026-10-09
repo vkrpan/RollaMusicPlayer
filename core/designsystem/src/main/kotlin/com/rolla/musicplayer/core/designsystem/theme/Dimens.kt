@@ -48,11 +48,26 @@ object RollaDimens {
     val listTextStart = 82.dp
     val listRowHeight = 70.dp
     val singleLineRowHeight = 56.dp
+
+    // Derived: the thumbnail-to-text gap that puts row text at listTextStart.
+    val listThumbTextGap: Dp get() = listTextStart - listThumbStart - listThumb
+
+    // Minimum gap between a row's title and its trailing text; not measured on the reference, Phase 7 calibrates.
+    val listTrailingGap = 16.dp
+
     val dividerThickness = 1.dp
     val placeholderGlyph = 24.dp
     val overflowGlyph = 20.dp // the gray ⋮ glyph on list rows
     val fastScrollWidth = 22.dp
     val fastScrollEnd = 8.dp
+
+    // Row trailing geometry, measured from the panel's end edge on the reference (Tracks/Playlists).
+    // The A–Z rail (Phase 5) occupies the last listDividerEnd; rows never move when it lands. Trailing text
+    // and the divider stay clear of it, but the ⋮ 48 dp touch box reaches 4 dp into the rail strip:
+    // Phase 5 decides hit priority.
+    val listOverflowEnd = 26.dp // end of the ⋮ 48 dp touch box (glyph centre ≈ x 310 of 360)
+    val listTrailingEnd = 43.dp // end of trailing text such as "0 tracks"
+    val listDividerEnd: Dp get() = fastScrollWidth + fastScrollEnd
 
     // Mini-player
     val miniPlayerHeight = 60.dp
@@ -106,4 +121,8 @@ object RollaDimens {
     val featureCardSize = 143.dp
     val featureCardGap = 17.dp
     val featureCardGlyph = 44.dp
+
+    // Not measured on the reference (no px for the card text gap or the card row's x); Phase 7 calibrates.
+    val featureCardLabelGap = 8.dp
+    val featureCardRowStart: Dp get() = listThumbStart // first card aligns with the list thumbnails
 }

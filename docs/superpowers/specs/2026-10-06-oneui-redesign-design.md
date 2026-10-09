@@ -212,6 +212,9 @@ never declare private `dp` literals for anything this table covers.
 | `switchTrackHeight` | 17 dp | `switchThumb` | 15 dp + `switchThumbInset` 1 dp (measured ≈16 dp; 16 + 2 × 1 would not fit the 17 dp track) |
 | `featureCardSize` | 143 dp | `featureCardGap` | 17 dp |
 | `featureCardGlyph` | 44 dp | `minTouchTarget` | 48 dp |
+| `listOverflowEnd` | 26 dp (end of the ⋮ 48 dp box; reaches 4 dp into the rail strip) | `listTrailingEnd` | 43 dp (trailing text end) |
+| `listDividerEnd` | = `fastScrollWidth` + `fastScrollEnd` (30 dp) | `featureCardLabelGap` | 8 dp (unmeasured; Phase 7) |
+| `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | | |
 
 **Touch targets.** Glyphs keep their measured visual size, but every interactive element is at least 48 × 48 dp, through
 `minimumInteractiveComponentSize()` or padding. Examples: the 34 dp circle buttons, the 40 dp chips and the 35 dp switch (whose
@@ -372,8 +375,9 @@ The settings rows in `:feature:settings` (`SettingsSectionHeader`, `SettingsSect
 
 - The outer `Scaffold`'s `bottomBar` goes away. `RollaNavHost` becomes a `Box`: the `NavHost` fills it, and the mini-player is aligned
   to the bottom with `navigationBarsPadding()`, keeping the same `AnimatedVisibility` slide and fade.
-- `LocalMiniPlayerInset: ProvidableCompositionLocal<Dp>` lives in `:core:designsystem`. It equals `miniPlayerHeight` (the measured pill sits directly on the navigation bar, with no bottom margin) while the
-  pill is visible, and 0 dp otherwise. Every scrollable list adds `LocalMiniPlayerInset.current` plus the navigation-bar inset as bottom
+- `LocalMiniPlayerInset: ProvidableCompositionLocal<Dp>` lives in `:core:designsystem`. It equals the pill's measured footprint (its own margins included, the navigation bar excluded), reported by the
+  host through `onSizeChanged`, while the pill is visible, and 0 dp while it is hidden or the IME is visible. Measuring keeps it right when
+  Phase 3 resizes the pill to `miniPlayerHeight`. Every scrollable list adds `LocalMiniPlayerInset.current` plus the navigation-bar inset as bottom
   `contentPadding`, so content scrolls *under* the pill and the last item can still scroll fully into view.
 - **Visibility.** The pill shows on Home, Search, AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist and FolderDetail. It is hidden on
   Now Playing, Equaliser, Settings, About, Licenses, Privacy, TagEditor and BatchTagEditor (the screenshots of EQ and Settings show no pill).

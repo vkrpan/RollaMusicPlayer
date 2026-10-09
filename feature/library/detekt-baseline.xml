@@ -2,16 +2,5 @@
 <SmellBaseline>
   <ManuallySuppressedIssues></ManuallySuppressedIssues>
   <CurrentIssues>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable fun LibraryRoute( viewModel: LibraryViewModel = hiltViewModel(), )</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable fun LibraryScreen( songs: List&lt;Song&gt;, scanState: ScanState, onSongClick: (Song) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun ControlButton( icon: ImageVector, contentDescription: String, containerColor: Color, iconTint: Color, )</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun EmptySongsContent(modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun LibraryContent( songs: List&lt;Song&gt;, scanState: ScanState, onSongClick: (Song) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun PlaybackControls(modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun ScanningContent(modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun SongListContent( songs: List&lt;Song&gt;, onSongClick: (Song) -&gt; Unit, modifier: Modifier = Modifier, )</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun SortControlHeader(songCount: Int, modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@Composable private fun SortLabel(modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:LibraryScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun LibraryTopBar(modifier: Modifier = Modifier)</ID>
   </CurrentIssues>
 </SmellBaseline>

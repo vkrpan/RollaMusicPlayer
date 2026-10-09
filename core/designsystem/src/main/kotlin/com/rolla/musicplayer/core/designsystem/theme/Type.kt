@@ -7,6 +7,7 @@ import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 
 /**
@@ -21,6 +22,8 @@ private fun rollaStyle(size: Int, weight: FontWeight, lineHeight: Int) = TextSty
     fontWeight = weight,
     fontSize = size.sp,
     lineHeight = lineHeight.sp,
+    // M3's own default: text sits centered in its declared line height inside fixed-height rows.
+    lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.None),
 )
 
 internal val AppTitleStyle = rollaStyle(22, FontWeight.Bold, 28)

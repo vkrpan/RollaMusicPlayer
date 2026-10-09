@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.playlists
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.random.Random
 
 /** Full-screen UI state for either a user playlist or a smart playlist. */
 @Immutable
@@ -59,6 +61,10 @@ class PlaylistDetailViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
             initialValue = PlaylistDetailUiState(),
         )
+
+    /** Picks Shuffle's start track. Tests swap in a seeded [Random]; Hilt's constructor stays unchanged. */
+    @VisibleForTesting
+    internal var random: Random = Random.Default
 
     /** User-created playlists, exposed for the shared "Add to playlist" bottom sheet. */
     val userPlaylists: StateFlow<List<Playlist>> = playlistRepository.observePlaylists()
@@ -104,22 +110,24 @@ class PlaylistDetailViewModel @Inject constructor(
         SmartPlaylistKind.RECENTLY_ADDED -> songRepository.observeRecentlyAdded()
     }
 
-    // Mirrors the labels used in PlaylistsViewModel.smartPlaylists — kept as a small duplicated
-    // literal set rather than a shared constant (see viewmodel-architect task notes).
-    private fun smartPlaylistLabel(kind: SmartPlaylistKind): String = when (kind) {
-        SmartPlaylistKind.RECENTLY_PLAYED -> "Recently played"
-        SmartPlaylistKind.FAVOURITES -> "Favourites"
-        SmartPlaylistKind.MOST_PLAYED -> "Most played"
-        SmartPlaylistKind.RECENTLY_ADDED -> "Recently added"
-    }
-
+    /**
+     * Plays the playlist in order from its first track (spec §12). A no-op for an empty playlist. [uiState] is
+     * WhileSubscribed and the screen collects it while visible, so its value is current when the button is tapped.
+     */
     fun playAll() {
-        playbackController.playAll(uiState.value.songs, startIndex = 0)
+        val list = uiState.value.songs
+        if (list.isEmpty()) return
+        playbackController.setShuffle(ShuffleMode.OFF)
+        playbackController.playAll(list, startIndex = 0)
     }
 
+    /** Shuffles the playlist from a random start track (spec §12). A no-op for an empty playlist. */
     fun shuffleAll() {
+        val list = uiState.value.songs
+        // Before the random pick: nextInt(0) throws.
+        if (list.isEmpty()) return
         playbackController.setShuffle(ShuffleMode.ON)
-        playbackController.playAll(uiState.value.songs, startIndex = 0)
+        playbackController.playAll(list, startIndex = random.nextInt(list.size))
     }
 
     fun playSong(song: Song) {

@@ -11,16 +11,22 @@ import com.rolla.musicplayer.core.testing.FakeArtistRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import kotlin.random.Random
+
+// Its first nextInt(3) is non-zero (asserted in the test), so a hardcoded start index of 0 fails.
+private const val SHUFFLE_SEED = 7L
 
 /**
  * Unit tests for [ArtistDetailViewModel].
@@ -201,9 +207,12 @@ class ArtistDetailViewModelTest {
     }
 
     @Test
-    fun onShuffleClick_enablesShuffleThenPlaysAllFromZero() = runTest {
+    fun onShuffleClick_enablesShuffleThenPlaysAllFromARandomStart() = runTest {
         val songs = createTestSongs(3)
         val vm = viewModel()
+        vm.random = Random(SHUFFLE_SEED)
+        val expectedStart = Random(SHUFFLE_SEED).nextInt(songs.size)
+        assertNotEquals("Seed must pick a non-zero start, or a hardcoded 0 would pass", 0, expectedStart)
         val collectJob = launch { vm.uiState.collect {} }
         fakeArtistRepository.emitArtist(createTestArtist())
         fakeArtistRepository.emitSongs(songs)
@@ -211,8 +220,10 @@ class ArtistDetailViewModelTest {
 
         vm.onShuffleClick()
 
-        verify { playbackController.setShuffle(ShuffleMode.ON) }
-        verify { playbackController.playAll(songs, startIndex = 0) }
+        verifyOrder {
+            playbackController.setShuffle(ShuffleMode.ON)
+            playbackController.playAll(songs, expectedStart)
+        }
         collectJob.cancel()
     }
 

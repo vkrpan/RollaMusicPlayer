@@ -72,7 +72,7 @@ private val EmptyStateHorizontalPadding = 32.dp
 /**
  * Stateful entry point for the album detail screen, reached via `AlbumDetail(albumId: Long)` (that
  * route lives in `:app` and is owned by navigation-agent; it is intentionally never imported here).
- * Same Route/Screen split as every other screen in the codebase (see LibraryRoute in this module).
+ * Same Route/Screen split as every other screen in the codebase (see TracksTab / TracksTabContent in this module).
  * [onNavigateUp] / the `viewModel` default are a fixed public contract navigation-agent wires
  * `composable<AlbumDetail> { AlbumDetailRoute(onNavigateUp = { navController.navigateUp() }) }`
  * against, so this signature must not change shape.

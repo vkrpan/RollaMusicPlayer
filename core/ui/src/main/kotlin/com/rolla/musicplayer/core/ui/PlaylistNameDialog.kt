@@ -4,8 +4,10 @@ package com.rolla.musicplayer.core.ui
 
 import android.content.res.Configuration
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -16,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.accentText
 
 /**
  * Presentational M3 dialog for capturing a playlist name — reused for both "create playlist"
@@ -39,6 +42,8 @@ fun PlaylistNameDialog(
 ) {
     var name by remember { mutableStateOf(initialName) }
     val isNameBlank = name.trim().isEmpty()
+    // Blue text is accentText, never primary (spec §5.1): both buttons and the focused field label.
+    val buttonColors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -55,18 +60,20 @@ fun PlaylistNameDialog(
                 onValueChange = { name = it },
                 singleLine = true,
                 label = { Text("Playlist name") },
+                colors = OutlinedTextFieldDefaults.colors(focusedLabelColor = MaterialTheme.colorScheme.accentText),
             )
         },
         confirmButton = {
             TextButton(
                 onClick = { onConfirm(name.trim()) },
                 enabled = !isNameBlank,
+                colors = buttonColors,
             ) {
                 Text(confirmLabel)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, colors = buttonColors) {
                 Text("Cancel")
             }
         },

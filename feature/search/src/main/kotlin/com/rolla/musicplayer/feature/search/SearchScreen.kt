@@ -71,8 +71,8 @@ private val SectionHeaderVerticalPadding = 12.dp
 
 /**
  * Stateful entry point for the local search screen, mirroring the Route/Screen split used by
- * every other screen in the codebase (see TagEditorRoute in feature:tageditor, LibraryRoute in
- * feature:library).
+ * every other screen in the codebase (see TagEditorRoute in feature:tageditor, HomeRoute in
+ * :app).
  *
  * onAlbumClick and onArtistClick are both wired by navigation-agent: onAlbumClick navigates by
  * Album.id (a real MediaStore-backed numeric id), while onArtistClick navigates by Artist.name --

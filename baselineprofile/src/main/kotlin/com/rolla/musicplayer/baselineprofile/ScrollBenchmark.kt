@@ -13,7 +13,7 @@ private const val PACKAGE_NAME = "com.rolla.musicplayer"
 private const val ITERATIONS = 5
 
 /**
- * Measures frame timing while flinging the library "Songs" list -- the first-scroll jank the
+ * Measures frame timing while flinging Home's Tracks list -- the first-scroll jank the
  * Baseline Profile targets. Compares [CompilationMode.None] against [CompilationMode.Partial].
  */
 @RunWith(AndroidJUnit4::class)

@@ -60,6 +60,10 @@ gradlePlugin {
             id = "rolla.android.room"
             implementationClass = "RollaAndroidRoomPlugin"
         }
+        register("rollaAndroidRobolectric") {
+            id = "rolla.android.robolectric"
+            implementationClass = "RollaAndroidRobolectricPlugin"
+        }
         register("rollaJvmLibrary") {
             id = "rolla.jvm.library"
             implementationClass = "RollaJvmLibraryPlugin"

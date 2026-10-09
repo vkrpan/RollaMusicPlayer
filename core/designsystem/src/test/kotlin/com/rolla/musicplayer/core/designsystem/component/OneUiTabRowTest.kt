@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
@@ -78,6 +79,26 @@ class OneUiTabRowTest {
         composeRule.onNodeWithText("Tracks").assertIsSelected()
         composeRule.onNodeWithText("Albums").assertIsNotSelected().performClick()
         assertEquals(3, clicked)
+    }
+
+    @Test
+    fun disabledRowReportsTabsDisabledAndIgnoresTaps() {
+        var clicked = -1
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                OneUiTabRow(
+                    titles = TITLES,
+                    pagerState = rememberPagerState(initialPage = 2) { TITLES.size },
+                    onTabClick = { clicked = it },
+                    enabled = false,
+                )
+            }
+        }
+        composeRule.onNodeWithText("Albums").assertIsNotEnabled()
+        // Disabled locks paging; it must not drop the current tab's selected state.
+        composeRule.onNodeWithText("Tracks").assertIsNotEnabled().assertIsSelected()
+        composeRule.onNodeWithText("Albums").performTouchInput { click() }
+        assertEquals("a disabled tab must not report a click", -1, clicked)
     }
 
     @Test

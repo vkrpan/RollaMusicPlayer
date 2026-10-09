@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -109,7 +108,8 @@ fun MiniPlayer(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
+            // No navigation-bar padding here: the app's mini-player host pads the pill above the bar (its single
+            // owner) and measures this composable's height, without the bar, as the content's mini-player inset.
             .padding(horizontal = PillHorizontalMargin, vertical = PillVerticalPadding)
             // min, not a fixed height: at large fontScale the title/artist column needs more than
             // PillHeight to lay out without clipping -- clip(CircleShape) + background below both

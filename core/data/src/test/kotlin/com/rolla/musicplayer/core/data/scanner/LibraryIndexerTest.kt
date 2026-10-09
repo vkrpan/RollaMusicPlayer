@@ -92,7 +92,7 @@ class LibraryIndexerTest {
 
     /**
      * Regression test for the manual "Rescan library" entry point overlapping an already in-flight
-     * [LibraryIndexer.sync] (e.g. the library screen's permission-grant scan). The two calls must
+     * [LibraryIndexer.sync] (e.g. Home's permission-grant scan in `HomeViewModel`). The two calls must
      * serialize rather than interleave: the second call's [SongDao.getAllSongs] snapshot must only
      * be read after the first call has fully finished (including its DAO writes), never while the
      * first call still holds the lock.

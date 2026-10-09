@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     id("rolla.android.application")
     id("rolla.android.hilt")
+    id("rolla.android.robolectric")
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.baselineprofile)
 }
@@ -144,6 +145,12 @@ dependencies {
 // (b) is correctly task-dependency-wired -- Gradle infers the manifest-merge task dependency
 // straight from the Provider<RegularFile>, no explicit dependsOn needed.
 androidComponents {
+    // :app's Robolectric tests host composables in the androidx ComponentActivity, which only the debug variant's
+    // manifest declares (debugImplementation ui-test-manifest; it must never ship in release). JVM tests compile the
+    // same sources in every variant, so they run on debug only rather than failing on release/benchmark.
+    beforeVariants(selector().all()) { variantBuilder ->
+        if (variantBuilder.buildType != "debug") variantBuilder.enableUnitTest = false
+    }
     onVariants(selector().withBuildType("release")) { variant ->
         val mergedManifest = variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
         tasks.register("checkReleaseManifestNoInternet") {

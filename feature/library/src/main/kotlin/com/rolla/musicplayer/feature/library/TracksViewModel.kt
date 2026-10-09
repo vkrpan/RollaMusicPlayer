@@ -1,33 +1,32 @@
 package com.rolla.musicplayer.feature.library
 
+import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
-import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
+import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.random.Random
 
+/**
+ * State and actions for the Home pager's Tracks tab. The library sync and its ScanState live in the app shell's
+ * HomeViewModel (the permission gate wraps the whole pager), so this ViewModel only reads the indexed library.
+ */
 @HiltViewModel
-class LibraryViewModel @Inject constructor(
+class TracksViewModel @Inject constructor(
     songRepository: SongRepository,
-    private val libraryIndexer: LibraryIndexer,
     private val playbackController: PlaybackController,
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
-
-    private val _scanState = MutableStateFlow<ScanState>(ScanState.Idle)
-    val scanState: StateFlow<ScanState> = _scanState.asStateFlow()
 
     val songs: StateFlow<List<Song>> = songRepository.observeSongs()
         .stateIn(
@@ -44,28 +43,35 @@ class LibraryViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    /** Picks Shuffle's start track. Tests swap in a seeded [Random]; Hilt's constructor stays unchanged. */
+    @VisibleForTesting
+    internal var random: Random = Random.Default
+
     init {
         playbackController.connect()
     }
 
-    fun onPermissionGranted() {
-        val current = _scanState.value
-        if (current is ScanState.Scanning || current is ScanState.Done) return
-        viewModelScope.launch {
-            _scanState.value = ScanState.Scanning
-            _scanState.value = try {
-                val result = libraryIndexer.sync()
-                ScanState.Done(added = result.added, removed = result.removed)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (@Suppress("TooGenericExceptionCaught") e: Exception) {
-                ScanState.Error(e.message ?: "Scan failed")
-            }
-        }
-    }
-
     fun play(song: Song) {
         playbackController.play(song)
+    }
+
+    /**
+     * Plays the whole library in order from the first track. A no-op for an empty library. [songs] is
+     * WhileSubscribed and TracksTab collects it while visible, so its value is current when the button is tapped.
+     */
+    fun playAll() {
+        val list = songs.value
+        if (list.isEmpty()) return
+        playbackController.setShuffle(ShuffleMode.OFF)
+        playbackController.playAll(list, startIndex = 0)
+    }
+
+    /** Shuffles the whole library from a random start track (spec §12). A no-op for an empty library. */
+    fun shuffleAll() {
+        val list = songs.value
+        if (list.isEmpty()) return
+        playbackController.setShuffle(ShuffleMode.ON)
+        playbackController.playAll(list, startIndex = random.nextInt(list.size))
     }
 
     /** Adds an already-tapped song to an existing playlist, via the shared "Add to playlist" sheet. */

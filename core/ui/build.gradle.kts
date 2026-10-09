@@ -1,6 +1,7 @@
 plugins {
     id("rolla.android.library")
     id("rolla.android.library.compose")
+    id("rolla.android.robolectric")
 }
 
 android {

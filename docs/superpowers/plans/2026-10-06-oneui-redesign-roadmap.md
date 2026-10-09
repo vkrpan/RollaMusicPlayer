@@ -10,7 +10,7 @@ the orchestrator writes Phase N+1's plan after Phase N is accepted, reading the 
 | Phase | Plan file | Status | Depends on |
 |---|---|---|---|
 | 1 Tokens, icons, component kit | [`2026-10-06-oneui-phase1-tokens-kit.md`](2026-10-06-oneui-phase1-tokens-kit.md) | **Accepted 2026-10-07** (phase review: 0 Critical/High; Phase 2 carry-overs in the SDD ledger: row end-inset tokens, selection-highlight contrast, lineHeightStyle decision, tab ripple, Robolectric convention plugin) | — |
-| 2 Home shell, tab row, panel, mini-player overlay, Tracks and Playlists tabs | `…-oneui-phase2-home-shell.md` | Written after Phase 1 is accepted | 1 |
+| 2 Home shell, tab row, panel, mini-player overlay, Tracks and Playlists tabs | [`2026-10-07-oneui-phase2-home-shell.md`](2026-10-07-oneui-phase2-home-shell.md) | **Gate green 2026-10-08** (check + assembleDebug, 1283 unit tests; phase review: 0 Critical/High, M1 shuffle fixed). Acceptance pending the on-device check and the tab-ripple decision. Phase 3 carry-overs are in the SDD ledger: shared Play/Shuffle helper, Queue seek re-pin, cycleRepeatMode queuing, pill footprint from tokens, MiniPlayerRoute order | 1 |
 | 3 Now Playing, queue, mini-player, Equaliser, Settings | `…-oneui-phase3-player-eq-settings.md` | Written after Phase 2 | 1, 2 (`LocalMiniPlayerInset`, overlay) |
 | 4a Favourites, Albums, Artists tabs | `…-oneui-phase4a-library-tabs.md` | Written after Phase 3 | 2 |
 | 4b Folders: migration v4, scanner, FolderDetail | `…-oneui-phase4b-folders.md` | Written after Phase 4a | 2, 4a |

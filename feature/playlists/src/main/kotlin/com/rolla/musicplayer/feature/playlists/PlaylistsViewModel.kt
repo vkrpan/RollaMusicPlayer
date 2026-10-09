@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.model.Playlist
+import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +18,17 @@ import javax.inject.Inject
 /** Identifies one of the app's built-in, auto-populated smart playlists. */
 enum class SmartPlaylistKind { RECENTLY_PLAYED, FAVOURITES, MOST_PLAYED, RECENTLY_ADDED }
 
+/** The smart playlist's display name, shared by its Playlists-tab card and its detail screen title (UI copy). */
+internal fun smartPlaylistLabel(kind: SmartPlaylistKind): String = when (kind) {
+    SmartPlaylistKind.RECENTLY_ADDED -> "Recently added"
+    SmartPlaylistKind.MOST_PLAYED -> "Most played"
+    SmartPlaylistKind.RECENTLY_PLAYED -> "Recently played"
+    SmartPlaylistKind.FAVOURITES -> "Favourite tracks"
+}
+
 /**
  * Display summary for a smart playlist card: a [kind] + label pulled from a [SongRepository]
- * flow, plus a small artwork preview (at most 4 songs) for a collage-style thumbnail.
+ * flow, plus a small artwork preview (the first 4 distinct non-blank artwork URIs) for a collage-style thumbnail.
  */
 @Immutable
 data class SmartPlaylistSummary(
@@ -30,9 +39,9 @@ data class SmartPlaylistSummary(
 )
 
 /**
- * ViewModel for the Playlists tab. This step only *displays* smart-playlist summaries and
- * user-created playlists — creation/rename/delete and playlist-detail navigation are handled in
- * later steps.
+ * ViewModel for the Home pager's Playlists tab: the four smart-playlist summaries (spec §8.2 order) and the
+ * user-created playlists, plus creating a playlist. Rename, delete and the detail screen belong to
+ * PlaylistDetailViewModel.
  */
 @HiltViewModel
 class PlaylistsViewModel @Inject constructor(
@@ -46,31 +55,12 @@ class PlaylistsViewModel @Inject constructor(
         songRepository.observeMostPlayed(),
         songRepository.observeRecentlyAdded(),
     ) { recentlyPlayed, favourites, mostPlayed, recentlyAdded ->
+        // Spec §8.2 card order.
         listOf(
-            SmartPlaylistSummary(
-                kind = SmartPlaylistKind.RECENTLY_PLAYED,
-                label = "Recently played",
-                count = recentlyPlayed.size,
-                previewArtworkUris = recentlyPlayed.take(PREVIEW_ARTWORK_LIMIT).map { it.artworkUri },
-            ),
-            SmartPlaylistSummary(
-                kind = SmartPlaylistKind.FAVOURITES,
-                label = "Favourites",
-                count = favourites.size,
-                previewArtworkUris = favourites.take(PREVIEW_ARTWORK_LIMIT).map { it.artworkUri },
-            ),
-            SmartPlaylistSummary(
-                kind = SmartPlaylistKind.MOST_PLAYED,
-                label = "Most played",
-                count = mostPlayed.size,
-                previewArtworkUris = mostPlayed.take(PREVIEW_ARTWORK_LIMIT).map { it.artworkUri },
-            ),
-            SmartPlaylistSummary(
-                kind = SmartPlaylistKind.RECENTLY_ADDED,
-                label = "Recently added",
-                count = recentlyAdded.size,
-                previewArtworkUris = recentlyAdded.take(PREVIEW_ARTWORK_LIMIT).map { it.artworkUri },
-            ),
+            summary(SmartPlaylistKind.RECENTLY_ADDED, recentlyAdded),
+            summary(SmartPlaylistKind.MOST_PLAYED, mostPlayed),
+            summary(SmartPlaylistKind.RECENTLY_PLAYED, recentlyPlayed),
+            summary(SmartPlaylistKind.FAVOURITES, favourites),
         )
     }.stateIn(
         scope = viewModelScope,
@@ -90,6 +80,20 @@ class PlaylistsViewModel @Inject constructor(
         if (trimmed.isEmpty()) return
         viewModelScope.launch { playlistRepository.createPlaylist(trimmed) }
     }
+
+    private fun summary(kind: SmartPlaylistKind, songs: List<Song>) = SmartPlaylistSummary(
+        kind = kind,
+        label = smartPlaylistLabel(kind),
+        count = songs.size,
+        // Songs without art are skipped before capping, so later art still fills the card. artworkUri is per album,
+        // so duplicates are dropped too: four tracks of one album would otherwise fill the collage with one cover.
+        previewArtworkUris = songs.asSequence()
+            .map { it.artworkUri }
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(PREVIEW_ARTWORK_LIMIT)
+            .toList(),
+    )
 
     private companion object {
         const val PREVIEW_ARTWORK_LIMIT = 4

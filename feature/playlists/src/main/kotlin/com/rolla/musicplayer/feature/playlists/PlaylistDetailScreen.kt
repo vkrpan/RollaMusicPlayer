@@ -81,6 +81,7 @@ import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.SongListItem
+import com.rolla.musicplayer.core.ui.tracksCountLabel
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
@@ -114,7 +115,7 @@ private val DragLiftSpringElevation: FiniteAnimationSpec<Dp> = spring(
 /**
  * Stateful entry point for a single playlist detail screen: a user-created playlist or one of
  * the built-in smart playlists (Favourites, Recently played, Most played, Recently added). Same
- * Route/Screen split as every other screen in the codebase (see LibraryRoute in feature:library).
+ * Route/Screen split as every other screen in the codebase (see TagEditorRoute in feature:tageditor).
  */
 @Suppress("LongMethod")
 @Composable
@@ -411,7 +412,7 @@ private fun SortControlHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "$songCount songs",
+            text = tracksCountLabel(songCount),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -429,7 +430,7 @@ private fun PlaybackControls(
     Row(modifier = modifier) {
         ControlButton(
             icon = Icons.Default.Shuffle,
-            contentDescription = "Shuffle all songs",
+            contentDescription = "Shuffle all tracks",
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             iconTint = MaterialTheme.colorScheme.onSurface,
             onClick = onShuffleAll,
@@ -437,7 +438,7 @@ private fun PlaybackControls(
         Spacer(modifier = Modifier.width(8.dp))
         ControlButton(
             icon = Icons.Default.PlayArrow,
-            contentDescription = "Play all songs",
+            contentDescription = "Play all tracks",
             containerColor = MaterialTheme.colorScheme.primary,
             iconTint = MaterialTheme.colorScheme.onPrimary,
             onClick = onPlayAll,
@@ -478,7 +479,7 @@ private fun LoadingContent(modifier: Modifier = Modifier) {
 private fun EmptyPlaylistContent(title: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
-            text = "No songs in \"$title\" yet.",
+            text = "No tracks in \"$title\" yet.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -773,7 +774,7 @@ private fun PreviewPlaylistDetailScreenEmpty() {
     RollaMusicPlayerTheme {
         PlaylistDetailScreen(
             uiState = PlaylistDetailUiState(
-                title = "Favourites",
+                title = "Favourite tracks",
                 songs = emptyList(),
                 isUserPlaylist = false,
                 isLoading = false,

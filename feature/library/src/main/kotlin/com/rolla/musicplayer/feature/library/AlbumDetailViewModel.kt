@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.library
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
+import kotlin.random.Random
 
 /**
  * Full-screen UI state for the album detail screen.
@@ -60,6 +62,10 @@ class AlbumDetailViewModel @Inject constructor(
         initialValue = AlbumDetailUiState(),
     )
 
+    /** Picks Shuffle's start track. Tests swap in a seeded [Random]; Hilt's constructor stays unchanged. */
+    @VisibleForTesting
+    internal var random: Random = Random.Default
+
     init {
         playbackController.connect()
     }
@@ -72,12 +78,12 @@ class AlbumDetailViewModel @Inject constructor(
         playbackController.playAll(songs, startIndex = 0)
     }
 
-    /** Shuffles the whole album. No-op for an empty album. */
+    /** Shuffles the whole album from a random start track (spec §12). No-op for an empty album. */
     fun onShuffleClick() {
         val songs = uiState.value.songs
         if (songs.isEmpty()) return
         playbackController.setShuffle(ShuffleMode.ON)
-        playbackController.playAll(songs, startIndex = 0)
+        playbackController.playAll(songs, startIndex = random.nextInt(songs.size))
     }
 
     /**

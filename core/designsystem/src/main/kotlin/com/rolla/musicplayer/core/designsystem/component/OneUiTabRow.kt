@@ -9,6 +9,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -43,6 +44,8 @@ import kotlin.math.roundToInt
  * - [onTabClick] should call `pagerState.animateScrollToPage(index)` (spec §6). The caller owns that animation,
  *   including honoring reduced motion.
  * - The row needs a bounded width (it centers the current tab in it).
+ * - [enabled] false disables every tab (no click, reported as disabled), for example while a list is in selection
+ *   mode and paging is locked.
  */
 @Composable
 fun OneUiTabRow(
@@ -50,11 +53,11 @@ fun OneUiTabRow(
     pagerState: PagerState,
     onTabClick: (Int) -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     val selectedStyle = MaterialTheme.typography.tabSelected
     val minScale = MaterialTheme.typography.tabUnselected.fontSize.value / selectedStyle.fontSize.value
-    val scheme = MaterialTheme.colorScheme
-    val colors = TabLabelColors(selected = scheme.onSurface, unselected = scheme.tabUnselected)
+    val colors = tabLabelColors()
     val position = remember(pagerState) { { pagerState.currentPage + pagerState.currentPageOffsetFraction } }
     val measurePolicy = remember(minScale, position) { tabRowMeasurePolicy(minScale, position) }
     Layout(
@@ -67,6 +70,7 @@ fun OneUiTabRow(
                     minScale = minScale,
                     style = selectedStyle,
                     colors = colors,
+                    enabled = enabled,
                     onClick = { onTabClick(index) },
                 )
             }
@@ -101,7 +105,12 @@ private fun tabRowMeasurePolicy(minScale: Float, position: () -> Float) = Measur
 
 private data class TabLabelColors(val selected: Color, val unselected: Color)
 
-// Seven distinct inputs of one private label; a holder type for them would only add indirection.
+@Composable
+@ReadOnlyComposable
+private fun tabLabelColors(): TabLabelColors =
+    MaterialTheme.colorScheme.let { TabLabelColors(selected = it.onSurface, unselected = it.tabUnselected) }
+
+// Eight distinct inputs of one private label; a holder type for them would only add indirection.
 @Suppress("LongParameterList")
 @Composable
 private fun TabLabel(
@@ -111,13 +120,14 @@ private fun TabLabel(
     minScale: Float,
     style: TextStyle,
     colors: TabLabelColors,
+    enabled: Boolean,
     onClick: () -> Unit,
 ) {
     BasicText(
         text = title,
         modifier = Modifier
             // Outside the scaling layer, so the touch target is the unscaled, full-height slot.
-            .selectable(selected = selected, role = Role.Tab, onClick = onClick)
+            .selectable(selected = selected, enabled = enabled, role = Role.Tab, onClick = onClick)
             .tabSlot()
             .graphicsLayer {
                 val scale = tabScale(minScale, emphasis())

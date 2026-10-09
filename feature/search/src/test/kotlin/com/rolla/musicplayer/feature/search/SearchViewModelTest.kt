@@ -54,7 +54,7 @@ class SearchViewModelTest {
     private val fakeSearchRepository = FakeSearchRepository()
 
     // Relaxed mock: connect() is called in SearchViewModel.init; we don't want to
-    // stub it manually in every test (same rationale as LibraryViewModelTest).
+    // stub it manually in every test (same rationale as TracksViewModelTest).
     private val playbackController = mockk<PlaybackController>(relaxed = true)
 
     private val sampleSong = Song(

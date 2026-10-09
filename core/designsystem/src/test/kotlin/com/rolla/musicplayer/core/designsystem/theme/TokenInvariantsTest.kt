@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.core.designsystem.theme
 
 import androidx.compose.ui.unit.dp
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,6 +41,13 @@ class TokenInvariantsTest {
     fun circleButtonGapLeavesRoomForTouchSlack() {
         // Otherwise circleButtonLayoutGap's clamp to 0 dp silently renders the circles further apart than measured.
         assertTrue(RollaDimens.circleButtonGap >= RollaDimens.minTouchTarget - RollaDimens.circleButtonSize)
+    }
+
+    @Test
+    fun rowTrailingContentStaysClearOfTheFastScrollRail() {
+        // Rows end where the measured reference rows end; Phase 5's rail sits in the space after them.
+        assertTrue(RollaDimens.listTrailingEnd >= RollaDimens.fastScrollWidth + RollaDimens.fastScrollEnd)
+        assertEquals(RollaDimens.fastScrollWidth + RollaDimens.fastScrollEnd, RollaDimens.listDividerEnd)
     }
 
     @Test

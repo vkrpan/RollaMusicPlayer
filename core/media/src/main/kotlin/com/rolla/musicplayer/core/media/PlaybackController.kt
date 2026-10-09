@@ -156,9 +156,9 @@ class PlaybackController @Inject constructor(
 
     fun seekTo(positionMs: Long) = withConnectedController { it.seekTo(positionMs) }
 
-    fun setShuffle(mode: ShuffleMode) {
-        controller?.shuffleModeEnabled = (mode == ShuffleMode.ON)
-    }
+    // Queued like the transport commands: a Shuffle tapped before the controller connects must still apply, ahead of
+    // the playAll queued right after it.
+    fun setShuffle(mode: ShuffleMode) = withConnectedController { it.shuffleModeEnabled = mode == ShuffleMode.ON }
 
     fun cycleRepeatMode() {
         val c = controller ?: return
