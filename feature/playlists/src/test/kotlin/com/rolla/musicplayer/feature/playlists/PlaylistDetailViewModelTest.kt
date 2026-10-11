@@ -5,14 +5,12 @@ import app.cash.turbine.test
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import io.mockk.verifyOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -20,12 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import kotlin.random.Random
 
+// Seeds the VM's Random test seam; the shuffle test verifies that exact instance is forwarded to the controller.
 private const val SHUFFLE_SEED = 7L
 
 /**
@@ -291,8 +289,9 @@ class PlaylistDetailViewModelTest {
 
     // ── playback actions ─────────────────────────────────────────────────────
 
+    // Mutation: call playAll(list, 0) directly (skipping setShuffle(OFF)) → RED.
     @Test
-    fun playAll_turnsShuffleOffThenPlaysAllFromZero() = runTest {
+    fun playAll_delegatesToPlayAllInOrder() = runTest {
         val songs = createTestSongs(3)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
@@ -304,35 +303,29 @@ class PlaylistDetailViewModelTest {
 
         viewModel.playAll()
 
-        verifyOrder {
-            playbackController.setShuffle(ShuffleMode.OFF)
-            playbackController.playAll(songs, startIndex = 0)
-        }
+        verify(exactly = 1) { playbackController.playAllInOrder(songs) }
         collectJob.cancel()
     }
 
+    // Mutation: pass Random.Default instead of the injected random → RED.
     @Test
-    fun shuffleAll_turnsShuffleOnThenPlaysAllFromARandomStart() = runTest {
+    fun shuffleAll_delegatesToShuffleAllWithTheViewModelsRandom() = runTest {
         val songs = createTestSongs(3)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
         viewModel.random = Random(SHUFFLE_SEED)
-        val expectedStart = Random(SHUFFLE_SEED).nextInt(songs.size)
-        assertNotEquals("Seed must pick a non-zero start, or a hardcoded 0 would pass", 0, expectedStart)
         val collectJob = launch { viewModel.uiState.collect {} }
         advanceUntilIdle()
 
         viewModel.shuffleAll()
 
-        verifyOrder {
-            playbackController.setShuffle(ShuffleMode.ON)
-            playbackController.playAll(songs, startIndex = expectedStart)
-        }
+        verify(exactly = 1) { playbackController.shuffleAll(songs, viewModel.random) }
         collectJob.cancel()
     }
 
+    // Mutation: keep the old body (playAll(songs, startIndex = songs.indexOf(song).coerceAtLeast(0))) → RED (ruling 5).
     @Test
-    fun playSong_startsQueueAtSelectedSongIndex() = runTest {
+    fun playSong_playsThePlaylistFromTheTappedSong() = runTest {
         val songs = createTestSongs(3)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
@@ -341,12 +334,15 @@ class PlaylistDetailViewModelTest {
 
         viewModel.playSong(songs[2])
 
-        verify { playbackController.playAll(songs, startIndex = 2) }
+        verify(exactly = 1) { playbackController.playFrom(songs, songs[2]) }
         collectJob.cancel()
     }
 
+    // Delegation only: the empty-list no-op is pinned by PlaybackControllerTest
+    // (`playAllInOrder and shuffleAll on an empty list do nothing`), so the VM forwards the empty list unguarded.
+    // Mutation: restore the VM-side `if (list.isEmpty()) return` guard in playAll() → RED.
     @Test
-    fun playAll_and_shuffleAll_givenEmptyPlaylist_doNothing() = runTest {
+    fun playAll_and_shuffleAll_givenEmptyPlaylist_delegateTheEmptyListToTheHelpers() = runTest {
         // favouritesFlow stays at its default empty value — a loaded, empty smart playlist.
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
         val collectJob = launch { viewModel.uiState.collect {} }
@@ -355,13 +351,17 @@ class PlaylistDetailViewModelTest {
         viewModel.playAll()
         viewModel.shuffleAll()
 
-        verify(exactly = 0) { playbackController.playAll(any(), any()) }
-        verify(exactly = 0) { playbackController.setShuffle(any()) }
+        verify(exactly = 1) { playbackController.playAllInOrder(emptyList()) }
+        verify(exactly = 1) { playbackController.shuffleAll(emptyList(), viewModel.random) }
         collectJob.cancel()
     }
 
+    // Delegation only. Behaviour change (ruling 5): a song no longer in the list now plays alone instead of starting
+    // the list at index 0; that fallback is pinned by PlaybackControllerTest
+    // (`playFrom starts the list at the tapped song or plays it alone when absent`).
+    // Mutation: restore the old `.coerceAtLeast(0)` body (playAll(songs, startIndex = 0) for an absent song) → RED.
     @Test
-    fun playSong_givenSongNotInCurrentList_startsQueueAtIndexZero() = runTest {
+    fun playSong_givenSongNotInCurrentList_stillDelegatesToPlayFrom() = runTest {
         val songs = createTestSongs(2)
         favouritesFlow.value = songs
         val viewModel = smartPlaylistViewModel(SmartPlaylistKind.FAVOURITES)
@@ -371,7 +371,8 @@ class PlaylistDetailViewModelTest {
         val songNotInList = createTestSongs(3).last()
         viewModel.playSong(songNotInList)
 
-        verify { playbackController.playAll(songs, startIndex = 0) }
+        verify(exactly = 1) { playbackController.playFrom(songs, songNotInList) }
+        verify(exactly = 0) { playbackController.playAll(any(), any()) }
         collectJob.cancel()
     }
 

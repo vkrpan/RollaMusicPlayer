@@ -11,18 +11,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,21 +24,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.data.repository.MAX_PLAYBACK_SPEED
 import com.rolla.musicplayer.core.data.repository.MIN_PLAYBACK_SPEED
+import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.model.ThemeMode
 import kotlin.math.roundToInt
-
-private val ScreenHorizontalPadding = 16.dp
-private val TopSpacing = 8.dp
-private val SectionSpacing = 24.dp
-private val SectionHeaderSpacing = 8.dp
-private val BottomSpacing = 24.dp
 
 private const val PLAYBACK_SPEED_STEP = 0.1f
 private const val TENTHS_MULTIPLIER = 10
@@ -123,17 +109,16 @@ fun SettingsScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { SettingsTopBar(onNavigateUp = onNavigateUp) },
+        topBar = { OneUiDetailTopBar(title = "Rolla Music settings", onNavigateUp = onNavigateUp) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
+        // Each SettingsSectionHeader owns the gap above it and each card its side inset, so sections just stack.
         Column(
             modifier = Modifier
                 .padding(innerPadding)
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = ScreenHorizontalPadding),
+                .verticalScroll(rememberScrollState()),
         ) {
-            Spacer(Modifier.height(TopSpacing))
             AppearanceSection(
                 themeMode = uiState.themeMode,
                 useDynamicColor = uiState.useDynamicColor,
@@ -142,7 +127,6 @@ fun SettingsScreen(
                 onUseDynamicColorChanged = onUseDynamicColorChanged,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(SectionSpacing))
             PlaybackSection(
                 playbackSpeed = uiState.playbackSpeed,
                 skipSilence = uiState.skipSilence,
@@ -152,21 +136,18 @@ fun SettingsScreen(
                 onEqualizerClick = onEqualizerClick,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(SectionSpacing))
             LibrarySection(
                 isRescanning = uiState.isRescanning,
                 onRescanClick = onRescanClick,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(SectionSpacing))
             PrivacySection(onPrivacyClick = onPrivacyClick, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(SectionSpacing))
             AboutSection(
                 onAboutClick = onAboutClick,
                 onLicensesClick = onLicensesClick,
                 modifier = Modifier.fillMaxWidth(),
             )
-            Spacer(Modifier.height(BottomSpacing))
+            Spacer(Modifier.height(RollaDimens.settingsSectionGap))
         }
     }
 
@@ -179,32 +160,7 @@ fun SettingsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SettingsTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Settings",
-                style = MaterialTheme.typography.screenTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
-    )
-}
-
-/** Theme value row (opens [ThemeModeDialog]) and the Dynamic color toggle, shown only when supported. */
+/** Theme value row (opens [ThemeModeDialog]) and the Dynamic colour toggle, shown only when supported. */
 @Suppress("LongParameterList")
 @Composable
 private fun AppearanceSection(
@@ -216,7 +172,7 @@ private fun AppearanceSection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        SettingsSectionHeader(title = "Appearance", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
+        SettingsSectionHeader(title = "Appearance")
         SettingsSectionCard {
             SettingsValueNavRow(
                 label = "Theme",
@@ -224,9 +180,10 @@ private fun AppearanceSection(
                 onClick = onThemeRowClick,
             )
             if (isDynamicColorAvailable) {
+                SettingsRowDivider()
                 SettingsToggleRow(
-                    label = "Dynamic color",
-                    subLabel = "Use colors from your wallpaper",
+                    label = "Dynamic colour",
+                    subLabel = "Use colours from your wallpaper",
                     checked = useDynamicColor,
                     onCheckedChange = onUseDynamicColorChanged,
                 )
@@ -235,7 +192,7 @@ private fun AppearanceSection(
     }
 }
 
-/** Playback speed slider, Skip silence toggle, and the Equalizer On/Off value row. */
+/** Playback speed slider, Skip silence toggle, and the Equaliser On/Off value row. */
 @Suppress("LongParameterList")
 @Composable
 private fun PlaybackSection(
@@ -248,7 +205,7 @@ private fun PlaybackSection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        SettingsSectionHeader(title = "Playback", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
+        SettingsSectionHeader(title = "Playback")
         SettingsSectionCard {
             SettingsSliderRow(
                 label = "Playback speed",
@@ -258,14 +215,16 @@ private fun PlaybackSection(
                 valueLabel = ::formatPlaybackSpeedLabel,
                 onValueChangeFinished = onPlaybackSpeedChanged,
             )
+            SettingsRowDivider()
             SettingsToggleRow(
                 label = "Skip silence",
                 subLabel = "Speed through quiet passages automatically",
                 checked = skipSilence,
                 onCheckedChange = onSkipSilenceChanged,
             )
+            SettingsRowDivider()
             SettingsValueNavRow(
-                label = "Equalizer",
+                label = "Equaliser",
                 value = if (equalizerEnabled) "On" else "Off",
                 onClick = onEqualizerClick,
             )
@@ -281,7 +240,7 @@ private fun LibrarySection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        SettingsSectionHeader(title = "Library", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
+        SettingsSectionHeader(title = "Library")
         SettingsSectionCard {
             SettingsValueNavRow(
                 label = "Rescan library",
@@ -298,7 +257,7 @@ private fun LibrarySection(
 @Composable
 private fun PrivacySection(onPrivacyClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        SettingsSectionHeader(title = "Privacy", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
+        SettingsSectionHeader(title = "Privacy")
         SettingsSectionCard {
             SettingsValueNavRow(label = "Privacy & permissions", onClick = onPrivacyClick)
         }
@@ -313,9 +272,10 @@ private fun AboutSection(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
-        SettingsSectionHeader(title = "About", modifier = Modifier.padding(bottom = SectionHeaderSpacing))
+        SettingsSectionHeader(title = "About")
         SettingsSectionCard {
             SettingsValueNavRow(label = "About", onClick = onAboutClick)
+            SettingsRowDivider()
             SettingsValueNavRow(label = "Open-source licenses", onClick = onLicensesClick)
         }
     }

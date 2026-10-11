@@ -1,6 +1,7 @@
 plugins {
     id("rolla.android.feature")
     id("rolla.android.library.compose")
+    id("rolla.android.robolectric")
 }
 
 android {
@@ -24,7 +25,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.coil.compose)
-    implementation(libs.androidx.compose.material.icons.extended)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

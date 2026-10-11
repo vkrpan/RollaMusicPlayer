@@ -10,9 +10,13 @@ import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -22,6 +26,7 @@ class PlayerViewModel @Inject constructor(
     private val playbackController: PlaybackController,
     private val songRepository: SongRepository,
     private val playlistRepository: PlaylistRepository,
+    private val volumePanel: SystemVolumePanel,
 ) : ViewModel() {
 
     val currentSong: StateFlow<Song?> = playbackController.currentSong
@@ -53,6 +58,29 @@ class PlayerViewModel @Inject constructor(
     val userPlaylists: StateFlow<List<Playlist>> = playlistRepository.observePlaylists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L), emptyList())
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val overflowTargets: StateFlow<NowPlayingOverflowTargets> = playbackController.currentSong
+        .flatMapLatest { song ->
+            if (song == null) {
+                flowOf(NowPlayingOverflowTargets())
+            } else {
+                songRepository.observeSong(song.id).map { librarySong ->
+                    NowPlayingOverflowTargets(
+                        // Both ids come from the library row: a song that left the library would only open a tag
+                        // editor that closes at once with "Song not found".
+                        songId = librarySong?.id?.toLongOrNull(),
+                        albumId = librarySong?.albumId,
+                        artistName = song.artist.takeIf { it.isNotBlank() },
+                    )
+                }
+            }
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
+            NowPlayingOverflowTargets(),
+        )
+
     init {
         playbackController.connect()
     }
@@ -63,6 +91,15 @@ class PlayerViewModel @Inject constructor(
     fun seekTo(positionMs: Long) = playbackController.seekTo(positionMs)
     fun setShuffle(mode: ShuffleMode) = playbackController.setShuffle(mode)
     fun cycleRepeatMode() = playbackController.cycleRepeatMode()
+
+    fun showVolumePanel() = volumePanel.show()
+
+    /**
+     * Reads the controller's StateFlow, not [shuffleMode]: that one is WhileSubscribed, so with no collector its
+     * cached value can be stale and a toggle would send the same mode twice.
+     */
+    fun toggleShuffle() =
+        setShuffle(if (playbackController.shuffleMode.value == ShuffleMode.ON) ShuffleMode.OFF else ShuffleMode.ON)
 
     fun toggleFavorite() {
         val song = currentSong.value ?: return

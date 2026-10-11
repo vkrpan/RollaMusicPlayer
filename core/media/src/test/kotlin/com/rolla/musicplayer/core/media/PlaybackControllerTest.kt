@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.media
 
 import android.content.Context
 import android.net.Uri
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import com.google.common.util.concurrent.ListenableFuture
 import com.rolla.musicplayer.core.model.ShuffleMode
@@ -15,8 +16,10 @@ import io.mockk.slot
 import io.mockk.unmockkStatic
 import io.mockk.verify
 import io.mockk.verifyOrder
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import kotlin.random.Random
 
 private fun testSong(id: String = "song-1") = Song(
     id = id,
@@ -181,6 +184,111 @@ class PlaybackControllerTest {
 
         verify(exactly = 1) { mediaController.pause() }
         verify(exactly = 0) { mediaController.play() }
+    }
+
+    /** Runs [block] with the JVM-unmocked Uri.parse stubbed, for tests that build MediaItems (see the play test). */
+    private fun withStubbedUri(block: () -> Unit) {
+        mockkStatic(Uri::class)
+        try {
+            every { Uri.parse(any()) } returns mockk(relaxed = true)
+            block()
+        } finally {
+            unmockkStatic(Uri::class)
+        }
+    }
+
+    // Mutation: drop the isEmpty guard → setShuffle/setMediaItems run for an empty list → RED.
+    @Test
+    fun `playAllInOrder and shuffleAll on an empty list do nothing`() {
+        resolveFuture()
+        controller.playAllInOrder(emptyList())
+        controller.shuffleAll(emptyList())
+        verify(exactly = 0) { mediaController.setMediaItems(any(), any(), any()) }
+        verify(exactly = 0) { mediaController.shuffleModeEnabled = any() }
+    }
+
+    // Mutation: call playAll before setShuffle → verifyOrder fails → RED.
+    @Test
+    fun `playAllInOrder turns shuffle off before starting at index 0`() = withStubbedUri {
+        resolveFuture()
+        val songs = listOf(testSong("a"), testSong("b"))
+        controller.playAllInOrder(songs)
+        verifyOrder {
+            mediaController.shuffleModeEnabled = false
+            mediaController.setMediaItems(match { it.size == 2 }, 0, any())
+        }
+    }
+
+    // Mutation: start at 0 instead of random.nextInt(size) → RED.
+    @Test
+    fun `shuffleAll turns shuffle on and starts at the random index`() = withStubbedUri {
+        resolveFuture()
+        val songs = (1..10).map { testSong("s$it") }
+        val expectedStart = Random(42).nextInt(songs.size)
+        controller.shuffleAll(songs, Random(42))
+        verifyOrder {
+            mediaController.shuffleModeEnabled = true
+            mediaController.setMediaItems(any(), expectedStart, any())
+        }
+    }
+
+    // Mutation: always playAll(songs, 0) → RED; drop the fallback → the missing song is never played → RED.
+    @Test
+    fun `playFrom starts the list at the tapped song or plays it alone when absent`() = withStubbedUri {
+        resolveFuture()
+        val songs = listOf(testSong("a"), testSong("b"), testSong("c"))
+        controller.playFrom(songs, testSong("c"))
+        verify { mediaController.setMediaItems(match { it.size == 3 }, 2, any()) }
+        controller.playFrom(songs, testSong("zz"))
+        verify { mediaController.setMediaItem(match { it.mediaId == "zz" }) }
+    }
+
+    // Mutation: revert cycleRepeatMode to `controller ?: return` → nothing queued → RED.
+    @Test
+    fun `cycleRepeatMode before the future resolves is queued`() {
+        every { mediaController.repeatMode } returns Player.REPEAT_MODE_OFF
+        controller.cycleRepeatMode()
+        resolveFuture()
+        queuedRunnable.captured.run()
+        verify { mediaController.repeatMode = Player.REPEAT_MODE_ALL }
+    }
+
+    // Mutations: drop play() → RED; drop the range check → seek(9) is called → RED;
+    // `index <= c.mediaItemCount` → seek(3) → RED; drop the lower bound (`index < c.mediaItemCount`) → seek(-1) → RED.
+    @Test
+    fun `skipToQueueIndex seeks and plays, and ignores an out-of-range index`() {
+        resolveFuture()
+        every { mediaController.mediaItemCount } returns 3
+        controller.skipToQueueIndex(9)
+        controller.skipToQueueIndex(3)
+        controller.skipToQueueIndex(-1)
+        verify(exactly = 0) { mediaController.seekToDefaultPosition(any()) }
+        controller.skipToQueueIndex(2)
+        verifyOrder {
+            mediaController.seekToDefaultPosition(2)
+            mediaController.play()
+        }
+    }
+
+    // Mutation: revert skipToQueueIndex to `val c = controller ?: return` → nothing queued → RED.
+    @Test
+    fun `skipToQueueIndex before the future resolves is queued`() {
+        controller.skipToQueueIndex(1)
+        resolveFuture()
+        every { mediaController.mediaItemCount } returns 3
+        queuedRunnable.captured.run()
+        verifyOrder {
+            mediaController.seekToDefaultPosition(1)
+            mediaController.play()
+        }
+    }
+
+    // Mutation: expose a fresh MutableStateFlow instead of the holder's → RED.
+    @Test
+    fun `queue mirrors the state holder`() {
+        val state = QueueState(listOf(QueueItem(0, "a", "A", "B", "")), currentIndex = 0)
+        playbackStateHolder.setQueue(state)
+        assertEquals(state, controller.queue.value)
     }
 
     private companion object {

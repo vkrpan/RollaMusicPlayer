@@ -50,6 +50,9 @@ class PlaybackService : MediaSessionService() {
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
+    /** Publishes the queue into [playbackStateHolder] (ruling 1); added after playerListener, before the enforcer. */
+    private lateinit var queuePublisher: QueuePublisher
+
     // Keeps shuffle orders start-first so Shuffle reaches every track (see StartFirstShuffleEnforcer).
     private lateinit var shuffleEnforcer: StartFirstShuffleEnforcer
 
@@ -147,6 +150,9 @@ class PlaybackService : MediaSessionService() {
         player = buildPlayer()
         playbackStateHolder.setAudioSessionId(player.audioSessionId)
         player.addListener(playerListener)
+        // Before the enforcer: its setShuffleOrder fires onTimelineChanged, which republishes the reshuffled order.
+        queuePublisher = QueuePublisher(player, playbackStateHolder)
+        player.addListener(queuePublisher)
         shuffleEnforcer = StartFirstShuffleEnforcer(player)
         player.addListener(shuffleEnforcer)
         mediaSession = MediaSession.Builder(this, player).build()
@@ -159,6 +165,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         player.removeListener(playerListener)
+        player.removeListener(queuePublisher)
         player.removeListener(shuffleEnforcer)
         // Stop the session-binding collectors BEFORE releasing the effect/player, and wait for
         // them: cancelAndJoin lets an in-flight attach/apply run to its next suspension point, so

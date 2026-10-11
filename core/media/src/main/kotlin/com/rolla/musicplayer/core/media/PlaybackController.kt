@@ -18,6 +18,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.random.Random
 
 // Justified: this is the single facade every UI surface (app screens, widget, future features)
 // drives playback through -- transport, queue, seek, modes, and connection lifecycle genuinely
@@ -35,6 +36,7 @@ class PlaybackController @Inject constructor(
     val durationMs: StateFlow<Long> = playbackStateHolder.durationMs
     val shuffleMode: StateFlow<ShuffleMode> = playbackStateHolder.shuffleMode
     val repeatMode: StateFlow<RepeatMode> = playbackStateHolder.repeatMode
+    val queue: StateFlow<QueueState> = playbackStateHolder.queue
 
     // internal + @VisibleForTesting rather than private: lets PlaybackControllerTest install a
     // mocked ListenableFuture directly to exercise the withConnectedController queuing path without
@@ -160,8 +162,35 @@ class PlaybackController @Inject constructor(
     // the playAll queued right after it.
     fun setShuffle(mode: ShuffleMode) = withConnectedController { it.shuffleModeEnabled = mode == ShuffleMode.ON }
 
-    fun cycleRepeatMode() {
-        val c = controller ?: return
+    /** Plays [songs] in order from the first one, shuffle off (spec §12 Play). A no-op for an empty list. */
+    fun playAllInOrder(songs: List<Song>) {
+        if (songs.isEmpty()) return
+        setShuffle(ShuffleMode.OFF)
+        playAll(songs, startIndex = 0)
+    }
+
+    /** Shuffle on, then [songs] from a random start (spec §12 Shuffle). A no-op for an empty list. */
+    fun shuffleAll(songs: List<Song>, random: Random = Random.Default) {
+        if (songs.isEmpty()) return
+        setShuffle(ShuffleMode.ON)
+        playAll(songs, startIndex = random.nextInt(songs.size))
+    }
+
+    /** Plays [songs] as the queue starting at [song]; plays [song] alone when it is no longer in [songs]. */
+    fun playFrom(songs: List<Song>, song: Song) {
+        val index = songs.indexOfFirst { it.id == song.id }
+        if (index == -1) play(song) else playAll(songs, startIndex = index)
+    }
+
+    /** Jumps to the queue entry at window [index] and plays it (ruling 3). Out-of-range indices are ignored. */
+    fun skipToQueueIndex(index: Int) = withConnectedController { c ->
+        if (index in 0 until c.mediaItemCount) {
+            c.seekToDefaultPosition(index)
+            c.play()
+        }
+    }
+
+    fun cycleRepeatMode() = withConnectedController { c ->
         c.repeatMode = when (c.repeatMode) {
             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE

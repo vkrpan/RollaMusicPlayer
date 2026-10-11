@@ -1,6 +1,7 @@
 plugins {
     id("rolla.android.feature")
     id("rolla.android.library.compose")
+    id("rolla.android.robolectric")
 }
 
 android {
@@ -22,7 +23,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 

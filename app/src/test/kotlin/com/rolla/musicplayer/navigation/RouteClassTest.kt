@@ -37,7 +37,11 @@ class RouteClassTest {
                 // Built directly (no remember): this host composes once, and lint can't type createGraph's result
                 // inside remember (RememberReturnType false positive).
                 graph = navController.createGraph(startDestination = Home) {
-                    appDestinations(navController = navController, sharedTransitionScope = sharedTransitionScope)
+                    appDestinations(
+                        navController = navController,
+                        sharedTransitionScope = sharedTransitionScope,
+                        nowPlayingPresence = NowPlayingPresence(),
+                    )
                 }
             }
         }

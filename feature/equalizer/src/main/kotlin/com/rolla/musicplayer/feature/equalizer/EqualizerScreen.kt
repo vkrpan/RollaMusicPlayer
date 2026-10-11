@@ -1,25 +1,17 @@
-// TooManyFunctions: this file's private composables are already split as small and single-purpose
-// as the screen's structure allows (top bar / content / card / row / column / slider / chip grid /
-// dialog, each a distinct visual unit); the file-level threshold (20) is a few functions below what
-// this One-UI-style screen's layout actually needs, most recently pushed over by adding the
-// isReducedMotion() motion-preference helper (see VerticalGainSlider's KDoc).
-@file:Suppress("FunctionNaming", "TooManyFunctions")
+@file:Suppress("FunctionNaming")
 
 package com.rolla.musicplayer.feature.equalizer
 
 import android.content.res.Configuration
-import android.provider.Settings
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -33,26 +25,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,101 +47,64 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Constraints
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.EqVerticalSlider
+import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.component.OneUiSwitch
+import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
+import com.rolla.musicplayer.core.designsystem.motion.rollaSpringOrSnap
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
-import com.rolla.musicplayer.core.designsystem.theme.screenTitle
-import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
+import com.rolla.musicplayer.core.designsystem.theme.caption
+import com.rolla.musicplayer.core.designsystem.theme.eqFrequency
+import com.rolla.musicplayer.core.designsystem.theme.eqGridLine
+import com.rolla.musicplayer.core.designsystem.theme.eqValue
+import com.rolla.musicplayer.core.designsystem.theme.settingTitle
 import com.rolla.musicplayer.core.media.equalizer.BUILT_IN_EQUALIZER_PRESETS
 import com.rolla.musicplayer.core.media.equalizer.TARGET_FREQUENCIES_HZ
 import com.rolla.musicplayer.core.model.EqualizerPreset
 import kotlin.math.roundToInt
 
-private val ScreenHorizontalPadding = 16.dp
-private val CardPadding = 16.dp
-private val CardSectionSpacing = 16.dp
-private val SectionSpacing = 24.dp
-private val CaptionSpacing = 8.dp
-private val SaveButtonSpacing = 8.dp
-private val BottomSpacing = 24.dp
-private val MinTouchTarget = 48.dp
+/** Test tag on the enable card's toggleable row, the single toggle target of the "Equaliser" switch. */
+internal const val EQ_ENABLE_ROW_TAG = "eq_enable_row"
 
-private val BandColumnWidth = 48.dp
-private val BandColumnSpacing = 8.dp
-private val BandLabelSpacing = 4.dp
-private val SliderTrackHeight = 220.dp
-private const val SLIDER_ROTATION_DEGREES = 270f
+/** Test tag on the response curve, which is composed only while a band slider is being dragged (ruling 10). */
+internal const val EQ_CURVE_TAG = "eq_response_curve"
 
-// Gain-slider motion specs (ui-style-guide.md §9: 200-300ms, spring for interactive elements).
-// Calm, non-bouncy settle -- a preset swap should read as the whole EQ curve confidently
-// resolving into its new shape, not bouncing past it; same spring family as
-// NowPlayingTransitionKey.artworkBoundsTransform and PlaylistDetailScreen's drag-lift specs.
+// Gain-slider motion spec (ui-style-guide.md §9: spring for interactive elements). Calm, non-bouncy settle -- a
+// preset swap should read as the whole EQ curve confidently resolving into its new shape, not bouncing past it.
 internal val GainValueSpring: FiniteAnimationSpec<Float> = spring(
     dampingRatio = Spring.DampingRatioNoBouncy,
     stiffness = Spring.StiffnessMedium,
 )
-private const val DRAGGED_THUMB_SCALE = 1.3f
-private val ThumbScaleSpring: FiniteAnimationSpec<Float> = spring(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMedium,
-)
-
-// Same calm spring family as GainValueSpring/ThumbScaleSpring above, applied to PresetChip's
-// selected/unselected color swap (ui-style-guide.md §9: "animate size/weight/color, not abrupt
-// swaps"). Reduced-motion swaps this out for snap() at the call site, same pattern as every other
-// motion in this file.
-private val PresetChipColorSpring: FiniteAnimationSpec<Color> = spring(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMedium,
-)
-
-private val ChipSpacing = 12.dp
-private val PresetChipMinHeight = 48.dp
-private val PresetChipHorizontalPadding = 16.dp
 
 private const val MILLIBEL_PER_DECIBEL = 100
 
 /**
- * Frequency labels, index-aligned with TARGET_FREQUENCIES_HZ (EqualizerBands.kt in :core:media):
- * 40Hz..10kHz. Kept as a fixed display table (rather than derived/formatted at runtime) so the
- * exact wording matches the visual spec (ui-style-guide.md section 6) verbatim.
+ * Visible frequency labels, index-aligned with TARGET_FREQUENCIES_HZ (EqualizerBands.kt in :core:media): the app's
+ * real nine bands, 40 Hz..10 kHz, with the "Hz" suffix dropped, verbatim from spec §8.5. A fixed display table rather
+ * than formatted at runtime, so the wording matches the spec exactly. These are what the eye reads; TalkBack reads
+ * [SPOKEN_FREQUENCY_LABELS], which keep the unit.
  */
-private val FREQUENCY_LABELS = listOf("40Hz", "80Hz", "160Hz", "315Hz", "630Hz", "1.25kHz", "2.5kHz", "5kHz", "10kHz")
+private val FREQUENCY_LABELS = listOf("40", "80", "160", "315", "630", "1.25k", "2.5k", "5k", "10k")
 
 /**
- * One short description per built-in preset, in BUILT_IN_EQUALIZER_PRESETS display order
- * (Balanced, Bass boost, Smooth, Dynamic, Clear, Treble boost -- see that file's KDoc). Zipped by
- * position (via [BUILT_IN_PRESET_CAPTIONS] below) rather than keyed on a hardcoded id or name, so
- * this stays correct even if the built-in list's contents change; only its length and order matter
- * here.
+ * The band names each slider's contentDescription is built from ("40Hz gain" … "10kHz gain"), index-aligned with
+ * [FREQUENCY_LABELS]. Kept separate so dropping "Hz" from the visible labels never changes what TalkBack announces:
+ * without a unit, "1.25k gain" is ambiguous (ruling 1).
  */
-private val BUILT_IN_PRESET_DESCRIPTIONS = listOf(
-    "Even response across every band — a neutral starting point.",
-    "Extra low-end weight and punch for bass-heavy tracks.",
-    "A gentle, easy-listening curve with soft highs and lows.",
-    "A bold, energetic curve for loud, exciting playback.",
-    "Lifts vocals and instruments in the presence range for clarity.",
-    "Brightens the top end for crisp cymbals and detail.",
-)
-
-private val BUILT_IN_PRESET_CAPTIONS: Map<Long, String> =
-    BUILT_IN_EQUALIZER_PRESETS.mapIndexed { index, preset -> preset.id to BUILT_IN_PRESET_DESCRIPTIONS[index] }.toMap()
-
-private const val CUSTOM_CAPTION = "Custom — adjust the sliders to shape the sound."
-private const val USER_PRESET_CAPTION = "Your saved preset."
+private val SPOKEN_FREQUENCY_LABELS =
+    listOf("40Hz", "80Hz", "160Hz", "315Hz", "630Hz", "1.25kHz", "2.5kHz", "5kHz", "10kHz")
 
 /**
  * Stateful entry point for the equalizer screen. Same Route/Screen split as every other screen in
@@ -196,6 +144,11 @@ fun EqualizerRoute(
     }
 }
 
+/**
+ * The Equaliser screen (spec §8.5): the One UI detail bar, a small enable card, the edge-to-edge slider card, the
+ * preset chip grid, then the preset caption and, in the Custom state only (ruling 11), "Save as preset". The
+ * Scaffold keeps owning the navigation-bar inset (PushedScreen adds only the mini-player inset).
+ */
 @Suppress("LongParameterList")
 @Composable
 fun EqualizerScreen(
@@ -211,7 +164,7 @@ fun EqualizerScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { EqualizerTopBar(onNavigateUp = onNavigateUp) },
+        topBar = { OneUiDetailTopBar(title = "Equaliser", onNavigateUp = onNavigateUp) },
     ) { innerPadding ->
         EqualizerContent(
             uiState = uiState,
@@ -225,31 +178,11 @@ fun EqualizerScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EqualizerTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Equalizer",
-                style = MaterialTheme.typography.screenTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
-    )
-}
-
+/**
+ * No horizontal padding on the column: the slider card is edge to edge, and every other block insets itself.
+ * The gaps between the slider card, the grid, the caption and the bottom reuse [RollaDimens.eqCardTop]; the
+ * reference measures none of them (Phase 7 calibrates).
+ */
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun EqualizerContent(
@@ -264,307 +197,307 @@ private fun EqualizerContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(horizontal = ScreenHorizontalPadding)
             .verticalScroll(rememberScrollState()),
     ) {
-        Spacer(Modifier.height(CaptionSpacing))
+        EnableCard(enabled = uiState.enabled, onSetEnabled = onSetEnabled)
+        Spacer(Modifier.height(RollaDimens.eqCardTop))
         EqualizerSlidersCard(
             enabled = uiState.enabled,
             gainsMillibel = uiState.gainsMillibel,
             minGainMillibel = uiState.minGainMillibel,
             maxGainMillibel = uiState.maxGainMillibel,
-            onSetEnabled = onSetEnabled,
             onBandGainChange = onBandGainChange,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(SectionSpacing))
+        Spacer(Modifier.height(RollaDimens.eqCardTop))
         PresetChipGrid(
             presets = uiState.presets,
             selectedPresetId = uiState.selectedPresetId,
+            enabled = uiState.enabled,
             onSelectPreset = onSelectPreset,
             onDeletePreset = onDeletePreset,
             modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(CaptionSpacing))
+        Spacer(Modifier.height(RollaDimens.eqCardTop))
         Text(
             text = presetCaption(uiState.selectedPresetId),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.caption,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(horizontal = RollaDimens.chipGridStart),
         )
         if (uiState.selectedPresetId == null) {
-            Spacer(Modifier.height(SaveButtonSpacing))
-            SaveAsPresetButton(onClick = onSaveAsPresetClick)
+            SaveAsPresetButton(
+                onClick = onSaveAsPresetClick,
+                modifier = Modifier.padding(horizontal = RollaDimens.chipGridStart),
+            )
         }
-        Spacer(Modifier.height(BottomSpacing))
+        Spacer(Modifier.height(RollaDimens.eqCardTop))
     }
 }
 
-@Suppress("LongParameterList")
+/**
+ * The small enable card: one toggleable row (the single toggle target and the only Role.Switch node) holding the
+ * "Equaliser" label and a purely visual [OneUiSwitch] (onCheckedChange = null, so it adds no second toggleable).
+ */
+@Composable
+private fun EnableCard(enabled: Boolean, onSetEnabled: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier
+            .padding(horizontal = RollaDimens.settingsCardInset)
+            .fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(EQ_ENABLE_ROW_TAG)
+                .toggleable(value = enabled, role = Role.Switch, onValueChange = onSetEnabled)
+                .heightIn(min = RollaDimens.minTouchTarget)
+                .padding(horizontal = RollaDimens.settingsRowPadding),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Equaliser",
+                style = MaterialTheme.typography.settingTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+            )
+            OneUiSwitch(checked = enabled, onCheckedChange = null)
+        }
+    }
+}
+
+/**
+ * The edge-to-edge slider card: faint [eqGridLine] horizontals behind nine band columns centered as a group, with the
+ * response curve layered under the sliders while one is being dragged. All nine sliders share one interaction source,
+ * so "a slider is being dragged" is a single collected state (ruling 10).
+ *
+ * The card's inner vertical padding borrows [RollaDimens.settingsRowPadding] (the One UI card inner padding); the
+ * reference does not measure the EQ card's own (Phase 7 calibrates).
+ */
+// The card's gain state, range and callback are distinct inputs; one flat card/grid/curve/row layout.
+@Suppress("LongMethod", "LongParameterList")
 @Composable
 private fun EqualizerSlidersCard(
     enabled: Boolean,
     gainsMillibel: BandGains,
     minGainMillibel: Short,
     maxGainMillibel: Short,
-    onSetEnabled: (Boolean) -> Unit,
     onBandGainChange: (Int, Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Remembered so every band slider (and the response curve, transitively) keeps receiving the
-    // SAME ClosedFloatingPointRange<Float> instance across recompositions instead of a freshly
-    // allocated one every drag frame -- an unstable/changed-every-time parameter would defeat
-    // per-band skipping even after gainsMillibel itself becomes compiler-stable (see BandGains).
+    // Remembered so every band slider keeps receiving the SAME ClosedFloatingPointRange<Float> instance across
+    // recompositions instead of a freshly allocated one every drag frame (see BandGains).
     val valueRange = remember(minGainMillibel, maxGainMillibel) {
         minGainMillibel.toFloat()..maxGainMillibel.toFloat()
     }
+    val sliderInteractions = remember { MutableInteractionSource() }
+    val isDragging by sliderInteractions.collectIsDraggedAsState()
+    val gridColor = MaterialTheme.colorScheme.eqGridLine
+
+    val gainLabels = TARGET_FREQUENCIES_HZ.indices.map { band -> gainLabel(gainsMillibel.values.getOrElse(band) { 0 }) }
 
     Surface(
         modifier = modifier,
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.large,
     ) {
-        Column(modifier = Modifier.padding(CardPadding)) {
-            EnabledToggleRow(enabled = enabled, onSetEnabled = onSetEnabled)
-            Spacer(Modifier.height(CardSectionSpacing))
-            EqualizerResponseCurve(
-                gainsMillibel = gainsMillibel,
-                minGainMillibel = minGainMillibel,
-                maxGainMillibel = maxGainMillibel,
-                enabled = enabled,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(CardSectionSpacing))
-            EqualizerBandsRow(
-                enabled = enabled,
-                gainsMillibel = gainsMillibel,
-                valueRange = valueRange,
-                onBandGainChange = onBandGainChange,
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = RollaDimens.settingsRowPadding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            BandLabelRow(labels = gainLabels, style = MaterialTheme.typography.eqValue)
+            // The slider band: exactly eqSliderLength tall, so the grid and the curve are framed on the sliders alone
+            // (never on the labels, whose height follows the font scale) and 0 dB sits on its vertical center.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(RollaDimens.eqSliderLength)
+                    .drawBehind { drawEqGrid(gridColor) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box {
+                    ResponseCurveOverlay(
+                        visible = isDragging,
+                        gainsMillibel = gainsMillibel,
+                        minGainMillibel = minGainMillibel,
+                        maxGainMillibel = maxGainMillibel,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                    EqualizerBandsRow(
+                        enabled = enabled,
+                        gainsMillibel = gainsMillibel,
+                        valueRange = valueRange,
+                        sliderInteractions = sliderInteractions,
+                        isDragging = isDragging,
+                        onBandGainChange = onBandGainChange,
+                    )
+                }
+            }
+            BandLabelRow(labels = FREQUENCY_LABELS, style = MaterialTheme.typography.eqFrequency)
         }
     }
 }
 
-@Composable
-private fun EnabledToggleRow(enabled: Boolean, onSetEnabled: (Boolean) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = MinTouchTarget),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "Enable equalizer",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        // Default M3 Switch colors already map ON to MaterialTheme.colorScheme.primary -- no
-        // color overrides needed here (ui-style-guide.md section 6, "Switches: primary ON").
-        Switch(checked = enabled, onCheckedChange = onSetEnabled)
+/**
+ * Horizontal grid lines every [RollaDimens.eqGridPitch], mirrored about the slider band's vertical center (where 0 dB
+ * sits on every slider) out to the band's edges, drawn across the card's full width.
+ */
+private fun DrawScope.drawEqGrid(color: Color) {
+    val pitch = RollaDimens.eqGridPitch.toPx()
+    if (pitch <= 0f) return
+    val halfExtent = size.height / 2f
+    val thickness = RollaDimens.dividerThickness.toPx()
+    val centerY = size.height / 2f
+    var offset = 0f
+    while (offset <= halfExtent) {
+        drawLine(color, Offset(0f, centerY - offset), Offset(size.width, centerY - offset), thickness)
+        if (offset > 0f) {
+            drawLine(color, Offset(0f, centerY + offset), Offset(size.width, centerY + offset), thickness)
+        }
+        offset += pitch
     }
 }
 
+/**
+ * The gains-driven response curve, composed only while [visible] (a slider is being dragged; ruling 10). It fades
+ * in and out with the calm Rolla spring, and appears and disappears instantly under reduced motion.
+ */
+@Composable
+private fun ResponseCurveOverlay(
+    visible: Boolean,
+    gainsMillibel: BandGains,
+    minGainMillibel: Short,
+    maxGainMillibel: Short,
+    modifier: Modifier = Modifier,
+) {
+    val reducedMotion = rememberReducedMotion()
+    val spec = rollaSpringOrSnap<Float>(reducedMotion)
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = if (reducedMotion) EnterTransition.None else fadeIn(spec),
+        exit = if (reducedMotion) ExitTransition.None else fadeOut(spec),
+    ) {
+        EqualizerResponseCurve(
+            gainsMillibel = gainsMillibel,
+            minGainMillibel = minGainMillibel,
+            maxGainMillibel = maxGainMillibel,
+            isDragging = visible,
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag(EQ_CURVE_TAG),
+        )
+    }
+}
+
+// Each parameter is a distinct input of the band row (state, range, shared drag source, callback).
+@Suppress("LongParameterList")
 @Composable
 private fun EqualizerBandsRow(
     enabled: Boolean,
     gainsMillibel: BandGains,
     valueRange: ClosedFloatingPointRange<Float>,
+    sliderInteractions: MutableInteractionSource,
+    isDragging: Boolean,
     onBandGainChange: (Int, Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Nine fixed-width bands (>=48dp each, for touch target) don't fit most phone widths inside
-    // their surrounding 16dp-inset card -- horizontalScroll guarantees the minimum touch width
-    // instead of letting Arrangement.SpaceEvenly compress each band below 48dp. This nests inside
-    // the screen's outer verticalScroll, but the two scroll axes are orthogonal (no gesture
-    // conflict), unlike nesting two scrollables on the same axis.
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(BandColumnSpacing),
-    ) {
-        TARGET_FREQUENCIES_HZ.forEachIndexed { index, _ ->
-            EqualizerBandColumn(
-                frequencyLabel = FREQUENCY_LABELS[index],
-                gainMillibel = gainsMillibel.values.getOrElse(index) { 0 },
+    // Nine fixed eqColumnPitch columns, centered as a group (spec §8.5). They fit a 360 dp screen without scrolling.
+    Row(modifier = modifier, horizontalArrangement = Arrangement.Center) {
+        TARGET_FREQUENCIES_HZ.indices.forEach { band ->
+            BandGainSlider(
+                gainMillibel = gainsMillibel.values.getOrElse(band) { 0 },
                 valueRange = valueRange,
                 enabled = enabled,
-                onGainChange = { gain -> onBandGainChange(index, gain) },
+                sliderInteractions = sliderInteractions,
+                isDragging = isDragging,
+                contentDescription = "${SPOKEN_FREQUENCY_LABELS[band]} gain",
+                onGainChange = { gain -> onBandGainChange(band, gain) },
+                modifier = Modifier
+                    .width(RollaDimens.eqColumnPitch)
+                    .height(RollaDimens.eqSliderLength),
             )
         }
     }
 }
 
-@Suppress("LongParameterList")
+/**
+ * One row of nine per-band labels (gain values above the sliders, frequencies below), each centered in an
+ * eqColumnPitch cell so it lines up with its slider; the row is centered as a group, exactly like the slider row.
+ */
 @Composable
-private fun EqualizerBandColumn(
-    frequencyLabel: String,
-    gainMillibel: Short,
-    valueRange: ClosedFloatingPointRange<Float>,
-    enabled: Boolean,
-    onGainChange: (Short) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier.width(BandColumnWidth),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        BandLabel(text = gainLabel(gainMillibel))
-        Spacer(Modifier.height(BandLabelSpacing))
-        VerticalGainSlider(
-            gainMillibel = gainMillibel,
-            valueRange = valueRange,
-            enabled = enabled,
-            frequencyLabel = frequencyLabel,
-            onGainChange = onGainChange,
-            modifier = Modifier
-                .width(BandColumnWidth)
-                .height(SliderTrackHeight),
-        )
-        Spacer(Modifier.height(BandLabelSpacing))
-        BandLabel(text = frequencyLabel)
+private fun BandLabelRow(labels: List<String>, style: TextStyle, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, horizontalArrangement = Arrangement.Center) {
+        labels.forEach { label ->
+            Box(modifier = Modifier.width(RollaDimens.eqColumnPitch), contentAlignment = Alignment.Center) {
+                BandLabel(text = label, style = style)
+            }
+        }
     }
 }
 
 /**
- * Gain-value / frequency caption above and below each band slider. Single-line and non-wrapping:
- * the 48dp band column can't fit a wrap at large font scales, so the short token ("+6", "630Hz")
- * must clip its box rather than spill into the neighboring slider (a11y audit, fontScale 1.5).
+ * The gain value above and the frequency below each band. Single-line and measured at its own width, centered on the
+ * 28.7 dp column rather than clipped to it: "1.25k" is about as wide as the column at 1.0 font scale, and clipping
+ * would cut the unit letter. Neighboring short labels leave room for the overhang.
  */
 @Composable
-private fun BandLabel(text: String) {
+private fun BandLabel(text: String, style: TextStyle) {
     Text(
         text = text,
-        style = MaterialTheme.typography.labelSmall,
+        style = style,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         softWrap = false,
+        modifier = Modifier.wrapContentWidth(unbounded = true),
     )
 }
 
 /**
- * A single vertical gain slider: a standard M3 [Slider] rotated -90 degrees via the standard
- * Compose rotate-and-remeasure technique. [modifier]'s width/height (applied by the caller) become
- * the *rotated* slider's on-screen width/height; internally the constraints are swapped so the
- * unrotated [Slider] measures with the caller's height as its track length and the caller's width
- * as its thickness, then [graphicsLayer] rotates the result back into a vertical orientation
- * around its top-left corner.
+ * One band's [EqVerticalSlider]. The slider never renders [gainMillibel] directly: it renders an [Animatable] that
+ * snaps while a slider is being dragged (zero lag under the finger) and springs with [GainValueSpring] otherwise, so
+ * a preset selection, which rewrites all nine gains at once, reads as the whole curve settling into its new shape.
+ * Under reduced motion it always snaps. [onGainChange] reports the raw per-frame value; [EqualizerViewModel]
+ * debounces persistence.
  *
- * Motion (ui-style-guide.md §9): the slider never renders [gainMillibel] directly. Instead it
- * renders [displayedValue], an [Animatable] driven from [gainMillibel] + live drag state --
- * `snapTo` while the thumb is actively dragged (zero lag, tracks the finger 1:1), `animateTo` with
- * [GainValueSpring] the rest of the time. That "rest of the time" case is what makes a preset chip
- * selection -- which rewrites all nine bands' [gainMillibel] at once from the caller -- read as the
- * whole EQ curve springing into its new shape instead of jumping. [onGainChange] still reports the
- * slider's raw per-frame value upward unchanged; [EqualizerViewModel] debounces persistence, so
- * per-frame calls here are expected, not a perf problem.
- *
- * [frequencyLabel] (e.g. "630Hz") is read only for [contentDescription] -- without it TalkBack
- * announces all nine bands identically as "Slider, value X", giving no way to tell which band is
- * focused (TalkBack audit).
+ * [sliderInteractions] is shared by all nine sliders (it drives the response curve), so [isDragging] is true while
+ * ANY band is dragged. Only the dragged band's gain changes then, so snapping the others is visible only if a drag
+ * starts while a preset tap's spring (about 200 ms) is still settling: those bands jump to their targets. Negligible.
  */
-@Suppress("LongMethod", "LongParameterList")
-@OptIn(ExperimentalMaterial3Api::class)
+@Suppress("LongParameterList")
 @Composable
-private fun VerticalGainSlider(
+private fun BandGainSlider(
     gainMillibel: Short,
     valueRange: ClosedFloatingPointRange<Float>,
     enabled: Boolean,
-    frequencyLabel: String,
+    sliderInteractions: MutableInteractionSource,
+    isDragging: Boolean,
+    contentDescription: String,
     onGainChange: (Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val reducedMotion = isReducedMotion()
-    val interactionSource = remember { MutableInteractionSource() }
-    val isDragged by interactionSource.collectIsDraggedAsState()
-
+    val reducedMotion = rememberReducedMotion()
     val displayedValue = remember { Animatable(gainMillibel.toFloat()) }
-    LaunchedEffect(gainMillibel, isDragged, reducedMotion) {
-        if (isDragged || reducedMotion) {
+    LaunchedEffect(gainMillibel, isDragging, reducedMotion) {
+        if (isDragging || reducedMotion) {
             displayedValue.snapTo(gainMillibel.toFloat())
         } else {
             displayedValue.animateTo(gainMillibel.toFloat(), GainValueSpring)
         }
     }
-
-    // Thumb-scale micro-interaction while dragging. `thumbScale` is read only inside the
-    // graphicsLayer lambda passed to SliderDefaults.Thumb below (never destructured with `by`
-    // here), so this per-frame scale animation never invalidates/recomposes the slider itself --
-    // only the thumb's own draw layer repaints. Reduced motion disables the scale outright (stays
-    // at 1f) rather than snapping it instantly, per ui-style-guide.md §9.
-    val thumbScale = animateFloatAsState(
-        targetValue = if (isDragged && !reducedMotion) DRAGGED_THUMB_SCALE else 1f,
-        animationSpec = if (reducedMotion) snap() else ThumbScaleSpring,
-        label = "gainThumbScale",
-    )
-
-    val sliderColors = SliderDefaults.colors(
-        thumbColor = MaterialTheme.colorScheme.primary,
-        activeTrackColor = MaterialTheme.colorScheme.primary,
-        inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-        disabledThumbColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-        disabledActiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-        disabledInactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-    )
-
-    Slider(
+    EqVerticalSlider(
         value = displayedValue.value,
         onValueChange = { onGainChange(it.roundToInt().toShort()) },
         valueRange = valueRange,
+        contentDescription = contentDescription,
+        modifier = modifier,
         enabled = enabled,
-        interactionSource = interactionSource,
-        colors = sliderColors,
-        thumb = {
-            // Rotation-invariant: scaleX == scaleY, so this reads correctly under the 270-degree
-            // rotation applied to the whole slider below without any offset compensation.
-            SliderDefaults.Thumb(
-                interactionSource = interactionSource,
-                colors = sliderColors,
-                enabled = enabled,
-                modifier = Modifier.graphicsLayer {
-                    scaleX = thumbScale.value
-                    scaleY = thumbScale.value
-                },
-            )
-        },
-        modifier = modifier
-            .graphicsLayer {
-                rotationZ = SLIDER_ROTATION_DEGREES
-                transformOrigin = TransformOrigin(0f, 0f)
-            }
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(
-                    Constraints(
-                        minWidth = constraints.minHeight,
-                        maxWidth = constraints.maxHeight,
-                        minHeight = constraints.minWidth,
-                        maxHeight = constraints.maxWidth,
-                    ),
-                )
-                layout(placeable.height, placeable.width) {
-                    placeable.place(-placeable.width, 0)
-                }
-            }
-            .semantics { contentDescription = "$frequencyLabel gain" },
+        interactionSource = sliderInteractions,
     )
-}
-
-// Third private copy of this exact helper in the codebase (see PlaylistDetailScreen.kt and
-// feature:player's NowPlayingTransitionKey.kt) -- a rule-of-three candidate for extraction into a
-// shared :core:ui (or :core:designsystem) motion util, left as-is this pass per scope.
-// internal (not private) so EqualizerResponseCurve.kt -- which mirrors this same
-// gains-driven-motion behavior for the decorative response curve -- can reuse it instead of
-// duplicating the Settings.Global lookup.
-@Composable
-internal fun isReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) == 0f
-    }
 }
 
 private fun gainLabel(gainMillibel: Short): String {
@@ -572,132 +505,26 @@ private fun gainLabel(gainMillibel: Short): String {
     return if (decibels > 0) "+$decibels" else "$decibels"
 }
 
-private fun presetCaption(selectedPresetId: Long?): String = when {
-    selectedPresetId == null -> CUSTOM_CAPTION
-    else -> BUILT_IN_PRESET_CAPTIONS[selectedPresetId] ?: USER_PRESET_CAPTION
-}
-
-/**
- * One chip in [PresetChipGrid]. [preset] is null for the trailing synthetic "Custom" chip, which
- * represents "the live gains don't match any saved preset" -- it is never itself selectable via
- * click (there's nothing to select into), it only ever reflects [EqualizerUiState.selectedPresetId]
- * being null.
- */
-private data class PresetChipUiModel(val preset: EqualizerPreset?, val label: String)
-
-@Composable
-private fun PresetChipGrid(
-    presets: List<EqualizerPreset>,
-    selectedPresetId: Long?,
-    onSelectPreset: (EqualizerPreset) -> Unit,
-    onDeletePreset: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val chips = remember(presets) {
-        presets.map { preset -> PresetChipUiModel(preset, preset.name) } + PresetChipUiModel(null, "Custom")
-    }
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(ChipSpacing)) {
-        chips.chunked(2).forEach { rowChips ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(ChipSpacing),
-            ) {
-                rowChips.forEach { chip ->
-                    val chipPreset = chip.preset
-                    PresetChip(
-                        chip = chip,
-                        selected = chipPreset?.id == selectedPresetId,
-                        onClick = { chipPreset?.let(onSelectPreset) },
-                        // Deletion is a long-press gesture reserved for user-saved presets --
-                        // built-ins and the synthetic Custom chip silently ignore a long-press.
-                        onLongClick = {
-                            if (chipPreset != null && chipPreset.isCustom) {
-                                onDeletePreset(chipPreset.id)
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun PresetChip(
-    chip: PresetChipUiModel,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val (containerColor, contentColor) = rememberPresetChipColors(selected)
-
-    Box(
-        modifier = modifier
-            .heightIn(min = PresetChipMinHeight)
-            .background(color = containerColor, shape = CircleShape)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .semantics(mergeDescendants = true) { this.selected = selected }
-            .padding(horizontal = PresetChipHorizontalPadding),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = chip.label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = contentColor,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/**
- * Animates [PresetChip]'s container/content colors between selected and unselected
- * (ui-style-guide.md §9: "animate size/weight/color, not abrupt swaps") -- same reduced-motion
- * snap-vs-spring choice every other animation in this file makes (see VerticalGainSlider,
- * EqualizerResponseCurve's rememberAnimatedGains). Split out of [PresetChip] itself purely to keep
- * that composable under the file's LongMethod threshold.
- */
-@Composable
-private fun rememberPresetChipColors(selected: Boolean): Pair<Color, Color> {
-    val reducedMotion = isReducedMotion()
-    val colorAnimationSpec: FiniteAnimationSpec<Color> = if (reducedMotion) snap() else PresetChipColorSpring
-
-    val containerColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        },
-        animationSpec = colorAnimationSpec,
-        label = "presetChipContainerColor",
-    )
-    val contentColor by animateColorAsState(
-        targetValue = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
-        animationSpec = colorAnimationSpec,
-        label = "presetChipContentColor",
-    )
-    return containerColor to contentColor
-}
-
 @Composable
 private fun SaveAsPresetButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TextButton(onClick = onClick, modifier = modifier.heightIn(min = MinTouchTarget)) {
-        Text(
-            text = "Save as preset",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.accentText,
-        )
+    TextButton(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = RollaDimens.minTouchTarget),
+        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText),
+    ) {
+        Text(text = "Save as preset", style = MaterialTheme.typography.bodyMedium)
     }
 }
 
+// Internal for SavePresetDialogTest: the dialog opens only from EqualizerRoute, which needs a Hilt ViewModel.
 @Suppress("LongMethod")
 @Composable
-private fun SavePresetDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SavePresetDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     var name by rememberSaveable { mutableStateOf("") }
     val isNameBlank = name.trim().isEmpty()
+    // Blue text is accentText, never primary (spec §5); M3's TextButton and OutlinedTextField default to primary.
+    val accent = MaterialTheme.colorScheme.accentText
+    val buttonColors = ButtonDefaults.textButtonColors(contentColor = accent)
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -714,19 +541,25 @@ private fun SavePresetDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit,
                 onValueChange = { name = it },
                 singleLine = true,
                 label = { Text("Preset name") },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedLabelColor = accent,
+                    cursorColor = accent,
+                    focusedBorderColor = accent,
+                ),
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = !isNameBlank) {
+            TextButton(onClick = { onConfirm(name.trim()) }, enabled = !isNameBlank, colors = buttonColors) {
                 Text("Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, colors = buttonColors) {
                 Text("Cancel")
             }
         },
         modifier = modifier,
+        shape = MaterialTheme.shapes.large, // spec §8.7
     )
 }
 
@@ -754,8 +587,8 @@ private fun previewCustomUiState(): EqualizerUiState = EqualizerUiState(
 )
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Equalizer - Light")
-@Preview(name = "Equalizer - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Equaliser - Light")
+@Preview(name = "Equaliser - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewEqualizerScreen() {
     RollaMusicPlayerTheme {
@@ -772,8 +605,8 @@ private fun PreviewEqualizerScreen() {
 }
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Equalizer Custom - Light")
-@Preview(name = "Equalizer Custom - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Equaliser Custom - Light")
+@Preview(name = "Equaliser Custom - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewEqualizerScreenCustom() {
     RollaMusicPlayerTheme {

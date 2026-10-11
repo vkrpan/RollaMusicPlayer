@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.AlbumRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Album
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -72,32 +71,20 @@ class AlbumDetailViewModel @Inject constructor(
 
     /** Plays the whole album from the start, in track order. No-op for an empty album. */
     fun onPlayClick() {
-        val songs = uiState.value.songs
-        if (songs.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.OFF)
-        playbackController.playAll(songs, startIndex = 0)
+        playbackController.playAllInOrder(uiState.value.songs)
     }
 
     /** Shuffles the whole album from a random start track (spec §12). No-op for an empty album. */
     fun onShuffleClick() {
-        val songs = uiState.value.songs
-        if (songs.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.ON)
-        playbackController.playAll(songs, startIndex = random.nextInt(songs.size))
+        playbackController.shuffleAll(uiState.value.songs, random)
     }
 
     /**
      * Plays the album as the queue, starting at [song]. If [song] is no longer part of the
-     * current album (e.g. tapped just as it was removed), falls back to playing just that song
-     * on its own rather than guessing a queue position.
+     * current album (e.g. tapped just as it was removed), [PlaybackController.playFrom] plays
+     * just that song on its own rather than guessing a queue position.
      */
     fun onSongClick(song: Song) {
-        val songs = uiState.value.songs
-        val index = songs.indexOfFirst { it.id == song.id }
-        if (index == -1) {
-            playbackController.play(song)
-        } else {
-            playbackController.playAll(songs, startIndex = index)
-        }
+        playbackController.playFrom(uiState.value.songs, song)
     }
 }

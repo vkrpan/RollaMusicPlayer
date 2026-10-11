@@ -35,6 +35,9 @@ class PlaybackStateHolder @Inject constructor() {
     private val _repeatMode = MutableStateFlow(RepeatMode.OFF)
     val repeatMode: StateFlow<RepeatMode> = _repeatMode.asStateFlow()
 
+    private val _queue = MutableStateFlow(QueueState.EMPTY)
+    val queue: StateFlow<QueueState> = _queue.asStateFlow()
+
     fun setAudioSessionId(id: Int) {
         _audioSessionId.value = id
     }
@@ -61,5 +64,9 @@ class PlaybackStateHolder @Inject constructor() {
 
     fun setRepeatMode(mode: RepeatMode) {
         _repeatMode.value = mode
+    }
+
+    fun setQueue(queue: QueueState) {
+        _queue.value = queue
     }
 }

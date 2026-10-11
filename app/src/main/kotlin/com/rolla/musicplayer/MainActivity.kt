@@ -7,21 +7,17 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,9 +28,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
@@ -45,6 +39,7 @@ import com.rolla.musicplayer.feature.library.ArtistDetailRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
+import com.rolla.musicplayer.feature.player.QueueSheetRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.search.SearchRoute
 import com.rolla.musicplayer.feature.settings.AboutRoute
@@ -57,13 +52,13 @@ import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
 import com.rolla.musicplayer.home.HomeRoute
 import com.rolla.musicplayer.navigation.About
 import com.rolla.musicplayer.navigation.AlbumDetail
+import com.rolla.musicplayer.navigation.AppShell
 import com.rolla.musicplayer.navigation.ArtistDetail
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.Home
 import com.rolla.musicplayer.navigation.Licenses
-import com.rolla.musicplayer.navigation.MiniPlayerHost
-import com.rolla.musicplayer.navigation.NowPlaying
+import com.rolla.musicplayer.navigation.NowPlayingPresence
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Privacy
 import com.rolla.musicplayer.navigation.PushedScreen
@@ -71,8 +66,8 @@ import com.rolla.musicplayer.navigation.Search
 import com.rolla.musicplayer.navigation.Settings
 import com.rolla.musicplayer.navigation.SmartPlaylist
 import com.rolla.musicplayer.navigation.TagEditor
-import com.rolla.musicplayer.navigation.routeClass
-import com.rolla.musicplayer.navigation.showsMiniPlayer
+import com.rolla.musicplayer.navigation.nowPlayingDestination
+import com.rolla.musicplayer.navigation.openNowPlaying
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -155,7 +150,7 @@ private fun ResolvedEdgeToEdgeEffect(activity: ComponentActivity, darkTheme: Boo
 private val NavigationBarLightScrim = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
 private val NavigationBarDarkScrim = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
 
-// LongMethod (kept from the Scaffold version): the overlay wiring reads best in one place, three lines over the limit.
+// LongMethod (kept from the Scaffold version): the overlay wiring (pill, graph, queue sheet) reads best in one place.
 // ExperimentalComposeUiApi: testTagsAsResourceId (UiAutomator visibility for :baselineprofile).
 @Suppress("LongMethod")
 @OptIn(ExperimentalSharedTransitionApi::class, ExperimentalComposeUiApi::class)
@@ -164,59 +159,38 @@ private fun RollaNavHost() {
     val navController = rememberNavController()
     val miniPlayerViewModel: MiniPlayerViewModel = hiltViewModel()
     val hasSong by miniPlayerViewModel.hasSong.collectAsStateWithLifecycle()
-    val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = navBackStackEntry?.destination
-    val showPill = hasSong && showsMiniPlayer(currentDestination.routeClass())
+    var showQueue by rememberSaveable { mutableStateOf(false) }
 
-    // The pill and the graph share one SharedTransitionLayout, so the pill's artwork keeps its shared-element
-    // transition into Now Playing. Insets, each with a single owner: every screen draws edge to edge under the status
-    // bar and owns its top inset through its own top bar; AppNavGraph pads the horizontal safe-drawing insets once,
-    // for every destination including Home; MiniPlayerHost pads the pill above the navigation bar; Home pads only its
-    // lists (they scroll under the pill), and PushedScreen pads every other destination except Now Playing.
-    SharedTransitionLayout {
-        MiniPlayerHost(
-            showPill = showPill,
-            // testTagsAsResourceId exposes Compose testTags (e.g. the Tracks list's "song_list") as resource-ids to
-            // UiAutomator, which the :baselineprofile generator/benchmarks use to drive the scroll journey. No effect
-            // on production behavior or accessibility.
-            modifier = Modifier
-                .background(MaterialTheme.colorScheme.background)
-                .semantics { testTagsAsResourceId = true },
-            pill = { measure ->
-                MiniPlayerRoute(
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this,
-                    viewModel = miniPlayerViewModel,
-                    modifier = measure,
-                    onBodyClick = { navController.navigate(NowPlaying) { launchSingleTop = true } },
-                )
-            },
-        ) {
-            AppNavGraph(
-                navController = navController,
-                sharedTransitionScope = this@SharedTransitionLayout,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalSharedTransitionApi::class)
-@Composable
-private fun AppNavGraph(
-    navController: NavHostController,
-    sharedTransitionScope: SharedTransitionScope,
-    modifier: Modifier = Modifier,
-) {
-    NavHost(
+    AppShell(
         navController = navController,
-        startDestination = Home,
-        modifier = modifier,
-    ) {
-        appDestinations(navController = navController, sharedTransitionScope = sharedTransitionScope)
+        hasSong = hasSong,
+        // testTagsAsResourceId exposes Compose testTags (e.g. the Tracks list's "song_list") as resource-ids to
+        // UiAutomator, which the :baselineprofile generator/benchmarks use to drive the scroll journey. No effect on
+        // production behavior or accessibility.
+        modifier = Modifier
+            .background(MaterialTheme.colorScheme.background)
+            .semantics { testTagsAsResourceId = true },
+        pill = { sharedTransitionScope, animatedVisibilityScope, measure ->
+            MiniPlayerRoute(
+                sharedTransitionScope = sharedTransitionScope,
+                animatedVisibilityScope = animatedVisibilityScope,
+                // Pops back to an existing Now Playing instead of stacking a second one (see openNowPlaying).
+                onBodyClick = { navController.openNowPlaying() },
+                onQueueClick = { showQueue = true },
+                modifier = measure,
+                viewModel = miniPlayerViewModel,
+            )
+        },
+    ) { sharedTransitionScope, nowPlayingPresence ->
+        appDestinations(
+            navController = navController,
+            sharedTransitionScope = sharedTransitionScope,
+            nowPlayingPresence = nowPlayingPresence,
+        )
     }
+    // The queue sheet lives here, outside the pill's AnimatedVisibility: hiding the pill (for example by opening Now
+    // Playing) would otherwise dispose an open sheet.
+    if (showQueue) QueueSheetRoute(onDismissRequest = { showQueue = false })
 }
 
 /**
@@ -232,6 +206,7 @@ private fun AppNavGraph(
 internal fun NavGraphBuilder.appDestinations(
     navController: NavHostController,
     sharedTransitionScope: SharedTransitionScope,
+    nowPlayingPresence: NowPlayingPresence,
 ) {
     composable<Home> {
         HomeRoute(
@@ -255,7 +230,8 @@ internal fun NavGraphBuilder.appDestinations(
             onSmartPlaylistClick = { kind -> navController.navigate(SmartPlaylist(kind = kind.name)) },
         )
     }
-    composable<NowPlaying> {
+    // Reports its transition target to the shell, which holds the pill until Now Playing exits (NowPlayingPresence).
+    nowPlayingDestination(nowPlayingPresence) {
         NowPlayingRoute(
             onNavigateUp = { navController.navigateUp() },
             onEqualizerClick = {
@@ -263,6 +239,11 @@ internal fun NavGraphBuilder.appDestinations(
                     launchSingleTop = true
                 }
             },
+            // The ⋮ targets are plain pushes (no popUpTo), so back returns to Now Playing.
+            onEditTagsClick = { id -> navController.navigate(TagEditor(id)) { launchSingleTop = true } },
+            onAlbumClick = { id -> navController.navigate(AlbumDetail(id)) { launchSingleTop = true } },
+            onArtistClick = { name -> navController.navigate(ArtistDetail(name)) { launchSingleTop = true } },
+            onSettingsClick = { navController.navigate(Settings) { launchSingleTop = true } },
             sharedTransitionScope = sharedTransitionScope,
             animatedContentScope = this,
         )

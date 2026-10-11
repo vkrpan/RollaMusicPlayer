@@ -16,6 +16,7 @@ import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -73,11 +74,13 @@ class PlayerViewModelTest {
 
     private val fakePlaylistRepository = FakePlaylistRepository()
 
+    private val fakeVolumePanel = FakeVolumePanel()
+
     private lateinit var viewModel: PlayerViewModel
 
     @Before
     fun setUp() {
-        viewModel = PlayerViewModel(playbackController, songRepository, fakePlaylistRepository)
+        viewModel = PlayerViewModel(playbackController, songRepository, fakePlaylistRepository, fakeVolumePanel)
     }
 
     // init ------------------------------------------------------------------------
@@ -618,7 +621,106 @@ class PlayerViewModelTest {
         assertTrue(fakePlaylistRepository.addSongsCalls.isEmpty())
     }
 
+    // volume ------------------------------------------------------------------------
+
+    // Mutation: showVolumePanel() does nothing → RED.
+    @Test
+    fun `volume shows the system panel through the seam`() {
+        viewModel.showVolumePanel()
+        assertEquals(1, fakeVolumePanel.shows)
+    }
+
+    // overflowTargets ---------------------------------------------------------------
+
+    // Mutation: albumId taken from the playback Song (always 0L) instead of the library song → RED.
+    @Test
+    fun `overflow targets resolve the album from the library song`() = runTest {
+        currentSongFlow.value = playbackSong(id = "42", artist = "Artist") // albumId 0L, as PlaybackService builds it
+        every { songRepository.observeSong("42") } returns
+            flowOf(librarySong(id = "42", albumId = 7L, artist = "Artist"))
+        viewModel.overflowTargets.test {
+            assertEquals(
+                NowPlayingOverflowTargets(songId = 42L, albumId = 7L, artistName = "Artist"),
+                expectMostRecentItem(),
+            )
+        }
+    }
+
+    // Review Focus 3: the tag editor would close at once with "Song not found", so Edit tags disables with Go to album.
+    // Mutations: (a) fall back to the playback Song's albumId 0L → albumId 0 instead of null → RED; (b) take songId
+    // from the playback Song (song.id) instead of the library row → songId 42 instead of null → RED.
+    @Test
+    fun `a song missing from the library disables edit tags and go to album`() = runTest {
+        currentSongFlow.value = playbackSong(id = "42", artist = "Artist")
+        every { songRepository.observeSong("42") } returns flowOf(null)
+        viewModel.overflowTargets.test {
+            assertEquals(
+                NowPlayingOverflowTargets(songId = null, albumId = null, artistName = "Artist"),
+                expectMostRecentItem(),
+            )
+        }
+    }
+
+    // Mutations: (a) the `song == null` branch returns emptyFlow(), so ⋮ keeps the previous song's targets after
+    // playback stops → RED on the awaitItem after the null; (b) treat a blank artist as valid → artistName "" → RED.
+    @Test
+    fun `nothing playing gives no targets, and a blank artist gives no artist target`() = runTest {
+        every { songRepository.observeSong("42") } returns
+            flowOf(librarySong(id = "42", albumId = 7L, artist = "Artist"))
+        viewModel.overflowTargets.test {
+            assertEquals(NowPlayingOverflowTargets(), awaitItem()) // stateIn's initial value
+            currentSongFlow.value = playbackSong(id = "42", artist = "Artist")
+            advanceUntilIdle()
+            assertEquals(NowPlayingOverflowTargets(songId = 42L, albumId = 7L, artistName = "Artist"), awaitItem())
+            // Playback stops: the value changes back, so the null branch's own output must be emitted.
+            currentSongFlow.value = null
+            assertEquals(NowPlayingOverflowTargets(), awaitItem())
+            // Stub before setting the song: the Main dispatcher is unconfined, so flatMapLatest calls observeSong on
+            // the assignment, and the relaxed mock's empty flow would never reach the artist check.
+            every { songRepository.observeSong("x") } returns flowOf(null)
+            currentSongFlow.value = playbackSong(id = "x", artist = " ")
+            advanceUntilIdle()
+            // The expected value equals the null branch's output, so the StateFlow does not re-emit: assert the
+            // settled value.
+            assertEquals(
+                NowPlayingOverflowTargets(songId = null, albumId = null, artistName = null),
+                viewModel.overflowTargets.value,
+            )
+            expectNoEvents()
+        }
+    }
+
+    // toggleShuffle -----------------------------------------------------------------
+
+    // Mutation: always setShuffle(ON) → RED on the second call.
+    @Test
+    fun `toggleShuffle flips the current mode`() {
+        shuffleModeFlow.value = ShuffleMode.OFF
+        viewModel.toggleShuffle()
+        verify { playbackController.setShuffle(ShuffleMode.ON) }
+        shuffleModeFlow.value = ShuffleMode.ON
+        viewModel.toggleShuffle()
+        verify { playbackController.setShuffle(ShuffleMode.OFF) }
+    }
+
     // test factory ----------------------------------------------------------------
+
+    /** Counts [show] calls so the volume seam needs no AudioManager. */
+    private class FakeVolumePanel : SystemVolumePanel {
+        var shows = 0
+            private set
+
+        override fun show() {
+            shows++
+        }
+    }
+
+    /** The current Song as PlaybackService rebuilds it from MediaItem metadata: albumId is always 0L. */
+    private fun playbackSong(id: String, artist: String) = createTestSong(id = id, artist = artist, albumId = 0L)
+
+    /** The same song's library (Room) row, which carries the real album id. */
+    private fun librarySong(id: String, albumId: Long, artist: String) =
+        createTestSong(id = id, artist = artist, albumId = albumId)
 
     @Suppress("LongParameterList")
     private fun createTestSong(

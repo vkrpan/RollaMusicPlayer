@@ -4,41 +4,30 @@ package com.rolla.musicplayer.feature.settings
 
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
-import com.rolla.musicplayer.core.designsystem.theme.screenTitle
-
-private val ContentPadding = 16.dp
-private val RowVerticalPadding = 12.dp
-private val RowMinHeight = 56.dp
-private val RowLabelGap = 16.dp
-private val FooterPadding = 16.dp
+import com.rolla.musicplayer.core.designsystem.theme.settingSubtitle
+import com.rolla.musicplayer.core.designsystem.theme.settingTitle
+import com.rolla.musicplayer.core.designsystem.theme.settingValue
 
 private const val LICENSES_FOOTER =
     "This list is bundled with the app and maintained by hand — nothing is fetched. Full license " +
@@ -54,89 +43,77 @@ fun LicensesRoute(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
     LicensesScreen(onNavigateUp = onNavigateUp, modifier = modifier)
 }
 
+/**
+ * The bundled list as one settings-style card (rows separated by [SettingsRowDivider]), then the footer note aligned
+ * with the row text. The list is a short, fixed set of [OSS_LIBRARIES] entries, so a scrolling Column replaces the
+ * former LazyColumn: one card can't span lazy items without per-item corner shapes.
+ */
+// One flat scaffold/card/footer layout.
+@Suppress("LongMethod")
 @Composable
 private fun LicensesScreen(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { LicensesTopBar(onNavigateUp = onNavigateUp) },
+        topBar = { OneUiDetailTopBar(title = "Open-source licenses", onNavigateUp = onNavigateUp) },
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .padding(innerPadding)
-                .fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = ContentPadding),
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
         ) {
-            items(items = OSS_LIBRARIES, key = { library -> library.name }) { library ->
-                OssLibraryRow(library = library)
+            Spacer(Modifier.height(RollaDimens.settingsSectionGap))
+            SettingsSectionCard {
+                OSS_LIBRARIES.forEachIndexed { index, library ->
+                    if (index > 0) SettingsRowDivider()
+                    OssLibraryRow(library = library)
+                }
             }
-            item(key = "licenses-footer") {
-                Text(
-                    text = LICENSES_FOOTER,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = FooterPadding),
-                )
-            }
+            Text(
+                text = LICENSES_FOOTER,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    start = RollaDimens.settingsCardInset + RollaDimens.settingsRowPadding,
+                    end = RollaDimens.settingsCardInset + RollaDimens.settingsRowPadding,
+                    top = RollaDimens.settingsSectionGap,
+                    bottom = RollaDimens.settingsSectionGap,
+                ),
+            )
         }
     }
 }
 
-/** One dependency: name + project/author on the left, license id in primary on the right. */
+/** One dependency: name and project/author on the left, the license id in settingValue blue on the right. */
 @Composable
 private fun OssLibraryRow(library: OssLibrary, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = RowMinHeight)
-            .padding(vertical = RowVerticalPadding)
+            .settingsRowLayout()
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = library.name,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.settingTitle,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = library.project,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.settingSubtitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.width(RowLabelGap))
+        Spacer(Modifier.width(RollaDimens.listTrailingGap))
         Text(
             text = library.license,
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.settingValue,
             color = MaterialTheme.colorScheme.accentText,
         )
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LicensesTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Open-source licenses",
-                style = MaterialTheme.typography.screenTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
-    )
 }
 
 @Suppress("UnusedPrivateMember")

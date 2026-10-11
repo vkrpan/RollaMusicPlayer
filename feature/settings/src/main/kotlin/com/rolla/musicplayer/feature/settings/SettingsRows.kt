@@ -15,16 +15,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,26 +35,22 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
+import com.rolla.musicplayer.core.designsystem.component.InsetDivider
+import com.rolla.musicplayer.core.designsystem.component.OneUiSlider
+import com.rolla.musicplayer.core.designsystem.component.OneUiSwitch
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
-import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
-
-private val SectionCardPadding = 16.dp
-private val RowMinHeight = 56.dp
-private val RowLabelGap = 16.dp
-private val RowTextSpacing = 2.dp
-private val ChevronIconSize = 24.dp
-private val OptionRowMinHeight = 48.dp
-private val OptionRowLabelGap = 12.dp
-private val RowProgressSize = 20.dp
-private val RowProgressStrokeWidth = 2.dp
+import com.rolla.musicplayer.core.designsystem.theme.settingSubtitle
+import com.rolla.musicplayer.core.designsystem.theme.settingTitle
+import com.rolla.musicplayer.core.designsystem.theme.settingValue
 
 /**
- * A small gray label ("Playback", "Privacy", ...) grouping the [SettingsSectionCard] beneath it --
- * ui-style-guide.md section 6 "Settings Screens": section headers use the sectionHeader token.
- * Marked as a semantic heading so TalkBack heading-navigation can jump between sections.
+ * A small gray label ("Playback", "Privacy", ...) above its [SettingsSectionCard] (spec §8.6). It starts where the
+ * card's row text starts (settingsCardInset + settingsRowPadding from the screen edge) and owns the gap above it and
+ * the gap down to its card, so a screen only stacks headers and cards. Marked as a semantic heading so TalkBack
+ * heading navigation can jump between sections.
  */
 @Composable
 fun SettingsSectionHeader(title: String, modifier: Modifier = Modifier) {
@@ -68,31 +58,47 @@ fun SettingsSectionHeader(title: String, modifier: Modifier = Modifier) {
         text = title,
         style = MaterialTheme.typography.sectionHeader,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = modifier.semantics { heading() },
+        modifier = modifier
+            .padding(
+                start = RollaDimens.settingsCardInset + RollaDimens.settingsRowPadding,
+                top = RollaDimens.settingsSectionGap,
+                bottom = RollaDimens.settingsHeaderGap,
+            )
+            .semantics { heading() },
     )
 }
 
 /**
- * The rounded (shapes.large) surfaceContainer card that groups a section rows -- ui-style-guide.md
- * section 6. Callers stack SettingsToggleRow / SettingsValueNavRow / SettingsSliderRow (or any
- * other row) as [content]; this composable owns only the card chrome and inner padding.
+ * The rounded (shapes.large) surfaceContainer card that groups a section's rows, inset settingsCardInset from the
+ * screen edges (spec §8.6). It has no inner padding: every row pads itself, so ripples fill the card and dividers
+ * measure their insets from its edges. Separate rows with [SettingsRowDivider].
  */
 @Composable
 fun SettingsSectionCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .padding(horizontal = RollaDimens.settingsCardInset)
+            .fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.large,
     ) {
-        Column(modifier = Modifier.padding(SectionCardPadding), content = content)
+        Column(content = content)
     }
 }
 
+/** The hairline between two rows of a [SettingsSectionCard]: settingsDividerInset in from both card edges. */
+@Composable
+fun SettingsRowDivider(modifier: Modifier = Modifier) {
+    InsetDivider(
+        startInset = RollaDimens.settingsDividerInset,
+        modifier = modifier,
+        endInset = RollaDimens.settingsDividerInset,
+    )
+}
+
 /**
- * Toggle row: label (plus optional [subLabel]) left, M3 Switch right (ui-style-guide.md section 6).
- * The whole row is toggleable, not just the switch, for a larger touch target; the Switch own
- * onCheckedChange is null so it renders purely as a visual indicator and never double-handles the
- * tap (this is the documented Material3 pattern for a row-wide toggle target).
+ * Toggle row: label (plus optional [subLabel]) left, a [OneUiSwitch] right (spec §8.6). The whole row is the single
+ * toggle target; the switch gets onCheckedChange = null, so it is purely visual and adds no second toggleable node.
  */
 @Composable
 fun SettingsToggleRow(
@@ -105,29 +111,26 @@ fun SettingsToggleRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = RowMinHeight)
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-            .semantics(mergeDescendants = true) {},
+            .settingsRowLayout(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SettingsRowLabel(label = label, subLabel = subLabel, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(RowLabelGap))
-        Switch(checked = checked, onCheckedChange = null)
+        SettingsRowText(label = label, subLabel = subLabel, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(RollaDimens.listTrailingGap))
+        OneUiSwitch(checked = checked, onCheckedChange = null)
     }
 }
 
 /**
- * Value/navigation row: label (plus optional [subLabel]) left, either a primary-colored [value]
- * text or a trailing chevron right (ui-style-guide.md section 6) -- the whole row is clickable.
- * Pass [value] for settings whose current state is worth surfacing inline (Theme, Equalizer
- * On/Off); leave it null for pure navigation/action rows (Rescan library, Privacy, About), which
- * render the chevron instead.
+ * Value/navigation row (spec §8.6): the label, then an optional gray [subLabel], then an optional blue [value]
+ * (settingValue in accentText) on its own line below, all start-aligned. There is no trailing chevron; the whole row
+ * is clickable. Pass [value] for settings whose current state is worth surfacing inline (Theme, Equaliser On/Off).
  *
- * For in-flight action rows (Rescan library), [showProgress] swaps the trailing slot for a small
- * spinner and callers typically pass [enabled] = false alongside so the action can't re-fire
- * mid-run.
+ * For in-flight action rows (Rescan library), [showProgress] adds a small trailing accentText spinner, and callers
+ * typically pass [enabled] = false alongside so the action can't re-fire mid-run.
  */
-@Suppress("LongParameterList", "LongMethod")
+// Each parameter is a distinct, defaulted slot of the row; grouping them would only add a holder type.
+@Suppress("LongParameterList")
 @Composable
 fun SettingsValueNavRow(
     label: String,
@@ -141,37 +144,24 @@ fun SettingsValueNavRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = RowMinHeight)
             .clickable(enabled = enabled, onClick = onClick)
-            .semantics(mergeDescendants = true) {},
+            .settingsRowLayout(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SettingsRowLabel(label = label, subLabel = subLabel, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(RowLabelGap))
-        when {
-            showProgress -> CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = RowProgressStrokeWidth,
-                modifier = Modifier.size(RowProgressSize),
-            )
-            value != null -> Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
+        SettingsRowText(label = label, subLabel = subLabel, value = value, modifier = Modifier.weight(1f))
+        if (showProgress) {
+            Spacer(Modifier.width(RollaDimens.listTrailingGap))
+            CircularProgressIndicator(
                 color = MaterialTheme.colorScheme.accentText,
-            )
-            else -> Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(ChevronIconSize),
+                strokeWidth = RollaDimens.settingsProgressStroke,
+                modifier = Modifier.size(RollaDimens.settingsProgressSize),
             )
         }
     }
 }
 
 /**
- * Slider row: label, centered live value text, then a Slider with primary active track and
- * sliderInactiveTrack inactive track (ui-style-guide.md section 6).
+ * Slider row (spec §8.6): the label, a centered blue value ("1.0x"), then a [OneUiSlider].
  *
  * Deliberately does NOT call [onValueChangeFinished] on every drag tick -- that would mean a
  * DataStore write per pixel of drag movement. Instead the in-drag position is kept in local
@@ -207,20 +197,24 @@ fun SettingsSliderRow(
         else -> pendingValue ?: value
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .settingsRowLayout(),
+    ) {
         Text(
             text = label,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.settingTitle,
             color = MaterialTheme.colorScheme.onSurface,
         )
         Text(
             text = valueLabel(displayedValue),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.settingValue,
+            color = MaterialTheme.colorScheme.accentText,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
-        Slider(
+        OneUiSlider(
             value = displayedValue,
             onValueChange = {
                 isDragging = true
@@ -233,11 +227,6 @@ fun SettingsSliderRow(
             },
             valueRange = valueRange,
             steps = steps,
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.sliderInactiveTrack,
-            ),
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = label },
@@ -245,21 +234,54 @@ fun SettingsSliderRow(
     }
 }
 
-/** Shared label (plus optional sub-label) column used by every row type above. */
+/**
+ * Every row's layout: at least the single-line row height (above the 48 dp touch floor), then settingsRowPadding at
+ * the sides and settingsRowVerticalPadding above and below the content.
+ */
+internal fun Modifier.settingsRowLayout(): Modifier = this
+    .heightIn(min = RollaDimens.singleLineRowHeight)
+    .padding(horizontal = RollaDimens.settingsRowPadding, vertical = RollaDimens.settingsRowVerticalPadding)
+
+/**
+ * A read-only block of prose inside a [SettingsSectionCard] (About, Privacy), padded like a row (settingsRowPadding at
+ * the sides, settingsRowVerticalPadding above and below), so its text starts where row text starts.
+ */
 @Composable
-private fun SettingsRowLabel(label: String, subLabel: String?, modifier: Modifier = Modifier) {
+internal fun SettingsTextBlock(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = RollaDimens.settingsRowPadding, vertical = RollaDimens.settingsRowVerticalPadding),
+        content = content,
+    )
+}
+
+/** The label, then the optional gray sub-label, then the optional blue value: stacked and start-aligned. */
+@Composable
+private fun SettingsRowText(
+    label: String,
+    subLabel: String?,
+    modifier: Modifier = Modifier,
+    value: String? = null,
+) {
     Column(modifier = modifier) {
         Text(
             text = label,
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.settingTitle,
             color = MaterialTheme.colorScheme.onSurface,
         )
         if (subLabel != null) {
             Text(
                 text = subLabel,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.settingSubtitle,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = RowTextSpacing),
+            )
+        }
+        if (value != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.settingValue,
+                color = MaterialTheme.colorScheme.accentText,
             )
         }
     }
@@ -280,13 +302,13 @@ internal fun SettingsRadioOptionRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = OptionRowMinHeight)
+            .heightIn(min = RollaDimens.minTouchTarget)
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioButton(selected = selected, onClick = null)
-        Spacer(Modifier.width(OptionRowLabelGap))
+        Spacer(Modifier.width(RollaDimens.dialogOptionLabelGap))
         Text(
             text = label,
             style = MaterialTheme.typography.bodyLarge,
@@ -303,12 +325,14 @@ private fun PreviewSettingsRows() {
     RollaMusicPlayerTheme {
         SettingsSectionCard {
             SettingsValueNavRow(label = "Theme", value = "System", onClick = {})
+            SettingsRowDivider()
             SettingsToggleRow(
-                label = "Dynamic color",
-                subLabel = "Use colors from your wallpaper",
+                label = "Dynamic colour",
+                subLabel = "Use colours from your wallpaper",
                 checked = true,
                 onCheckedChange = {},
             )
+            SettingsRowDivider()
             SettingsSliderRow(
                 label = "Playback speed",
                 value = 1.0f,
@@ -316,7 +340,8 @@ private fun PreviewSettingsRows() {
                 valueLabel = { "1.0x" },
                 onValueChangeFinished = {},
             )
-            SettingsValueNavRow(label = "Rescan library", onClick = {})
+            SettingsRowDivider()
+            SettingsValueNavRow(label = "Rescan library", onClick = {}, showProgress = true)
         }
     }
 }

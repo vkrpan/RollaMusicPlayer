@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -19,13 +18,9 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -35,9 +30,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.rolla.musicplayer.core.designsystem.component.ArtworkPlaceholder
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
 import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
@@ -251,30 +243,6 @@ private fun SongItemLeading(song: Song, trackNumber: Int?) {
         // artwork-description + title + artist as one verbose run (same reasoning as MiniPlayer's
         // null'd artwork). The row's own text carries the content.
         ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = null)
-    }
-}
-
-/** The 48 dp thumbnail: [ArtworkPlaceholder] underneath, with the Coil image drawn on top when there is art. */
-@Composable
-private fun ArtworkThumbnail(
-    artworkUri: String,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-) {
-    Box(modifier = modifier.size(RollaDimens.listThumb).clip(MaterialTheme.shapes.small)) {
-        ArtworkPlaceholder(modifier = Modifier.size(RollaDimens.listThumb), shape = MaterialTheme.shapes.small)
-        if (artworkUri.isNotEmpty()) {
-            val context = LocalContext.current
-            val imageRequest = remember(artworkUri) {
-                ImageRequest.Builder(context).data(artworkUri).crossfade(true).build()
-            }
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = contentDescription,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
     }
 }
 

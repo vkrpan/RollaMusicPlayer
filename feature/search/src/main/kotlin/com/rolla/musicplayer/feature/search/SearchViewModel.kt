@@ -106,9 +106,14 @@ class SearchViewModel @Inject constructor(
         savedStateHandle[QUERY_KEY] = value
     }
 
-    /** Starts playback of a song tapped from the Songs section of [uiState]'s results. */
+    /**
+     * Plays the Songs section of [uiState]'s results as the queue, in displayed order, starting at the tapped
+     * [song] (ruling 5). [uiState] is WhileSubscribed and SearchScreen collects it while visible, so its value is
+     * the list the user tapped in. Outside [SearchUiState.Results] the list is empty and `playFrom` plays [song] alone.
+     */
     fun play(song: Song) {
-        playbackController.play(song)
+        val songs = (uiState.value as? SearchUiState.Results)?.results?.songs.orEmpty()
+        playbackController.playFrom(songs, song)
     }
 
     /** Re-runs a query tapped from the recent-searches list in [SearchUiState.Idle]. */

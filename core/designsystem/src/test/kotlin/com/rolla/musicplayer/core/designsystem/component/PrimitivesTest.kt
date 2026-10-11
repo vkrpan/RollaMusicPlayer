@@ -1,8 +1,6 @@
 package com.rolla.musicplayer.core.designsystem.component
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -13,7 +11,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.nowPlayingGradient
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -51,18 +48,5 @@ class PrimitivesTest {
         }
         assertEquals(0.dp, defaultInset)
         assertEquals(72.dp, providedInset)
-    }
-
-    @Test
-    fun nowPlayingBackgroundLaysOutWithoutCrashing() {
-        composeRule.setContent {
-            RollaMusicPlayerTheme(darkTheme = true) {
-                Box(Modifier.size(200.dp).nowPlayingBackground(MaterialTheme.colorScheme.nowPlayingGradient))
-            }
-        }
-        // Covers composition, measure and layout only. Robolectric never runs the draw lambda here: a mutant
-        // planted in onDrawBehind survives, and NATIVE-graphics captureToImage times out. The gradient itself
-        // is checked on device.
-        composeRule.waitForIdle()
     }
 }

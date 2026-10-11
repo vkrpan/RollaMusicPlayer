@@ -378,13 +378,35 @@ class SearchViewModelTest {
 
     // ── play ──────────────────────────────────────────────────────────────────
 
+    // Mutations: `play(song)` keeps `playbackController.play(song)` → RED (playFrom never called);
+    // pass a different list or order (e.g. `songs.reversed()`, or `listOf(song)`) → RED (eq mismatch).
+    // Three distinct songs, the tapped one second, so list identity, order and start song all differ.
     @Test
-    fun play_delegatesToPlaybackController() = runTest(mainDispatcherRule.testDispatcher) {
+    fun play_tappingSecondOfThreeSongResults_playsTheResultListFromTheTappedSong() = runTest(
+        mainDispatcherRule.testDispatcher,
+    ) {
+        val songA = sampleSong.copy(id = "song-a", title = "A")
+        val songB = sampleSong.copy(id = "song-b", title = "B")
+        val songC = sampleSong.copy(id = "song-c", title = "C")
+        val results = SearchResults(songs = listOf(songA, songB, songC), albums = emptyList(), artists = emptyList())
+        fakeSearchRepository.emit(results)
         val viewModel = createViewModel()
 
-        viewModel.play(sampleSong)
+        viewModel.uiState.test {
+            assertEquals(SearchUiState.Idle, awaitItem())
+            viewModel.onQueryChanged("rock")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+            assertEquals(SearchUiState.Loading, awaitItem())
+            assertEquals(SearchUiState.Results(results), awaitItem())
 
-        verify(exactly = 1) { playbackController.play(sampleSong) }
+            viewModel.play(songB)
+
+            verify(exactly = 1) { playbackController.playFrom(listOf(songA, songB, songC), songB) }
+            verify(exactly = 0) { playbackController.play(any()) }
+
+            cancelAndIgnoreRemainingEvents()
+        }
     }
 
     // ── recent searches ──────────────────────────────────────────────────────

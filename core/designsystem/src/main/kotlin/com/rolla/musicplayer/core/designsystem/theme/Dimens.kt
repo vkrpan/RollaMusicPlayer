@@ -111,6 +111,24 @@ object RollaDimens {
     val settingsSliderTrack = 14.dp
     val settingsSliderThumb = 20.dp
 
+    /** Gap above each settings section header and below the last card; pre-restyle value; Phase 7 calibrates. */
+    val settingsSectionGap = 24.dp
+
+    /** Gap between a settings section header and its card; pre-restyle value; Phase 7 calibrates. */
+    val settingsHeaderGap = 8.dp
+
+    /** Vertical padding inside a settings row or prose block; pre-restyle value; Phase 7 calibrates. */
+    val settingsRowVerticalPadding = 16.dp
+
+    /** Size of the in-row progress spinner (Rescan library); pre-restyle value; Phase 7 calibrates. */
+    val settingsProgressSize = 20.dp
+
+    /** Stroke width of the in-row progress spinner; pre-restyle value; Phase 7 calibrates. */
+    val settingsProgressStroke = 2.dp
+
+    /** Gap between a dialog option's radio and its label (theme picker); pre-restyle value; Phase 7 calibrates. */
+    val dialogOptionLabelGap = 12.dp
+
     // Switch (thumb scaled to fit the 17 dp track with a 1 dp inset)
     val switchTrackWidth = 35.dp
     val switchTrackHeight = 17.dp
@@ -125,4 +143,19 @@ object RollaDimens {
     // Not measured on the reference (no px for the card text gap or the card row's x); Phase 7 calibrates.
     val featureCardLabelGap = 8.dp
     val featureCardRowStart: Dp get() = listThumbStart // first card aligns with the list thumbnails
+
+    // Mini-player, not measured on the reference (Phase 7 calibrates).
+    val miniPlayerArtTextGap = 12.dp
+    val miniPlayerEnd = 4.dp
+
+    // Now Playing vertical rhythm, derived from the measured glyph centres at 3.0 px/dp
+    // (docs/design/oneui-measurements.md "Now Playing"); provisional until Phase 7.
+    val npArtGlyph = 60.dp // placeholder note on the 168 dp artwork (spec §8.4)
+    val npTitleTopGap = 25.dp // art bottom 298 → title line top ≈323
+    val npArtistTopGap = 5.dp // title line bottom ≈351 → artist line top ≈356
+    val npTransportTopGap = 10.dp // seek box bottom 613 → 64 dp transport box top 623
+    val npBottomGap = 45.dp // transport box bottom 687 → navigation bar top 732
+
+    // Queue sheet
+    val queueCurrentGlyph = 16.dp // the small EqualizerBars glyph on the playing row; unmeasured
 }

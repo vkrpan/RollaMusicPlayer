@@ -26,6 +26,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.feature.player.MiniPlayer
@@ -100,8 +101,8 @@ class MiniPlayerHostTest {
         val hostBottom = composeRule.onNodeWithTag(HOST_TAG).getUnclippedBoundsInRoot().bottom
         val pillBottom = composeRule.onNodeWithTag(PILL_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot().bottom
         assertEquals("pill lifted above the navigation bar", NAV_BAR_HEIGHT.value, (hostBottom - pillBottom).value, TOL)
-        // Today's pill: a 64 dp minimum-height row plus its own 4 dp top and bottom margins. The bar is padded by the
-        // host, outside the measured modifier, so it is never part of the value.
+        // The pill is a miniPlayerHeight minimum-height row with no vertical margin. The bar is padded by the host,
+        // outside the measured modifier, so it is never part of the value.
         assertDpEquals(REAL_PILL_FOOTPRINT, contentInset)
     }
 
@@ -185,7 +186,9 @@ class MiniPlayerHostTest {
         const val PILL_TAG = "pill"
         val UNREAD = (-1).dp
         val FAKE_PILL_HEIGHT = 70.dp
-        val REAL_PILL_FOOTPRINT = 72.dp
+
+        // the pill has no vertical margin (measured: it sits on the nav bar)
+        val REAL_PILL_FOOTPRINT get() = RollaDimens.miniPlayerHeight
         val NAV_BAR_HEIGHT = 48.dp
         val IME_HEIGHT = 300.dp
         const val TOL = 0.5f

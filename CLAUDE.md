@@ -298,6 +298,14 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   with the Playlists and Tracks tabs (`PlaylistsTab`, `TracksTab`). `LibraryScreen`, `PlaylistsScreen`, the
 >   `Library`/`Playlists` routes and the bottom nav are gone. The mini-player floats over content
 >   (`MiniPlayerHost`, `LocalMiniPlayerInset`).
+> - **Phase 3:** Now Playing, the mini-player (60 dp pill), Equaliser and Settings are rebuilt on the One UI kit. There is a
+>   real queue sheet (`QueueSheet`/`QueueViewModel`), backed by a `QueueState` that `PlaybackService` publishes
+>   (`QueuePublisher`). Tapping a track plays the whole list from it, via the `PlaybackController` helpers `playFrom`,
+>   `playAllInOrder` and `shuffleAll`. Now Playing's Volume opens the system panel (`SystemVolumePanel`), and ⋮ offers
+>   Edit tags, Go to album, Go to artist and Settings. UI copy says "Equaliser"; code names stay `Equalizer*`. Reduced
+>   motion uses `rememberReducedMotion()`; `isReducedMotion` is gone from `:feature:player` and `:feature:equalizer`
+>   (`:feature:playlists` still has a module-local copy). Settings values sit in blue below their labels,
+>   with no chevrons.
 >
 > The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
 > at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the

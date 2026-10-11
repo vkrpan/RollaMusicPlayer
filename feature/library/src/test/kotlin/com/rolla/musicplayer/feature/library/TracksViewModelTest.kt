@@ -4,7 +4,6 @@ package com.rolla.musicplayer.feature.library
 
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.FakeSongRepository
@@ -16,14 +15,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import kotlin.random.Random
 
-// Its first nextInt(3) is non-zero (asserted in the test), so a hardcoded start index of 0 fails.
+// Seeds the VM's Random test seam; the shuffle test verifies that exact instance is forwarded to the controller.
 private const val SHUFFLE_SEED = 7L
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -89,69 +87,59 @@ class TracksViewModelTest {
 
     // ── play ──────────────────────────────────────────────────────────────────
 
+    // Mutation: TracksViewModel.play(song) keeps calling playbackController.play(song) → RED (ruling 5).
     @Test
-    fun `play_delegatesToPlaybackController`() {
-        val song = Song(
-            id = "42",
-            title = "Stairway to Heaven",
-            artist = "Led Zeppelin",
-            album = "Led Zeppelin IV",
-            albumId = 2L,
-            durationMs = 482_000L,
-            trackNumber = 4,
-            year = 1971,
-            contentUri = "content://media/external/audio/media/42",
-            artworkUri = "",
-        )
-
-        viewModel.play(song)
-
-        verify(exactly = 1) { playbackController.play(song) }
+    fun `tapping a track plays the whole list from that track`() = runTest {
+        val songs = listOf(song("1"), song("2"), song("3"))
+        // songs is WhileSubscribed: collect it so its value is live when the track is tapped.
+        val job = launch { viewModel.songs.collect {} }
+        fakeRepository.emit(songs)
+        advanceUntilIdle()
+        viewModel.play(songs[2])
+        verify(exactly = 1) { playbackController.playFrom(songs, songs[2]) }
+        job.cancel()
     }
 
     // ── playAll / shuffleAll ──────────────────────────────────────────────────
 
+    // Mutation: call playAll(list, 0) directly (skipping setShuffle(OFF)) → RED.
     @Test
-    fun `playAll_turnsShuffleOffAndPlaysFromTheFirstSong`() = runTest {
+    fun `play all delegates to playAllInOrder`() = runTest {
         val songs = listOf(song("1"), song("2"), song("3"))
         val job = launch { viewModel.songs.collect {} }
         fakeRepository.emit(songs)
         advanceUntilIdle()
         viewModel.playAll()
-        verifyOrder {
-            playbackController.setShuffle(ShuffleMode.OFF)
-            playbackController.playAll(songs, 0)
-        }
+        verify(exactly = 1) { playbackController.playAllInOrder(songs) }
         job.cancel()
     }
 
+    // Mutation: pass Random.Default instead of the injected random → RED.
     @Test
-    fun `shuffleAll_turnsShuffleOnAndPlaysAllFromARandomStart`() = runTest {
+    fun `shuffle all delegates with the view model's random`() = runTest {
         val songs = listOf(song("1"), song("2"), song("3"))
         viewModel.random = Random(SHUFFLE_SEED)
-        val expectedStart = Random(SHUFFLE_SEED).nextInt(songs.size)
-        assertNotEquals("Seed must pick a non-zero start, or a hardcoded 0 would pass", 0, expectedStart)
         val job = launch { viewModel.songs.collect {} }
         fakeRepository.emit(songs)
         advanceUntilIdle()
         viewModel.shuffleAll()
-        verifyOrder {
-            playbackController.setShuffle(ShuffleMode.ON)
-            playbackController.playAll(songs, expectedStart)
-        }
+        verify(exactly = 1) { playbackController.shuffleAll(songs, viewModel.random) }
         job.cancel()
     }
 
+    // Delegation only: the empty-list no-op itself is pinned by PlaybackControllerTest
+    // (`playAllInOrder and shuffleAll on an empty list do nothing`), so the VM forwards the empty list unguarded.
+    // Mutation: restore the VM-side `if (list.isEmpty()) return` guard in playAll() → RED.
     @Test
-    fun `playAll_and_shuffleAll_onEmptyLibrary_doNothing`() = runTest {
+    fun `playAll_and_shuffleAll_onEmptyLibrary_delegateTheEmptyListToTheHelpers`() = runTest {
         // A real, indexed-but-empty library: the subscription is live and the repository has emitted.
         val job = launch { viewModel.songs.collect {} }
         fakeRepository.emit(emptyList())
         advanceUntilIdle()
         viewModel.playAll()
         viewModel.shuffleAll()
-        verify(exactly = 0) { playbackController.playAll(any(), any()) }
-        verify(exactly = 0) { playbackController.setShuffle(any()) }
+        verify(exactly = 1) { playbackController.playAllInOrder(emptyList()) }
+        verify(exactly = 1) { playbackController.shuffleAll(emptyList(), viewModel.random) }
         job.cancel()
     }
 

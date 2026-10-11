@@ -7,7 +7,6 @@ import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
@@ -51,8 +50,9 @@ class TracksViewModel @Inject constructor(
         playbackController.connect()
     }
 
+    /** Plays the whole library as the queue, starting at the tapped [song] (ruling 5). */
     fun play(song: Song) {
-        playbackController.play(song)
+        playbackController.playFrom(songs.value, song)
     }
 
     /**
@@ -60,18 +60,12 @@ class TracksViewModel @Inject constructor(
      * WhileSubscribed and TracksTab collects it while visible, so its value is current when the button is tapped.
      */
     fun playAll() {
-        val list = songs.value
-        if (list.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.OFF)
-        playbackController.playAll(list, startIndex = 0)
+        playbackController.playAllInOrder(songs.value)
     }
 
     /** Shuffles the whole library from a random start track (spec §12). A no-op for an empty library. */
     fun shuffleAll() {
-        val list = songs.value
-        if (list.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.ON)
-        playbackController.playAll(list, startIndex = random.nextInt(list.size))
+        playbackController.shuffleAll(songs.value, random)
     }
 
     /** Adds an already-tapped song to an existing playlist, via the shared "Add to playlist" sheet. */

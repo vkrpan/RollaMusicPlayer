@@ -5,27 +5,24 @@ import app.cash.turbine.test
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Artist
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeArtistRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.mockk
 import io.mockk.verify
-import io.mockk.verifyOrder
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import kotlin.random.Random
 
-// Its first nextInt(3) is non-zero (asserted in the test), so a hardcoded start index of 0 fails.
+// Seeds the VM's Random test seam; the shuffle test verifies that exact instance is forwarded to the controller.
 private const val SHUFFLE_SEED = 7L
 
 /**
@@ -144,8 +141,9 @@ class ArtistDetailViewModelTest {
         assertEquals(listOf("Queen"), fakeArtistRepository.requestedSongsArtistNames)
     }
 
+    // Mutation: keep the old inline body (indexOfFirst, then playAll(songs, startIndex = index)) → RED (ruling 5).
     @Test
-    fun onSongClick_playsQueueStartingAtTappedSongIndex() = runTest {
+    fun onSongClick_playsTheArtistsSongsFromTheTappedSong() = runTest {
         val songs = createTestSongs(3)
         val vm = viewModel()
         val collectJob = launch { vm.uiState.collect {} }
@@ -155,12 +153,15 @@ class ArtistDetailViewModelTest {
 
         vm.onSongClick(songs[2])
 
-        verify { playbackController.playAll(songs, startIndex = 2) }
+        verify(exactly = 1) { playbackController.playFrom(songs, songs[2]) }
         collectJob.cancel()
     }
 
+    // Delegation only: the "song no longer in the list → play it alone" fallback is pinned by PlaybackControllerTest
+    // (`playFrom starts the list at the tapped song or plays it alone when absent`).
+    // Mutation: restore the VM-side `if (index == -1) playbackController.play(song)` branch → RED.
     @Test
-    fun onSongClick_givenSongNotInCurrentList_fallsBackToPlaySong() = runTest {
+    fun onSongClick_givenSongNotInCurrentList_stillDelegatesToPlayFrom() = runTest {
         val songs = createTestSongs(2)
         val vm = viewModel()
         val collectJob = launch { vm.uiState.collect {} }
@@ -171,13 +172,14 @@ class ArtistDetailViewModelTest {
         val songNotInList = createTestSongs(3, albumId = 2L).last()
         vm.onSongClick(songNotInList)
 
-        verify { playbackController.play(songNotInList) }
-        verify(exactly = 0) { playbackController.playAll(any(), any()) }
+        verify(exactly = 1) { playbackController.playFrom(songs, songNotInList) }
+        verify(exactly = 0) { playbackController.play(any()) }
         collectJob.cancel()
     }
 
+    // Mutation: call playAll(songs, 0) directly (skipping setShuffle(OFF)) → RED.
     @Test
-    fun onPlayClick_disablesShuffleThenPlaysAllFromZero() = runTest {
+    fun onPlayClick_delegatesToPlayAllInOrder() = runTest {
         val songs = createTestSongs(3)
         val vm = viewModel()
         val collectJob = launch { vm.uiState.collect {} }
@@ -187,13 +189,15 @@ class ArtistDetailViewModelTest {
 
         vm.onPlayClick()
 
-        verify { playbackController.setShuffle(ShuffleMode.OFF) }
-        verify { playbackController.playAll(songs, startIndex = 0) }
+        verify(exactly = 1) { playbackController.playAllInOrder(songs) }
         collectJob.cancel()
     }
 
+    // Delegation only: the empty-list no-op is pinned by PlaybackControllerTest
+    // (`playAllInOrder and shuffleAll on an empty list do nothing`).
+    // Mutation: restore the VM-side `if (songs.isEmpty()) return` guard in onPlayClick() → RED.
     @Test
-    fun onPlayClick_givenEmptyArtist_leavesControllerUntouched() = runTest {
+    fun onPlayClick_givenEmptyArtist_delegatesTheEmptyListToPlayAllInOrder() = runTest {
         val vm = viewModel()
         val collectJob = launch { vm.uiState.collect {} }
         fakeArtistRepository.emitArtist(createTestArtist())
@@ -201,18 +205,16 @@ class ArtistDetailViewModelTest {
 
         vm.onPlayClick()
 
-        verify(exactly = 0) { playbackController.setShuffle(any()) }
-        verify(exactly = 0) { playbackController.playAll(any(), any()) }
+        verify(exactly = 1) { playbackController.playAllInOrder(emptyList()) }
         collectJob.cancel()
     }
 
+    // Mutation: pass Random.Default instead of the injected random → RED.
     @Test
-    fun onShuffleClick_enablesShuffleThenPlaysAllFromARandomStart() = runTest {
+    fun onShuffleClick_delegatesToShuffleAllWithTheViewModelsRandom() = runTest {
         val songs = createTestSongs(3)
         val vm = viewModel()
         vm.random = Random(SHUFFLE_SEED)
-        val expectedStart = Random(SHUFFLE_SEED).nextInt(songs.size)
-        assertNotEquals("Seed must pick a non-zero start, or a hardcoded 0 would pass", 0, expectedStart)
         val collectJob = launch { vm.uiState.collect {} }
         fakeArtistRepository.emitArtist(createTestArtist())
         fakeArtistRepository.emitSongs(songs)
@@ -220,15 +222,15 @@ class ArtistDetailViewModelTest {
 
         vm.onShuffleClick()
 
-        verifyOrder {
-            playbackController.setShuffle(ShuffleMode.ON)
-            playbackController.playAll(songs, expectedStart)
-        }
+        verify(exactly = 1) { playbackController.shuffleAll(songs, vm.random) }
         collectJob.cancel()
     }
 
+    // Delegation only: the empty-list no-op is pinned by PlaybackControllerTest
+    // (`playAllInOrder and shuffleAll on an empty list do nothing`).
+    // Mutation: restore the VM-side `if (songs.isEmpty()) return` guard in onShuffleClick() → RED.
     @Test
-    fun onShuffleClick_givenEmptyArtist_leavesControllerUntouched() = runTest {
+    fun onShuffleClick_givenEmptyArtist_delegatesTheEmptyListToShuffleAll() = runTest {
         val vm = viewModel()
         val collectJob = launch { vm.uiState.collect {} }
         fakeArtistRepository.emitArtist(createTestArtist())
@@ -236,8 +238,7 @@ class ArtistDetailViewModelTest {
 
         vm.onShuffleClick()
 
-        verify(exactly = 0) { playbackController.setShuffle(any()) }
-        verify(exactly = 0) { playbackController.playAll(any(), any()) }
+        verify(exactly = 1) { playbackController.shuffleAll(emptyList(), vm.random) }
         collectJob.cancel()
     }
 

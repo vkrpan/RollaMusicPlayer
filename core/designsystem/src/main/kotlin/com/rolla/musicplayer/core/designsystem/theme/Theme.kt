@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.designsystem.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -28,6 +29,8 @@ internal val LocalRollaDarkTheme = staticCompositionLocalOf { false }
  * - Dark is the primary, fully-designed theme (true-black OLED).
  * - The brand accent (blue) is **stable**: dynamic color is OFF by default, and even when
  *   enabled it only re-tints neutrals — `primary`/`onPrimary` are kept on-brand.
+ * - The default `LocalContentColor` is `onBackground`, so un-tinted content and default ripples stay visible
+ *   outside a `Surface`.
  *
  * Owned by m3-design-system-agent. Wraps every screen; UI reads tokens from
  * `MaterialTheme.colorScheme/typography/shapes` only — no hardcoded values.
@@ -60,7 +63,13 @@ fun RollaMusicPlayerTheme(
             colorScheme = colorScheme,
             typography = RollaTypography,
             shapes = RollaShapes,
-            content = content,
-        )
+        ) {
+            // Nothing above Home provides a content color (no Surface/Scaffold), so M3's default black made every
+            // default-indication ripple, and any un-tinted Text/Icon outside a Surface, invisible in dark theme.
+            CompositionLocalProvider(
+                LocalContentColor provides MaterialTheme.colorScheme.onBackground,
+                content = content,
+            )
+        }
     }
 }

@@ -9,7 +9,6 @@ import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
-import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -115,24 +114,20 @@ class PlaylistDetailViewModel @Inject constructor(
      * WhileSubscribed and the screen collects it while visible, so its value is current when the button is tapped.
      */
     fun playAll() {
-        val list = uiState.value.songs
-        if (list.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.OFF)
-        playbackController.playAll(list, startIndex = 0)
+        playbackController.playAllInOrder(uiState.value.songs)
     }
 
     /** Shuffles the playlist from a random start track (spec §12). A no-op for an empty playlist. */
     fun shuffleAll() {
-        val list = uiState.value.songs
-        // Before the random pick: nextInt(0) throws.
-        if (list.isEmpty()) return
-        playbackController.setShuffle(ShuffleMode.ON)
-        playbackController.playAll(list, startIndex = random.nextInt(list.size))
+        playbackController.shuffleAll(uiState.value.songs, random)
     }
 
+    /**
+     * Plays the playlist as the queue, starting at the tapped [song] (ruling 5). A song no longer in the list plays
+     * on its own ([PlaybackController.playFrom]).
+     */
     fun playSong(song: Song) {
-        val songs = uiState.value.songs
-        playbackController.playAll(songs, startIndex = songs.indexOf(song).coerceAtLeast(0))
+        playbackController.playFrom(uiState.value.songs, song)
     }
 
     fun removeSong(song: Song) {
