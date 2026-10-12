@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEqualTo
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getBoundsInRoot
@@ -33,6 +34,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
@@ -141,6 +143,45 @@ class TracksTabTest {
         composeRule.onNodeWithText("No music found on this device").assertIsDisplayed()
     }
 
+    // Ruling 7: disabled, not hidden, so the header does not jump when the library fills.
+    @Test
+    fun emptyLibraryDisablesPlayAndShuffle() {
+        setTab(songs = emptyList(), scanState = ScanState.Done(added = 0, removed = 0))
+
+        composeRule.onNodeWithContentDescription("Play all tracks").assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription("Shuffle all tracks").assertIsNotEnabled()
+    }
+
+    // Characterization of the per-track options sheet, written before it moved to :core:ui as SongOptionsHost and
+    // green on both sides of the move: the move's behavioural proof. The tapped row is not the first, so a host that
+    // reported the wrong song would fail.
+    @Test
+    fun overflowOpensTheOptionsSheetAndEditTagsReportsTheTrack() {
+        var edited: Song? = null
+        setTab(onEditTagsClick = { edited = it })
+
+        composeRule.onNodeWithContentDescription("More options for ${songs[1].title}").performClick()
+        composeRule.onNodeWithText("Edit tags").performClick()
+
+        assertEquals(songs[1], edited)
+        composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
+    }
+
+    @Test
+    fun addToPlaylistFromTheOptionsSheetAddsTheTrackToThePickedPlaylist() {
+        var added: Pair<String, Long>? = null
+        setTab(
+            userPlaylists = listOf(PLAYLIST),
+            onAddSongToPlaylist = { songId, playlistId -> added = songId to playlistId },
+        )
+
+        composeRule.onNodeWithContentDescription("More options for ${songs[1].title}").performClick()
+        composeRule.onNodeWithText("Add to playlist").performClick()
+        composeRule.onNodeWithText(PLAYLIST.name).performClick()
+
+        assertEquals(songs[1].id to PLAYLIST.id, added)
+    }
+
     @Test
     fun scanningShowsProgress() {
         setTab(scanState = ScanState.Scanning)
@@ -220,11 +261,16 @@ class TracksTabTest {
         }
     }
 
+    // A test host: every parameter is an input or event one of the tests above varies.
+    @Suppress("LongParameterList")
     private fun setTab(
         songs: List<Song> = this.songs,
         scanState: ScanState = ScanState.Done(added = 0, removed = 0),
         miniPlayerInset: Dp = 0.dp,
         hostHeight: Dp? = null,
+        userPlaylists: List<Playlist> = emptyList(),
+        onAddSongToPlaylist: (String, Long) -> Unit = { _, _ -> },
+        onEditTagsClick: (Song) -> Unit = {},
     ) {
         composeRule.setContent {
             view = LocalView.current
@@ -237,13 +283,13 @@ class TracksTabTest {
                             songs = songs,
                             scanState = scanState,
                             selection = selection,
-                            userPlaylists = emptyList(),
+                            userPlaylists = userPlaylists,
                             onSongClick = { songClicks++ },
                             onShuffleClick = { shuffleClicks++ },
                             onPlayClick = { playClicks++ },
-                            onAddSongToPlaylist = { _, _ -> },
+                            onAddSongToPlaylist = onAddSongToPlaylist,
                             onCreatePlaylistAndAddSong = { _, _ -> },
-                            onEditTagsClick = {},
+                            onEditTagsClick = onEditTagsClick,
                         )
                     }
                 }
@@ -272,6 +318,9 @@ class TracksTabTest {
         val MINI_PLAYER_INSET = 72.dp
         val NAV_BAR_HEIGHT = 48.dp
         val TOLERANCE = 0.5.dp
+
+        // Its id differs from every song index, so a swapped (songId, playlistId) pair cannot pass.
+        val PLAYLIST = Playlist(id = 77L, name = "Road trip", songCount = 0, createdAt = 0L, updatedAt = 0L)
 
         fun song(index: Int) = Song(
             id = "$index",

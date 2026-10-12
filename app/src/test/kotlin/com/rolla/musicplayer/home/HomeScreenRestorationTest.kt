@@ -31,6 +31,38 @@ class HomeScreenRestorationTest {
 
     @Test
     fun selectedTabSurvivesRecreation() {
+        val tester = setRestorableHome()
+
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.waitForIdle()
+        assertEquals(HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
+
+        tester.emulateSavedInstanceStateRestore()
+
+        composeRule.runOnIdle {
+            assertEquals("The restored pager must stay on Playlists", HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
+        }
+    }
+
+    // The last tab, two pages right of Tracks: back from ArtistDetail (no popUpTo) re-enters Home on this tab.
+    // Mutation (already pinned by the Playlists case above): drop rememberHomePagerState's rememberSaveable backing,
+    // e.g. remember { PagerState(currentPage = HomeTab.TRACKS.ordinal) { HomeTab.entries.size } } → reopens on Tracks.
+    @Test
+    fun artistsTabSurvivesRecreation() {
+        val tester = setRestorableHome()
+
+        composeRule.onNodeWithText("Artists").performClick()
+        composeRule.waitForIdle()
+        assertEquals(HomeTab.ARTISTS.ordinal, pagerState.currentPage)
+
+        tester.emulateSavedInstanceStateRestore()
+
+        composeRule.runOnIdle {
+            assertEquals("The restored pager must stay on Artists", HomeTab.ARTISTS.ordinal, pagerState.currentPage)
+        }
+    }
+
+    private fun setRestorableHome(): StateRestorationTester {
         val tester = StateRestorationTester(composeRule)
         tester.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
@@ -45,15 +77,6 @@ class HomeScreenRestorationTest {
                 ) { tab -> Text("page-${tab.name}") }
             }
         }
-
-        composeRule.onNodeWithText("Playlists").performClick()
-        composeRule.waitForIdle()
-        assertEquals(HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
-
-        tester.emulateSavedInstanceStateRestore()
-
-        composeRule.runOnIdle {
-            assertEquals("The restored pager must stay on Playlists", HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
-        }
+        return tester
     }
 }

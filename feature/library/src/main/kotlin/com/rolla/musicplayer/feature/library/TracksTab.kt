@@ -3,26 +3,11 @@
 package com.rolla.musicplayer.feature.library
 
 import android.content.res.Configuration
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -30,31 +15,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.CircleIconButton
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
-import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.emptyState
-import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
-import com.rolla.musicplayer.core.ui.AddToPlaylistSheet
-import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.SongListItem
+import com.rolla.musicplayer.core.ui.SongOptionsHost
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 
@@ -127,10 +101,10 @@ internal fun TracksTabContent(
         if (songs.isNotEmpty() || scanState is ScanState.Done) selection.retainAll(songs.mapTo(HashSet()) { it.id })
     }
     Column(modifier = modifier.fillMaxSize()) {
-        TracksSortHeader(onShuffleClick = onShuffleClick, onPlayClick = onPlayClick)
+        TracksSortHeader(enabled = songs.isNotEmpty(), onShuffleClick = onShuffleClick, onPlayClick = onPlayClick)
         when {
-            scanState is ScanState.Scanning -> ScanningContent()
-            songs.isEmpty() -> EmptyTracksContent()
+            scanState is ScanState.Scanning -> TabScanning()
+            songs.isEmpty() -> TabMessage("No music found on this device")
             else -> SongList(
                 songs = songs,
                 selection = selection,
@@ -139,7 +113,7 @@ internal fun TracksTabContent(
             )
         }
     }
-    TrackOptionsHost(
+    SongOptionsHost(
         song = optionsSheetSong,
         userPlaylists = userPlaylists,
         onDismiss = { optionsSheetSong = null },
@@ -149,33 +123,29 @@ internal fun TracksTabContent(
     )
 }
 
+/**
+ * Shuffle / Play over the whole library. [enabled] is false while the list is empty: disabled, not hidden, so the
+ * header does not jump when the library fills (ruling 7).
+ */
 @Composable
-private fun TracksSortHeader(onShuffleClick: () -> Unit, onPlayClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun TracksSortHeader(
+    enabled: Boolean,
+    onShuffleClick: () -> Unit,
+    onPlayClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     SortHeader(label = "Name", modifier = modifier) {
-        CircleIconButton(icon = RollaIcons.Shuffle, contentDescription = "Shuffle all tracks", onClick = onShuffleClick)
-        CircleIconButton(icon = RollaIcons.Play, contentDescription = "Play all tracks", onClick = onPlayClick)
-    }
-}
-
-@Composable
-private fun ScanningContent(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.semantics { contentDescription = "Scanning library" },
+        CircleIconButton(
+            icon = RollaIcons.Shuffle,
+            contentDescription = "Shuffle all tracks",
+            onClick = onShuffleClick,
+            enabled = enabled,
         )
-    }
-}
-
-@Composable
-private fun EmptyTracksContent(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = "No music found on this device",
-            style = MaterialTheme.typography.emptyState,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = RollaDimens.screenEdge),
+        CircleIconButton(
+            icon = RollaIcons.Play,
+            contentDescription = "Play all tracks",
+            onClick = onPlayClick,
+            enabled = enabled,
         )
     }
 }
@@ -210,152 +180,6 @@ private fun SongList(
                 onLongClick = { selection.toggle(song.id) },
             )
         }
-    }
-}
-
-/**
- * The per-track options flow: the options sheet for [song] (null when closed), then the shared "Add to playlist"
- * sheet and its "New playlist" dialog. [onDismiss] closes the options sheet.
- */
-// Each parameter is a distinct event or piece of state the flow forwards.
-@Suppress("LongParameterList")
-@Composable
-private fun TrackOptionsHost(
-    song: Song?,
-    userPlaylists: List<Playlist>,
-    onDismiss: () -> Unit,
-    onAddSongToPlaylist: (String, Long) -> Unit,
-    onCreatePlaylistAndAddSong: (String, String) -> Unit,
-    onEditTagsClick: (Song) -> Unit,
-) {
-    var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
-    if (song != null) {
-        SongOptionsSheet(
-            song = song,
-            onAddToPlaylistClick = {
-                onDismiss()
-                addToPlaylistSong = song
-            },
-            onEditTagsClick = {
-                onDismiss()
-                onEditTagsClick(song)
-            },
-            onDismissRequest = onDismiss,
-        )
-    }
-    val songPendingPlaylistPick = addToPlaylistSong
-    if (songPendingPlaylistPick != null) {
-        AddToPlaylistFlow(
-            song = songPendingPlaylistPick,
-            userPlaylists = userPlaylists,
-            onAddSongToPlaylist = onAddSongToPlaylist,
-            onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
-            onFinished = { addToPlaylistSong = null },
-        )
-    }
-}
-
-/** The playlist picker for [song]; "New playlist…" swaps it for the name dialog, whose dismiss returns to it. */
-@Composable
-private fun AddToPlaylistFlow(
-    song: Song,
-    userPlaylists: List<Playlist>,
-    onAddSongToPlaylist: (String, Long) -> Unit,
-    onCreatePlaylistAndAddSong: (String, String) -> Unit,
-    onFinished: () -> Unit,
-) {
-    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-    if (!showCreatePlaylistDialog) {
-        AddToPlaylistSheet(
-            playlists = userPlaylists,
-            onPlaylistSelected = { playlistId ->
-                onAddSongToPlaylist(song.id, playlistId)
-                onFinished()
-            },
-            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
-            onDismissRequest = onFinished,
-        )
-    } else {
-        PlaylistNameDialog(
-            title = "New playlist",
-            confirmLabel = "Create",
-            onConfirm = { name ->
-                onCreatePlaylistAndAddSong(name, song.id)
-                showCreatePlaylistDialog = false
-                onFinished()
-            },
-            onDismiss = { showCreatePlaylistDialog = false },
-        )
-    }
-}
-
-/**
- * Per-song overflow menu, shown from [SongListItem]'s trailing "more options" button. Replaces
- * a plain jump-straight-into-add-to-playlist behavior with a small options list so a second
- * destructive-free action (edit tags) has room to live alongside it -- same
- * [ModalBottomSheet]-over-[LazyColumn] shape as the shared `AddToPlaylistSheet` in `:core:ui`,
- * kept private/feature-local here since its two rows are Library-specific, not reused elsewhere.
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SongOptionsSheet(
-    song: Song,
-    onAddToPlaylistClick: () -> Unit,
-    onEditTagsClick: () -> Unit,
-    onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier,
-    ) {
-        Column {
-            SongOptionsTitle(title = song.title)
-            SongOptionRow(
-                icon = RollaIcons.PlaylistAdd,
-                label = "Add to playlist",
-                onClick = onAddToPlaylistClick,
-            )
-            SongOptionRow(
-                icon = RollaIcons.Edit,
-                label = "Edit tags",
-                onClick = onEditTagsClick,
-            )
-        }
-    }
-}
-
-/** The options sheet's heading: the track title, one line, ellipsized. */
-@Composable
-private fun SongOptionsTitle(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.songTitle,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
-
-@Composable
-private fun SongOptionRow(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = RollaDimens.minTouchTarget)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

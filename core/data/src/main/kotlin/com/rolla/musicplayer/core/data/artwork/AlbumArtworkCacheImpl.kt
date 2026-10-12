@@ -28,11 +28,16 @@ import javax.inject.Singleton
  * exactly the signal those downstream caches need to refresh. Eviction therefore orders by
  * write-age, which is appropriate for write-once album art (see [evictOldestWritten]).
  *
- * A miss decodes through [decoder], writes the result, and runs eviction if that write pushed the
- * directory over [MAX_CACHE_BYTES]. [mutex] guards every write to the directory (the miss-path
- * write + eviction, and [clear]) so concurrent [get] calls from many simultaneously binding list
- * rows can't corrupt the eviction pass or double-write the same file -- mirroring `LibraryIndexer`'s
- * internal-[Mutex] precedent. A cache HIT needs no lock: it only stats an already-complete file.
+ * A miss decodes through [decoder], writes the result to a temp file ([TEMP_SUFFIX]) and publishes it
+ * by renaming it to its final name, then runs eviction if that write pushed the directory over
+ * [MAX_CACHE_BYTES]. [mutex] guards every write to the directory (the miss-path write + rename +
+ * eviction, and [clear]) so concurrent [get] calls from many simultaneously binding list rows can't
+ * corrupt the eviction pass -- mirroring `LibraryIndexer`'s internal-[Mutex] precedent. Decoding runs
+ * outside the lock, so two concurrent misses for the same album may both decode, but only the first
+ * to take the lock writes: the second re-checks for the file under the lock and returns the published
+ * one without re-writing it (or touching its lastModified). A cache HIT ([get]'s fast path, or [peek])
+ * still needs no lock: a file appears under its final name only by that rename, so whatever a stat
+ * finds there is complete.
  *
  * All work runs on [ioDispatcher].
  */
@@ -58,14 +63,26 @@ class AlbumArtworkCacheImpl @Inject constructor(
         if (file.exists()) return@withContext file
 
         val bytes = decodeSafely(sourceUri) ?: return@withContext null
+        // The miss path writes a temp file and renames it into place, so peek() and a concurrent get() hit never see
+        // a partial JPEG (v1.0 review follow-up #2).
         mutex.withLock {
+            // Another miss for this album may have published while this one decoded: keep the published file (and its
+            // lastModified) rather than writing it a second time.
+            if (file.exists()) return@withContext file
             cacheDir.mkdirs()
-            file.writeBytes(bytes)
-            file.setLastModified(System.currentTimeMillis())
+            val temp = File(cacheDir, "${file.name}$TEMP_SUFFIX")
+            temp.writeBytes(bytes)
+            temp.setLastModified(System.currentTimeMillis())
+            if (!temp.renameTo(file)) {
+                temp.delete()
+                return@withContext null
+            }
             evictOldestWritten(protectedFile = file)
         }
         file
     }
+
+    override fun peek(albumId: Long): File? = fileFor(albumId).takeIf { it.exists() }
 
     override suspend fun invalidate(albumId: Long) {
         withContext(ioDispatcher) {
@@ -130,6 +147,9 @@ class AlbumArtworkCacheImpl @Inject constructor(
         /** ~150x150dp feature cards, now-playing artwork, and list thumbnails all fit well inside this budget. */
         const val MAX_CACHE_BYTES = 32L * 1024 * 1024
         const val INVALIDATION_BUFFER_CAPACITY = 16
+
+        /** Suffix of the in-progress file a miss writes before renaming it to its final name. */
+        const val TEMP_SUFFIX = ".tmp"
     }
 }
 

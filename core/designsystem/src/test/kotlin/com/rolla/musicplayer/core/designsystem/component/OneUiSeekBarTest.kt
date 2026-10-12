@@ -20,6 +20,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.seekTrackActive
 import com.rolla.musicplayer.core.designsystem.theme.seekTrackInactive
+import com.rolla.musicplayer.core.testing.assertColorNear
+import com.rolla.musicplayer.core.testing.drawRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule

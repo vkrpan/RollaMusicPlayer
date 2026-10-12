@@ -1,8 +1,7 @@
 package com.rolla.musicplayer.core.designsystem.component
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,7 +29,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -43,7 +41,7 @@ import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasAnySibling
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -57,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.testing.drawRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -80,7 +79,7 @@ private const val RIPPLE_SETTLE_MS = 1_000L
 class OneUiTabRowTest {
 
     @get:Rule
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
     fun currentPageIsSelectedAndTappingANeighbourReportsItsIndex() {
@@ -274,10 +273,10 @@ class OneUiTabRowTest {
         composeRule.mainClock.autoAdvance = false
         val row = setTabRowOnBackground()
         val probes = rippleProbes("Tracks")
-        assertPixel("pill interior, before the press", row.background, drawToBitmap(row.view), probes.inside)
+        assertPixel("pill interior, before the press", row.background, composeRule.drawRoot(), probes.inside)
         composeRule.onNodeWithText("Tracks").performTouchInput { down(center) }
         composeRule.mainClock.advanceTimeBy(RIPPLE_SETTLE_MS)
-        val pressed = drawToBitmap(row.view)
+        val pressed = composeRule.drawRoot()
         assertTrue("the ripple lights the pill interior", pressed[probes.inside] != row.background)
         assertPixel("slot corner", row.background, pressed, probes.slotCorner)
         assertPixel("pill box corner, outside the rounded end", row.background, pressed, probes.pillBoxCorner)
@@ -297,10 +296,10 @@ class OneUiTabRowTest {
         // Positive control: while the row is enabled, the same press lights the same probe.
         tracks.performTouchInput { down(center) }
         composeRule.mainClock.advanceTimeBy(RIPPLE_SETTLE_MS)
-        assertTrue("control: an enabled press lights the pill", drawToBitmap(row.view)[probes.inside] != row.background)
+        assertTrue("control: an enabled press lights the pill", composeRule.drawRoot()[probes.inside] != row.background)
         tracks.performTouchInput { up() }
         composeRule.mainClock.advanceTimeBy(RIPPLE_SETTLE_MS)
-        assertPixel("control: the ripple faded after release", row.background, drawToBitmap(row.view), probes.inside)
+        assertPixel("control: the ripple faded after release", row.background, composeRule.drawRoot(), probes.inside)
 
         row.enabled.value = false
         // Without an explicit apply, the paused clock never recomposed the row. A row left enabled would light the
@@ -309,19 +308,17 @@ class OneUiTabRowTest {
         composeRule.mainClock.advanceTimeBy(RIPPLE_SETTLE_MS)
         tracks.performTouchInput { down(center) }
         composeRule.mainClock.advanceTimeBy(RIPPLE_SETTLE_MS)
-        assertPixel("pill interior of a disabled tab", row.background, drawToBitmap(row.view), probes.inside)
+        assertPixel("pill interior of a disabled tab", row.background, composeRule.drawRoot(), probes.inside)
     }
 
     /**
-     * Sets an enabled row on the dark theme's background and returns its hosting view, the background as ARGB (read
-     * from the theme, so the pixel checks follow the token) and a switch for the row's enabled state.
+     * Sets an enabled row on the dark theme's background and returns the background as ARGB (read from the theme, so
+     * the pixel checks follow the token) and a switch for the row's enabled state.
      */
     private fun setTabRowOnBackground(): PixelRow {
-        lateinit var view: View
         var background = 0
         val enabled = mutableStateOf(true)
         composeRule.setContent {
-            view = LocalView.current
             RollaMusicPlayerTheme(darkTheme = true) {
                 background = MaterialTheme.colorScheme.background.toArgb()
                 Box(Modifier.background(MaterialTheme.colorScheme.background)) {
@@ -335,21 +332,7 @@ class OneUiTabRowTest {
             }
         }
         composeRule.waitForIdle()
-        return PixelRow(view = view, background = background, enabled = enabled)
-    }
-
-    /**
-     * Draws [view] into a software bitmap. captureToImage() times out under Robolectric (it waits for a frame commit
-     * that never comes), but a direct software draw runs Compose's draw phase under NATIVE graphics.
-     */
-    private fun drawToBitmap(view: View): Bitmap {
-        composeRule.waitForIdle()
-        lateinit var bitmap: Bitmap
-        composeRule.runOnUiThread {
-            bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-        }
-        return bitmap
+        return PixelRow(background = background, enabled = enabled)
     }
 
     private fun assertPixel(message: String, expected: Int, bitmap: Bitmap, at: IntOffset) =
@@ -413,8 +396,8 @@ class OneUiTabRowTest {
 
 private class RippleProbes(val inside: IntOffset, val slotCorner: IntOffset, val pillBoxCorner: IntOffset)
 
-/** A row under a pixel test: its hosting view, the theme background as ARGB, and its enabled switch. */
-private class PixelRow(val view: View, val background: Int, val enabled: MutableState<Boolean>)
+/** A row under a pixel test: the theme background as ARGB, and its enabled switch. */
+private class PixelRow(val background: Int, val enabled: MutableState<Boolean>)
 
 private operator fun Bitmap.get(offset: IntOffset): Int = getPixel(offset.x, offset.y)
 

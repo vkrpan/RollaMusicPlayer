@@ -8,37 +8,65 @@ import com.rolla.musicplayer.core.database.relation.ArtistSearchRow
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Artist-detail queries over the `songs` table.
+ * Artist queries over the `songs` table: the whole-library list (Artists tab) and artist detail.
  *
- * A separate interface from [SongDao] (not more query methods added there) purely to stay under
- * detekt's `TooManyFunctions` interface threshold — the same reasoning documented on [AlbumDao]
- * and [SearchDao]. Registered on `MusicDatabase` the same way, which is not itself a schema
- * change (no new entity, no version bump).
+ * A separate interface from [SongDao] (not more query methods added there) purely to stay under detekt's
+ * `TooManyFunctions` interface threshold — the same reasoning documented on [AlbumDao] and [SearchDao].
+ * Registered on `MusicDatabase` the same way, which is not itself a schema change (no new entity, no version
+ * bump).
  *
  * The `songs` table has no `artist_id` column — artists only exist as a text column (see
- * [com.rolla.musicplayer.core.database.entity.SongEntity]), grouped at query time. Every query
- * below matches `artist = :artistName` by exact equality: the name passed in always comes from
- * the same `GROUP BY artist` key used to derive it (see [ArtistSearchRow.toDomain]'s synthetic
- * id), so an exact match is correct — there is deliberately no `LIKE` fuzziness here as there is
- * in [SearchDao].
+ * [com.rolla.musicplayer.core.database.entity.SongEntity]), grouped at query time. Every per-artist query
+ * below matches `artist = :artistName` by exact equality: the name passed in always comes from the same
+ * `GROUP BY artist` key used to derive it (see [ArtistSearchRow.toDomain]'s synthetic id), so an exact match
+ * is correct — there is deliberately no `LIKE` fuzziness here as there is in [SearchDao].
  */
 @Dao
 interface ArtistDao {
 
     /**
-     * The artist summary for [artistName] — same grouped projection shape as
-     * `SearchDao.searchArtists` (see [ArtistSearchRow]). Emits `null` when no songs by that
-     * artist exist (e.g. the artist's songs were removed by a re-scan).
+     * Every artist (exact-name groups), ordered case-insensitively, then binary, so "Queen" and
+     * "queen" sit together in a stable order. artworkUri is the cover of the artist's alphabetically
+     * first album: the inner query has exactly one MIN() aggregate, so SQLite takes the bare
+     * artwork_uri column from that row (documented SQLite behaviour). One scan, with no per-artist
+     * subquery.
      */
     @Query(
         """
-        SELECT
-            artist AS name,
-            COUNT(DISTINCT album_id) AS albumCount,
-            COUNT(*) AS songCount
-        FROM songs
-        WHERE artist = :artistName
-        GROUP BY artist
+        SELECT name, albumCount, songCount, artworkUri FROM (
+            SELECT
+                artist AS name,
+                COUNT(DISTINCT album_id) AS albumCount,
+                COUNT(*) AS songCount,
+                artwork_uri AS artworkUri,
+                MIN(album COLLATE NOCASE) AS firstAlbum
+            FROM songs
+            GROUP BY artist
+        )
+        ORDER BY name COLLATE NOCASE ASC, name ASC
+        """,
+    )
+    fun observeArtists(): Flow<List<ArtistSearchRow>>
+
+    /**
+     * The artist summary for [artistName] — the same derived-table shape as [observeArtists]
+     * (counts plus the cover of the artist's alphabetically first album, see [ArtistSearchRow]),
+     * filtered to one exact name. Emits `null` when no songs by that artist exist (e.g. the
+     * artist's songs were removed by a re-scan).
+     */
+    @Query(
+        """
+        SELECT name, albumCount, songCount, artworkUri FROM (
+            SELECT
+                artist AS name,
+                COUNT(DISTINCT album_id) AS albumCount,
+                COUNT(*) AS songCount,
+                artwork_uri AS artworkUri,
+                MIN(album COLLATE NOCASE) AS firstAlbum
+            FROM songs
+            WHERE artist = :artistName
+            GROUP BY artist
+        )
         """,
     )
     fun observeArtist(artistName: String): Flow<ArtistSearchRow?>

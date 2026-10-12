@@ -45,17 +45,21 @@ import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.permissions.MediaPermissionGate
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
+import com.rolla.musicplayer.feature.library.AlbumsTab
+import com.rolla.musicplayer.feature.library.ArtistsTab
 import com.rolla.musicplayer.feature.library.TracksTab
+import com.rolla.musicplayer.feature.playlists.FavouritesTab
 import com.rolla.musicplayer.feature.playlists.PlaylistsTab
 import com.rolla.musicplayer.feature.playlists.SmartPlaylistKind
 import kotlinx.coroutines.launch
 
 /**
- * Home (spec §7.2): the "Rolla Music" header, the Playlists / Tracks tab row and the pager hosting both tabs. It opens
- * on Tracks. [MediaPermissionGate] wraps the tab row and pager only, so the header (Search, Settings) stays usable
- * while access is denied, and its first grant runs the library sync for every tab.
+ * Home (spec §7.2): the "Rolla Music" header, the Favourites / Playlists / Tracks / Albums / Artists tab row and the
+ * pager hosting those five tabs. It opens on Tracks. [MediaPermissionGate] wraps the tab row and pager only, so the
+ * header (Search, Settings) stays usable while access is denied, and its first grant runs the library sync for every
+ * tab. Album and artist taps leave Home through [onAlbumClick] (album id) and [onArtistClick] (artist name).
  */
-// Six navigation callbacks plus the injectable ViewModel: each is a distinct exit from Home.
+// Eight navigation callbacks plus the injectable ViewModel: each is a distinct exit from Home.
 @Suppress("LongParameterList")
 @Composable
 fun HomeRoute(
@@ -65,6 +69,8 @@ fun HomeRoute(
     onEditTagsForSelection: (List<Long>) -> Unit,
     onPlaylistClick: (Long) -> Unit,
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
+    onAlbumClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -82,13 +88,16 @@ fun HomeRoute(
         pagerContainer = { pager -> MediaPermissionGate(onGranted = onGranted, content = pager) },
     ) { tab ->
         when (tab) {
-            HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
+            HomeTab.FAVOURITES -> FavouritesTab(onEditTagsClick = onEditTagsClick)
             HomeTab.PLAYLISTS -> PlaylistsTab(
                 showCreateDialog = showCreateDialog,
                 onDismissCreateDialog = { showCreateDialog = false },
                 onPlaylistClick = onPlaylistClick,
                 onSmartPlaylistClick = onSmartPlaylistClick,
             )
+            HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
+            HomeTab.ALBUMS -> AlbumsTab(scanState = scanState, onAlbumClick = onAlbumClick)
+            HomeTab.ARTISTS -> ArtistsTab(scanState = scanState, onArtistClick = onArtistClick)
         }
     }
 }

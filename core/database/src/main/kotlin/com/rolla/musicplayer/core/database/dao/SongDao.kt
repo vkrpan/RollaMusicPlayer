@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SongDao {
 
-    @Query("SELECT * FROM songs ORDER BY title ASC")
+    /** Every song, by title case-insensitively ("beta" sits between "Alpha" and "Charlie"). */
+    @Query("SELECT * FROM songs ORDER BY title COLLATE NOCASE ASC")
     fun observeAllSongs(): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE id = :songId")
@@ -39,6 +40,7 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE play_count > 0 ORDER BY play_count DESC")
     fun observeMostPlayed(): Flow<List<SongEntity>>
 
-    @Query("SELECT * FROM songs WHERE is_favorite = 1 ORDER BY title ASC")
+    /** The favourited songs, by title case-insensitively (same order as [observeAllSongs]). */
+    @Query("SELECT * FROM songs WHERE is_favorite = 1 ORDER BY title COLLATE NOCASE ASC")
     fun observeFavourites(): Flow<List<SongEntity>>
 }

@@ -68,19 +68,25 @@ interface SearchDao {
     fun searchAlbums(query: String): Flow<List<AlbumSearchRow>>
 
     /**
-     * Artists — songs grouped by `artist` name — whose name contains [query]. See
-     * [ArtistSearchRow.toDomain] for how the synthetic `Artist.id` is derived (there is no
-     * `artist_id` column).
+     * Artists — songs grouped by `artist` name — whose name contains [query], each with the cover
+     * of its alphabetically first album (the same derived-table shape as
+     * `ArtistDao.observeArtists`, so Search shows the same avatars as the Artists tab). Ordered
+     * by name, binary (Search's ordering is unchanged here). See [ArtistSearchRow.toDomain] for
+     * how the synthetic `Artist.id` is derived (there is no `artist_id` column).
      */
     @Query(
         """
-        SELECT
-            artist AS name,
-            COUNT(DISTINCT album_id) AS albumCount,
-            COUNT(*) AS songCount
-        FROM songs
-        WHERE artist LIKE '%' || :query || '%' ESCAPE '\'
-        GROUP BY artist
+        SELECT name, albumCount, songCount, artworkUri FROM (
+            SELECT
+                artist AS name,
+                COUNT(DISTINCT album_id) AS albumCount,
+                COUNT(*) AS songCount,
+                artwork_uri AS artworkUri,
+                MIN(album COLLATE NOCASE) AS firstAlbum
+            FROM songs
+            WHERE artist LIKE '%' || :query || '%' ESCAPE '\'
+            GROUP BY artist
+        )
         ORDER BY name ASC
         """,
     )

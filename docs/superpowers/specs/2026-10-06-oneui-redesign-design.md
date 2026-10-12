@@ -514,7 +514,8 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
   `artwork_uri` (the artist's alphabetically first album). It orders by `artist COLLATE NOCASE`.
 - Add `ArtistRepository.observeArtists()`.
 - **Model:** add `val artworkUri: String = ""` to `Artist` (and update `model-vocabulary.md`). Artist identity stays the **name** (routing uses
-  `ArtistDetail(artistName)`), and the synthetic FNV id stays a list key only.
+  `ArtistDetail(artistName)`). The synthetic FNV id is display-only, and lists key artists by name, because a hash
+  collision would crash a list (amended 2026-10-12, Phase 4a ruling 12).
 
 ### 9.3 Favourites
 

@@ -465,4 +465,16 @@ class PlaylistDaoTest {
 
         assertEquals(listOf("Alpha", "Mango", "Zeta"), names)
     }
+
+    @Test
+    fun observePlaylistsWithCounts_ordersNamesCaseInsensitively() = runTest {
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "Charlie"))
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "beta"))
+        playlistDao.insertPlaylist(buildPlaylistEntity(name = "Alpha"))
+
+        val names = playlistDao.observePlaylistsWithCounts().first().map { it.playlist.name }
+
+        // A binary order would put lowercase "beta" after "Charlie".
+        assertEquals(listOf("Alpha", "beta", "Charlie"), names)
+    }
 }

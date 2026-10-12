@@ -217,4 +217,24 @@ class SearchDaoTest {
 
         assertTrue(results.isEmpty())
     }
+
+    // The expected album ("alpha") is the MIDDLE row in scan order, so no position-based pick can pass by accident.
+    // Mutations: (a) project '' AS artworkUri in searchArtists → RED;
+    // (b) delete the MIN(...) AS firstAlbum line → the bare column comes from an unspecified row of the group (the
+    // first or the last in practice: art/zeta or art/mid), never the middle one → RED.
+    @Test
+    fun searchArtists_projectsTheRepresentativeArtwork() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L)
+                    .copy(artist = "Air", albumId = 1L, album = "Zeta", artworkUri = "art/zeta"),
+                buildSongEntity(id = "2", mediaStoreId = 2L)
+                    .copy(artist = "Air", albumId = 2L, album = "alpha", artworkUri = "art/alpha"),
+                buildSongEntity(id = "3", mediaStoreId = 3L)
+                    .copy(artist = "Air", albumId = 3L, album = "Mid", artworkUri = "art/mid"),
+            ),
+        )
+
+        assertEquals("art/alpha", searchDao.searchArtists("Air").first().single().artworkUri)
+    }
 }

@@ -167,4 +167,27 @@ class AlbumDaoTest {
 
         assertEquals(listOf("1"), songs.map { it.id })
     }
+
+    // Mutations: (a) drop COLLATE NOCASE from ORDER BY → "beta" sorts after "Greatest Hits" → RED;
+    // (b) GROUP BY album instead of album_id → the two "Greatest Hits" merge into one row → RED (Review Focus 2);
+    // (c) ORDER BY albumId ASC only (title key dropped) → [20, 30, 40, 50] → RED. Alpha's id is deliberately the
+    // highest, so id order and title order disagree.
+    @Test
+    fun observeAlbums_groupsByAlbumId_ordersCaseInsensitively() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L).copy(album = "beta", albumId = 20L, artist = "B"),
+                buildSongEntity(id = "2", mediaStoreId = 2L).copy(album = "beta", albumId = 20L, artist = "B"),
+                buildSongEntity(id = "3", mediaStoreId = 3L).copy(album = "Alpha", albumId = 50L, artist = "A"),
+                buildSongEntity(id = "4", mediaStoreId = 4L).copy(album = "Greatest Hits", albumId = 40L, artist = "X"),
+                buildSongEntity(id = "5", mediaStoreId = 5L).copy(album = "Greatest Hits", albumId = 30L, artist = "Y"),
+            ),
+        )
+
+        val albums = albumDao.observeAlbums().first()
+
+        assertEquals(listOf(50L, 20L, 30L, 40L), albums.map { it.albumId })
+        assertEquals(listOf("Alpha", "beta", "Greatest Hits", "Greatest Hits"), albums.map { it.title })
+        assertEquals(2, albums.single { it.albumId == 20L }.songCount)
+    }
 }

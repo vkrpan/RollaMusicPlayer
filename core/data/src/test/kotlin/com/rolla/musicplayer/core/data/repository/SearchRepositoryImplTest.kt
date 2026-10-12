@@ -66,7 +66,9 @@ class SearchRepositoryImplTest {
             albums = listOf(
                 AlbumSearchRow(albumId = 10L, title = "Airwaves", artist = "A", songCount = 2, artworkUri = "art"),
             ),
-            artists = listOf(ArtistSearchRow(name = "Air Supply", albumCount = 2, songCount = 5)),
+            artists = listOf(
+                ArtistSearchRow(name = "Air Supply", albumCount = 2, songCount = 5, artworkUri = "art-air"),
+            ),
         )
 
         val results = repository.search("air").first()
@@ -78,7 +80,11 @@ class SearchRepositoryImplTest {
 
     @Test
     fun search_sameArtistName_alwaysGetsSameSyntheticId() = runTest {
-        stubDao(artists = listOf(ArtistSearchRow(name = "Air Supply", albumCount = 1, songCount = 1)))
+        stubDao(
+            artists = listOf(
+                ArtistSearchRow(name = "Air Supply", albumCount = 1, songCount = 1, artworkUri = "art-air"),
+            ),
+        )
 
         val first = repository.search("air").first().artists.single().id
         val second = repository.search("air").first().artists.single().id

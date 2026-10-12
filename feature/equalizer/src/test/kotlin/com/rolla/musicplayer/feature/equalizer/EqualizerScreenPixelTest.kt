@@ -1,8 +1,6 @@
 package com.rolla.musicplayer.feature.equalizer
 
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -24,6 +22,7 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.eqGridLine
 import com.rolla.musicplayer.core.media.equalizer.BUILT_IN_EQUALIZER_PRESETS
+import com.rolla.musicplayer.core.testing.drawRoot
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -113,7 +112,7 @@ class EqualizerScreenPixelTest {
         // lets the slider, which reads its value in composition, draw the thumb there too.
         rule.mainClock.advanceTimeByFrame()
         rule.mainClock.advanceTimeByFrame()
-        val bitmap = drawRoot()
+        val bitmap = rule.drawRoot()
 
         val x0 = columnCenterPx("40")
         val x1 = columnCenterPx("80")
@@ -133,7 +132,7 @@ class EqualizerScreenPixelTest {
     @Test
     fun zeroDbGridLineRunsThroughTheSlidersCenter() {
         setHost(List(BUILT_IN_EQUALIZER_PRESETS.first().gainsMillibel.size) { 0 }) // every thumb at 0 dB
-        val bitmap = drawRoot()
+        val bitmap = rule.drawRoot()
         val zeroDbRow = thumbCenterPx(bitmap, columnCenterPx("40")).roundToInt()
         val nearCardStart = (RollaDimens.settingsCardInset.value * rule.density.density).roundToInt()
         val pixel = bitmap.getPixel(nearCardStart, zeroDbRow)
@@ -142,17 +141,6 @@ class EqualizerScreenPixelTest {
                 Integer.toHexString(gridLine.toArgb()),
             isNear(gridLine.toArgb(), pixel, GRID_TOLERANCE) && !isNear(card.toArgb(), pixel, GRID_TOLERANCE),
         )
-    }
-
-    private fun drawRoot(): Bitmap {
-        rule.waitForIdle()
-        lateinit var bitmap: Bitmap
-        rule.runOnUiThread {
-            val view = rule.activity.findViewById<View>(android.R.id.content)
-            bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-        }
-        return bitmap
     }
 
     /** The x (px) of a band's column center, from its frequency label (which is centered on the column). */
@@ -177,6 +165,7 @@ class EqualizerScreenPixelTest {
 
     private fun Color.blueLevel(): Int = (toArgb() and 0xFF)
 
+    // Not the shared isColorNear: this needs per-check tolerances (RING/GRID) and compares RGB only, without alpha.
     private fun isNear(expected: Int, actual: Int, tolerance: Int): Boolean =
         listOf(16, 8, 0).all { shift -> abs((expected shr shift and 0xFF) - (actual shr shift and 0xFF)) <= tolerance }
 }

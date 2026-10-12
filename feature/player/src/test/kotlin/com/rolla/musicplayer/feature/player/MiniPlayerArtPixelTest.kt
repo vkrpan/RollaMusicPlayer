@@ -23,11 +23,14 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerArtPlaceholder
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerContainer
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.testing.HardwarePixelCopyRule
+import com.rolla.musicplayer.core.testing.captureWindow
+import com.rolla.musicplayer.core.testing.isColorNear
+import com.rolla.musicplayer.core.testing.pixelsIn
 import kotlinx.coroutines.awaitCancellation
 import org.junit.After
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,20 +45,17 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class MiniPlayerArtPixelTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val pixelCopyRule = HardwarePixelCopyRule()
+
+    @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private var placeholder = Color.Unspecified
     private var container = Color.Unspecified
 
-    @Before
-    fun useHardwarePixelCopy() {
-        System.setProperty(PIXEL_COPY_RENDER_MODE, "hardware")
-    }
-
     @After
     fun restore() {
-        System.clearProperty(PIXEL_COPY_RENDER_MODE)
         Coil.setImageLoader(ImageLoader(ApplicationProvider.getApplicationContext()))
     }
 
@@ -123,7 +123,6 @@ class MiniPlayerArtPixelTest {
     }
 
     private companion object {
-        const val PIXEL_COPY_RENDER_MODE = "robolectric.pixelCopyRenderMode"
         val SONG = Song(
             id = "1",
             title = "Song title",

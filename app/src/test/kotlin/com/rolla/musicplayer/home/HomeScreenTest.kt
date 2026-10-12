@@ -82,6 +82,27 @@ class HomeScreenTest {
         assertEquals(HomeTab.TRACKS.ordinal, pagerState.currentPage)
     }
 
+    // Mutation: HomeTabsAndPager's titles drop the last entry → "Artists" is missing → RED. (Opening on Tracks is
+    // pinned by startsOnTracksAndTitleIsRollaMusic.)
+    @Test
+    fun `home shows all five tab titles`() {
+        setHome()
+
+        HomeTab.entries.forEach { composeRule.onNodeWithText(it.title).assertExists() }
+    }
+
+    // Mutation: swap ALBUMS and ARTISTS in the HomeTab enum → the first swipe lands on page-ARTISTS → RED. (The test
+    // host renders "page-<NAME>" itself, so HomeRoute's when-dispatch is not visible here; the device check covers it.)
+    @Test
+    fun `swiping left from Tracks reaches Albums then Artists`() {
+        setHome()
+
+        composeRule.onNodeWithText("page-TRACKS").performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("page-ALBUMS").assertIsDisplayed()
+        composeRule.onNodeWithText("page-ALBUMS").performTouchInput { swipeLeft() }
+        composeRule.onNodeWithText("page-ARTISTS").assertIsDisplayed()
+    }
+
     @Test
     fun addButtonOnlyOnPlaylistsAndOpensCreate() {
         setHome()

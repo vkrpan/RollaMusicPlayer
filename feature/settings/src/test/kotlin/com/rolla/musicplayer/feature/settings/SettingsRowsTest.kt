@@ -1,8 +1,5 @@
 package com.rolla.musicplayer.feature.settings
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,7 +8,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEqualTo
@@ -31,6 +27,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
+import com.rolla.musicplayer.core.testing.assertColorNear
+import com.rolla.musicplayer.core.testing.drawRoot
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -166,7 +164,7 @@ class SettingsRowsTest {
             SettingsValueNavRow(label = "Below", onClick = {})
         }
         val row = composeRule.onNodeWithText("Above").fetchSemanticsNode().boundsInRoot // the full-width row, px
-        val bitmap = drawRoot()
+        val bitmap = composeRule.drawRoot()
         val y = row.bottom.toInt() + 1
         val inset = with(composeRule.density) { RollaDimens.settingsDividerInset.toPx() }
         assertColorNear(container, bitmap.getPixel((row.left + inset - 2).toInt(), y))
@@ -196,28 +194,7 @@ class SettingsRowsTest {
 
     private fun textColor(text: String): Color = composeRule.textColorOf(text)
 
-    // captureToImage() times out under Robolectric; a software draw of the content view runs the Compose draw phase.
-    private fun drawRoot(): Bitmap {
-        composeRule.waitForIdle()
-        lateinit var bitmap: Bitmap
-        composeRule.runOnUiThread {
-            val view = composeRule.activity.findViewById<View>(android.R.id.content)
-            bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-        }
-        return bitmap
-    }
-
-    private fun assertColorNear(expected: Color, actual: Int) {
-        val want = expected.toArgb()
-        val close = listOf(24, 16, 8, 0).all { shift ->
-            kotlin.math.abs((want shr shift and 0xFF) - (actual shr shift and 0xFF)) <= CHANNEL_TOLERANCE
-        }
-        assertTrue("expected ${Integer.toHexString(want)}, was ${Integer.toHexString(actual)}", close)
-    }
-
     private companion object {
-        const val CHANNEL_TOLERANCE = 6 // anti-aliasing puts a pixel within a few levels of its token
         const val CARD_TAG = "card"
         const val ROW_HOST_TAG = "rowHost"
     }

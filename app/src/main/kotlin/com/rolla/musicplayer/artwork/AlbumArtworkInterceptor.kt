@@ -11,8 +11,10 @@ import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
  * Every artwork request in the app is built with `data(song/album.artworkUri)`, where `artworkUri`
  * is the scanner's stable `content://media/external/audio/albumart/{albumId}` URI. This interceptor
  * recognises that shape, pulls the albumId out of the last path segment, and asks the cache for a
- * downscaled JPEG [java.io.File] for it (decoded once, reused thereafter). On a hit it rewrites the
- * request's `data` to that file, so:
+ * downscaled JPEG [java.io.File] for it (decoded once, reused thereafter): first through the
+ * synchronous `peek`, so a cover already on disk never waits for an IO hop, and only on a peek miss
+ * through the suspending `get`, which decodes on IO. On a hit it rewrites the request's `data` to
+ * that file, so:
  * - **Perf:** list/grid binds decode a ~512px file, not the full-size album bitmap.
  * - **Freshness:** the cache's `invalidate` deletes the file and the next `get` rewrites it with a
  *   new last-modified; Coil's default file cache key includes last-modified (and the target size),
@@ -29,8 +31,13 @@ class AlbumArtworkInterceptor(
 
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
         val request = chain.request
-        val cachedFile = albumIdOf(request.data)
-            ?.let { albumArtworkCache.get(it, request.data.toString()) }
+        val albumId = albumIdOf(request.data)
+        // peek first: a cover already on disk resolves without suspending, so Coil's memory cache (checked after this
+        // interceptor, on the same dispatcher) can answer in the same frame. get() hops to IO and decodes only on a
+        // miss.
+        val cachedFile = albumId?.let {
+            albumArtworkCache.peek(it) ?: albumArtworkCache.get(it, request.data.toString())
+        }
         val effectiveRequest =
             if (cachedFile != null) request.newBuilder().data(cachedFile).build() else request
         return chain.proceed(effectiveRequest)

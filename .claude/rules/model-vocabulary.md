@@ -37,7 +37,8 @@ data class Artist(
     val id: Long,
     val name: String,
     val albumCount: Int,
-    val songCount: Int
+    val songCount: Int,
+    val artworkUri: String = ""   // cover of the artist's alphabetically first album; identity stays the name
 )
 
 data class Playlist(

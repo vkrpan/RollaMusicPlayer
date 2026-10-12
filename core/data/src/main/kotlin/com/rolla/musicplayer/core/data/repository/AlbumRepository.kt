@@ -10,6 +10,9 @@ interface AlbumRepository {
     /** The album summary for [albumId], or `null` if no songs with that album id exist. */
     fun observeAlbum(albumId: Long): Flow<Album?>
 
+    /** Every album in the library, case-insensitively by title (Albums tab). */
+    fun observeAlbums(): Flow<List<Album>>
+
     /** The album's songs, disc/track order (track_number ascending, nulls last, then title). */
     fun observeAlbumSongs(albumId: Long): Flow<List<Song>>
 }

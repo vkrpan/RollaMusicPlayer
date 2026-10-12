@@ -9,11 +9,13 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
-import org.junit.After
+import com.rolla.musicplayer.core.testing.HardwarePixelCopyRule
+import com.rolla.musicplayer.core.testing.captureWindow
+import com.rolla.musicplayer.core.testing.isColorNear
+import com.rolla.musicplayer.core.testing.pixelsIn
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,20 +32,13 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class NowPlayingScreenPixelTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val pixelCopyRule = HardwarePixelCopyRule()
+
+    @get:Rule(order = 1)
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var colors: NowPlayingTestColors
-
-    @Before
-    fun useHardwarePixelCopy() {
-        System.setProperty(PIXEL_COPY_RENDER_MODE, "hardware")
-    }
-
-    @After
-    fun restorePixelCopy() {
-        System.clearProperty(PIXEL_COPY_RENDER_MODE)
-    }
 
     // Dark scheme: accentText #6094FF, primary #2F6FF0, so the two are distinguishable (asserted below).
     // Mutation: activeTint = MaterialTheme.colorScheme.primary → RED.
@@ -92,9 +87,5 @@ class NowPlayingScreenPixelTest {
                 isColorNear(Color(above), inside),
             )
         }
-    }
-
-    private companion object {
-        const val PIXEL_COPY_RENDER_MODE = "robolectric.pixelCopyRenderMode"
     }
 }

@@ -42,6 +42,7 @@ class ArtistRepositoryImplTest {
                 name = "Artist A",
                 albumCount = 2,
                 songCount = 5,
+                artworkUri = "art-a",
             ),
         )
 
@@ -126,5 +127,20 @@ class ArtistRepositoryImplTest {
         repository.observeArtistSongs("Artist B").first()
 
         verify { artistDao.observeArtistSongs("Artist B") }
+    }
+
+    // Mutation: drop artworkUri from ArtistSearchRow.toDomain() → Artist.artworkUri is "" → RED.
+    @Test
+    fun `observeArtists maps rows including artwork`() = runTest {
+        every { artistDao.observeArtists() } returns flowOf(
+            listOf(ArtistSearchRow(name = "Queen", albumCount = 2, songCount = 5, artworkUri = "art/q")),
+        )
+
+        val artist = repository.observeArtists().first().single()
+
+        assertEquals("Queen", artist.name)
+        assertEquals("art/q", artist.artworkUri)
+        assertEquals(2, artist.albumCount)
+        assertEquals(5, artist.songCount)
     }
 }

@@ -7,7 +7,7 @@ import com.rolla.musicplayer.core.database.relation.AlbumSearchRow
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Album-detail queries over the `songs` table.
+ * Album queries over the `songs` table: the whole-library list (Albums tab) and album detail.
  *
  * A separate interface from [SongDao] (not more query methods added there) purely to stay under
  * detekt's `TooManyFunctions` interface threshold (`SongDao` is already at 10 of 12) — the same
@@ -37,6 +37,25 @@ interface AlbumDao {
         """,
     )
     fun observeAlbum(albumId: Long): Flow<AlbumSearchRow?>
+
+    /**
+     * Every album, one row per album_id, ordered by title case-insensitively (album id breaks ties, so two
+     * "Greatest Hits" keep a stable order). Same projection as observeAlbum (see AlbumSearchRow for MIN(artist)).
+     */
+    @Query(
+        """
+        SELECT
+            album_id AS albumId,
+            album AS title,
+            MIN(artist) AS artist,
+            COUNT(*) AS songCount,
+            MAX(artwork_uri) AS artworkUri
+        FROM songs
+        GROUP BY album_id
+        ORDER BY title COLLATE NOCASE ASC, albumId ASC
+        """,
+    )
+    fun observeAlbums(): Flow<List<AlbumSearchRow>>
 
     /**
      * The album's songs in disc/track order: `track_number` ascending with untagged

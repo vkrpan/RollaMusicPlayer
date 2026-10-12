@@ -1,7 +1,10 @@
 package com.rolla.musicplayer.core.data.artwork
 
 import app.cash.turbine.test
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -13,6 +16,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import java.io.File
 
 /**
  * Unit tests for [AlbumArtworkCacheImpl]'s cache bookkeeping -- key derivation, hit/miss,
@@ -112,6 +116,79 @@ class AlbumArtworkCacheImplTest {
         val reDecoded = artworkCache.get(albumId = 1L, sourceUri = "content://a")!!
 
         assertTrue(reDecoded.lastModified() > BASE_TIME)
+    }
+
+    // Mutation: rename skipped (bytes written to the temp file and the temp returned) → "1.jpg" absent, a temp
+    // left → RED.
+    @Test
+    fun get_miss_publishesOnlyTheFinalFile() = runTest {
+        val artworkCache = cache(FakeArtworkDecoder())
+        artworkCache.get(albumId = 1L, sourceUri = "content://a")
+        assertEquals(listOf(cacheFileName(1L)), tempFolder.root.list()!!.sorted())
+    }
+
+    // Two misses for one album race: #1 suspends in decode, #2 decodes and publishes [2], then #1 finishes decoding.
+    // UNDISPATCHED start plus the Unconfined cache dispatcher make that interleaving fixed, not scheduler-dependent.
+    // Mutation: drop the re-check under the lock → #1 writes again: on POSIX its rename replaces the file ([1]); on
+    // Windows File.renameTo refuses to replace it and #1 returns null. Both probes are asserted → RED either way.
+    @Test
+    fun get_concurrentMisses_publishOnce() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        var calls = 0
+        val decoder = object : ArtworkDecoder {
+            override suspend fun decode(sourceUri: String): ByteArray {
+                calls++
+                if (calls == 1) {
+                    gate.await()
+                    return byteArrayOf(1)
+                }
+                return byteArrayOf(2)
+            }
+        }
+        val artworkCache = cache(decoder)
+        var firstResult: File? = null
+
+        val first = launch(start = CoroutineStart.UNDISPATCHED) {
+            firstResult = artworkCache.get(albumId = 1L, sourceUri = "content://a")
+        }
+        val second = artworkCache.get(albumId = 1L, sourceUri = "content://a")
+        gate.complete(Unit)
+        first.join()
+
+        val published = File(tempFolder.root, cacheFileName(1L))
+        assertEquals(published, second)
+        assertEquals(published, firstResult)
+        assertArrayEquals(byteArrayOf(2), published.readBytes())
+        assertEquals(listOf(cacheFileName(1L)), tempFolder.root.list()!!.toList())
+    }
+
+    // ── peek ──────────────────────────────────────────────────────────────────
+
+    // Mutation: peek returns fileFor(albumId) without the exists() check → non-null before any get → RED.
+    @Test
+    fun peek_beforeAnyGet_isNull() {
+        assertNull(cache(FakeArtworkDecoder()).peek(1L))
+    }
+
+    // Mutation: peek always returns null → RED.
+    @Test
+    fun peek_afterGet_returnsTheCachedFileWithoutDecoding() = runTest {
+        val decoder = FakeArtworkDecoder()
+        val artworkCache = cache(decoder)
+        val written = artworkCache.get(albumId = 1L, sourceUri = "content://a")
+        val callsAfterGet = decoder.callCount
+
+        assertEquals(written, artworkCache.peek(1L))
+        assertEquals("peek must never decode", callsAfterGet, decoder.callCount)
+    }
+
+    // Mutation: invalidate skips the delete → peek still returns the file → RED.
+    @Test
+    fun peek_afterInvalidate_isNull() = runTest {
+        val artworkCache = cache(FakeArtworkDecoder())
+        artworkCache.get(albumId = 1L, sourceUri = "content://a")
+        artworkCache.invalidate(1L)
+        assertNull(artworkCache.peek(1L))
     }
 
     // ── invalidate ────────────────────────────────────────────────────────────

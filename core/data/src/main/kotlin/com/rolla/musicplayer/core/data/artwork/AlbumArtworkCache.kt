@@ -35,6 +35,13 @@ interface AlbumArtworkCache {
      */
     suspend fun get(albumId: Long, sourceUri: String): File?
 
+    /**
+     * The cached file for [albumId] if a complete one is already on disk, else null. One stat call; never decodes and
+     * never suspends, so an image request that hits can reach Coil's memory cache on the calling dispatcher (the
+     * interceptor's fast path). Files appear only by an atomic rename, so a non-null result is never half written.
+     */
+    fun peek(albumId: Long): File?
+
     /** Drops [albumId]'s cached file and emits [albumId] on [invalidations] so Coil/widget evict their own copies. */
     suspend fun invalidate(albumId: Long)
 

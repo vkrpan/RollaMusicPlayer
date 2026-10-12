@@ -18,12 +18,16 @@ import kotlinx.coroutines.flow.asStateFlow
  * passed in — every name received is recorded (in call order) in [requestedArtistNames] /
  * [requestedAlbumsArtistNames] / [requestedSongsArtistNames] so tests can assert the ViewModel
  * requested the expected name.
+ *
+ * For the Artists tab, [emitArtists] pushes the whole-library artist list through [observeArtists].
+ * [emitAlbums] stays the *current artist's* albums (see [observeArtistAlbums]).
  */
 class FakeArtistRepository : ArtistRepository {
 
     private val artistFlow = MutableStateFlow<Artist?>(null)
     private val albumsFlow = MutableStateFlow<List<Album>>(emptyList())
     private val songsFlow = MutableStateFlow<List<Song>>(emptyList())
+    private val artistsListFlow = MutableStateFlow<List<Artist>>(emptyList())
 
     /** Every `artistName` passed to [observeArtist], in call order. */
     val requestedArtistNames = mutableListOf<String>()
@@ -49,10 +53,17 @@ class FakeArtistRepository : ArtistRepository {
         songsFlow.value = songs
     }
 
+    /** Replaces the whole-library artist list returned by [observeArtists], triggering a new emission. */
+    fun emitArtists(artists: List<Artist>) {
+        artistsListFlow.value = artists
+    }
+
     override fun observeArtist(artistName: String): Flow<Artist?> {
         requestedArtistNames += artistName
         return artistFlow.asStateFlow()
     }
+
+    override fun observeArtists(): Flow<List<Artist>> = artistsListFlow.asStateFlow()
 
     override fun observeArtistAlbums(artistName: String): Flow<List<Album>> {
         requestedAlbumsArtistNames += artistName

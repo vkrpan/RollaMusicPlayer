@@ -47,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.metadata
 import com.rolla.musicplayer.core.designsystem.theme.screenTitle
@@ -56,6 +57,7 @@ import com.rolla.musicplayer.core.model.Artist
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.ui.AlbumCard
 import com.rolla.musicplayer.core.ui.SongListItem
+import com.rolla.musicplayer.core.ui.tracksCountLabel
 
 private val SurfaceHorizontalMargin = 8.dp
 private val SurfaceVerticalMargin = 8.dp
@@ -337,7 +339,12 @@ private fun ArtistAlbumsSection(
             horizontalArrangement = Arrangement.spacedBy(AlbumsRowGap),
         ) {
             items(items = albums, key = { album -> album.id }) { album ->
-                AlbumCard(album = album, onClick = { onAlbumClick(album.id) })
+                AlbumCard(
+                    album = album,
+                    onClick = { onAlbumClick(album.id) },
+                    modifier = Modifier.width(RollaDimens.featureCardSize),
+                    subtitle = tracksCountLabel(album.songCount),
+                )
             }
         }
     }

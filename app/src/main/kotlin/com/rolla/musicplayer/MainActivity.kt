@@ -228,6 +228,11 @@ internal fun NavGraphBuilder.appDestinations(
             },
             onPlaylistClick = { id -> navController.navigate(PlaylistDetail(playlistId = id)) },
             onSmartPlaylistClick = { kind -> navController.navigate(SmartPlaylist(kind = kind.name)) },
+            // No popUpTo on either detail route, so back returns to Home on the same tab (the pager state is saveable).
+            onAlbumClick = { id -> navController.navigate(AlbumDetail(albumId = id)) { launchSingleTop = true } },
+            onArtistClick = { name ->
+                navController.navigate(ArtistDetail(artistName = name)) { launchSingleTop = true }
+            },
         )
     }
     // Reports its transition target to the shell, which holds the pill until Now Playing exits (NowPlayingPresence).
@@ -267,22 +272,22 @@ internal fun NavGraphBuilder.appDestinations(
             PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
-    // AlbumDetail is a leaf reachable today only from Search (wired below); later also from a
-    // library Albums tab that doesn't exist yet. Back = navigateUp() only -- no popUpTo here,
-    // same shape as TagEditor below -- so it always pops back to whichever screen opened it
-    // rather than a hard-coded destination. launchSingleTop at the call site guards
-    // double-taps of a search result row.
+    // AlbumDetail is a leaf reachable from Home's Albums tab, Search, Now Playing's ⋮ "Go to
+    // album" and an album card inside ArtistDetail (all wired in this graph). Back = navigateUp()
+    // only -- no popUpTo here, same shape as TagEditor below -- so it always pops back to
+    // whichever screen opened it rather than a hard-coded destination (from Home, the same tab:
+    // the pager state is saveable). launchSingleTop at every call site guards double-taps.
     composable<AlbumDetail> {
         PushedScreen {
             AlbumDetailRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
-    // ArtistDetail is a leaf reachable today only from Search (wired below); later also from
-    // a library Artists tab that doesn't exist yet. Back = navigateUp() only -- no popUpTo
-    // here, same shape as AlbumDetail above -- so it always pops back to whichever screen
-    // opened it rather than a hard-coded destination. Album taps inside ArtistDetail push
-    // AlbumDetail (a normal forward push, not a back-stack replacement) with its own
-    // launchSingleTop guard against double-taps of an album row.
+    // ArtistDetail is reachable from Home's Artists tab, Search and Now Playing's ⋮ "Go to
+    // artist" (all wired in this graph). Back = navigateUp() only -- no popUpTo here, same
+    // shape as AlbumDetail above -- so it always pops back to whichever screen opened it
+    // rather than a hard-coded destination (from Home, the same tab). Album taps inside
+    // ArtistDetail push AlbumDetail (a normal forward push, not a back-stack replacement) with
+    // its own launchSingleTop guard against double-taps of an album row.
     composable<ArtistDetail> {
         PushedScreen {
             ArtistDetailRoute(
@@ -303,7 +308,7 @@ internal fun NavGraphBuilder.appDestinations(
         PushedScreen {
             SearchRoute(
                 onNavigateUp = { navController.navigateUp() },
-                // AlbumDetail and ArtistDetail have both shipped and are wired below --
+                // AlbumDetail and ArtistDetail have both shipped and are wired above --
                 // launchSingleTop guards double-taps of a search result row on each.
                 onAlbumClick = { albumId ->
                     navController.navigate(AlbumDetail(albumId = albumId)) {
@@ -321,7 +326,7 @@ internal fun NavGraphBuilder.appDestinations(
         }
     }
     // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Home's
-    // Tracks tab; later: possibly Now Playing or Search). Back arrow / Cancel / system back and a
+    // Tracks and Favourites tabs, and Now Playing's ⋮). Back arrow / Cancel / system back and a
     // successful save all resolve through the same onNavigateUp() -- navigateUp() only, no
     // popUpTo here, so it always pops back to its actual caller rather than a hard-coded
     // destination. launchSingleTop above guards double-taps of the "Edit tags" option.

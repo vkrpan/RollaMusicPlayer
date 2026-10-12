@@ -11,6 +11,9 @@ interface ArtistRepository {
     /** The artist summary for [artistName], or `null` if no songs by that artist exist. */
     fun observeArtist(artistName: String): Flow<Artist?>
 
+    /** Every artist in the library, case-insensitively by name, each with its representative artwork (Artists tab). */
+    fun observeArtists(): Flow<List<Artist>>
+
     /** The albums [artistName] appears on, alphabetical by title. */
     fun observeArtistAlbums(artistName: String): Flow<List<Album>>
 

@@ -237,4 +237,33 @@ class SongDaoTest {
         val recentlyAdded = songDao.observeRecentlyAdded().first()
         assertEquals(listOf("2", "3", "1"), recentlyAdded.map { it.id })
     }
+
+    // Mutation: restore ORDER BY title ASC (binary) in observeAllSongs → [Alpha, Charlie, beta] → RED.
+    @Test
+    fun observeAllSongs_ordersTitlesCaseInsensitively() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L, title = "Charlie"),
+                buildSongEntity(id = "2", mediaStoreId = 2L, title = "beta"),
+                buildSongEntity(id = "3", mediaStoreId = 3L, title = "Alpha"),
+            ),
+        )
+
+        assertEquals(listOf("Alpha", "beta", "Charlie"), songDao.observeAllSongs().first().map { it.title })
+    }
+
+    // Mutation: restore binary order in observeFavourites → RED.
+    @Test
+    fun observeFavourites_ordersTitlesCaseInsensitively() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L, title = "Charlie").copy(isFavorite = true),
+                buildSongEntity(id = "2", mediaStoreId = 2L, title = "beta").copy(isFavorite = true),
+                buildSongEntity(id = "3", mediaStoreId = 3L, title = "Alpha").copy(isFavorite = true),
+                buildSongEntity(id = "4", mediaStoreId = 4L, title = "aardvark").copy(isFavorite = false),
+            ),
+        )
+
+        assertEquals(listOf("Alpha", "beta", "Charlie"), songDao.observeFavourites().first().map { it.title })
+    }
 }

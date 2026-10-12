@@ -201,4 +201,47 @@ class ArtistDaoTest {
 
         assertEquals(listOf("1"), songs.map { it.id })
     }
+
+    // Mutation: drop COLLATE NOCASE from the outer ORDER BY → "queen" sorts after "Zappa" → RED (Review Focus 1).
+    @Test
+    fun observeArtists_groupsByExactName_ordersCaseInsensitivelyThenBinary() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L).copy(artist = "Zappa", albumId = 1L, album = "Z1"),
+                buildSongEntity(id = "2", mediaStoreId = 2L).copy(artist = "queen", albumId = 2L, album = "Q1"),
+                buildSongEntity(id = "3", mediaStoreId = 3L).copy(artist = "Queen", albumId = 3L, album = "Q2"),
+                buildSongEntity(id = "4", mediaStoreId = 4L).copy(artist = "Queen", albumId = 4L, album = "Q3"),
+                buildSongEntity(id = "5", mediaStoreId = 5L).copy(artist = "ABBA", albumId = 5L, album = "A1"),
+                // A second "Queen" song on album 3: the album count must stay 2 while the song count reaches 3.
+                buildSongEntity(id = "6", mediaStoreId = 6L).copy(artist = "Queen", albumId = 3L, album = "Q2"),
+            ),
+        )
+
+        val artists = artistDao.observeArtists().first()
+
+        assertEquals(listOf("ABBA", "Queen", "queen", "Zappa"), artists.map { it.name })
+        assertEquals(2, artists.single { it.name == "Queen" }.albumCount)
+        assertEquals(3, artists.single { it.name == "Queen" }.songCount)
+    }
+
+    // The expected album ("alpha") is the MIDDLE row in scan order, so no position-based pick can pass by accident.
+    // Mutations: (a) MIN(album) without COLLATE NOCASE → binary min is "Mid" ('M' < 'Z' < 'a') → art/mid → RED;
+    // (b) delete the MIN(...) AS firstAlbum line → the bare column comes from an unspecified row of the group (the
+    // first or the last in practice: art/zeta or art/mid), never the middle one → RED.
+    @Test
+    fun observeArtists_artworkComesFromTheAlphabeticallyFirstAlbum() = runTest {
+        songDao.upsertSongs(
+            listOf(
+                buildSongEntity(id = "1", mediaStoreId = 1L)
+                    .copy(artist = "X", albumId = 1L, album = "Zeta", artworkUri = "art/zeta"),
+                buildSongEntity(id = "2", mediaStoreId = 2L)
+                    .copy(artist = "X", albumId = 2L, album = "alpha", artworkUri = "art/alpha"),
+                buildSongEntity(id = "3", mediaStoreId = 3L)
+                    .copy(artist = "X", albumId = 3L, album = "Mid", artworkUri = "art/mid"),
+            ),
+        )
+
+        assertEquals("art/alpha", artistDao.observeArtists().first().single().artworkUri)
+        assertEquals("art/alpha", artistDao.observeArtist("X").first()?.artworkUri)
+    }
 }

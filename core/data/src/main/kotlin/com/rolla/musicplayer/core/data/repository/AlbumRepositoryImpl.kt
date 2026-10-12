@@ -19,6 +19,11 @@ class AlbumRepositoryImpl @Inject constructor(
             .map { row -> row?.toDomain() }
             .distinctUntilChanged()
 
+    override fun observeAlbums(): Flow<List<Album>> =
+        albumDao.observeAlbums()
+            .map { rows -> rows.map { it.toDomain() } }
+            .distinctUntilChanged()
+
     override fun observeAlbumSongs(albumId: Long): Flow<List<Song>> =
         albumDao.observeAlbumSongs(albumId)
             .map { entities -> entities.map { it.toDomain() } }

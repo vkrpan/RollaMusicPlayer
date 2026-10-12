@@ -12,6 +12,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.NowPlayingGradient
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.nowPlayingGradient
+import com.rolla.musicplayer.core.testing.assertColorNear
+import com.rolla.musicplayer.core.testing.drawRoot
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test

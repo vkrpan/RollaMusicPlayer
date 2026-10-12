@@ -95,4 +95,32 @@ class AlbumRepositoryImplTest {
 
         verify { albumDao.observeAlbumSongs(42L) }
     }
+
+    // Mutation: map with a hardcoded songCount = 0 → RED.
+    @Test
+    fun `observeAlbums maps rows to albums in order`() = runTest {
+        every { albumDao.observeAlbums() } returns flowOf(
+            listOf(
+                AlbumSearchRow(
+                    albumId = 30L,
+                    title = "Greatest Hits",
+                    artist = "Y",
+                    songCount = 3,
+                    artworkUri = "a/30",
+                ),
+                AlbumSearchRow(
+                    albumId = 40L,
+                    title = "Greatest Hits",
+                    artist = "X",
+                    songCount = 1,
+                    artworkUri = "a/40",
+                ),
+            ),
+        )
+
+        val albums = repository.observeAlbums().first()
+
+        assertEquals(listOf(30L, 40L), albums.map { it.id })
+        assertEquals(listOf(3, 1), albums.map { it.songCount })
+    }
 }

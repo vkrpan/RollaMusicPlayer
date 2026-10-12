@@ -16,11 +16,14 @@ import kotlinx.coroutines.flow.asStateFlow
  * those same flows *regardless* of the `albumId` passed in — every id received is recorded (in
  * call order) in [requestedAlbumIds]/[requestedSongsAlbumIds] so tests can assert the ViewModel
  * requested the expected id.
+ *
+ * For the Albums tab, [emitAlbums] pushes the whole-library album list through [observeAlbums].
  */
 class FakeAlbumRepository : AlbumRepository {
 
     private val albumFlow = MutableStateFlow<Album?>(null)
     private val songsFlow = MutableStateFlow<List<Song>>(emptyList())
+    private val albumsListFlow = MutableStateFlow<List<Album>>(emptyList())
 
     /** Every `albumId` passed to [observeAlbum], in call order. */
     val requestedAlbumIds = mutableListOf<Long>()
@@ -38,10 +41,17 @@ class FakeAlbumRepository : AlbumRepository {
         songsFlow.value = songs
     }
 
+    /** Replaces the whole-library album list returned by [observeAlbums], triggering a new emission. */
+    fun emitAlbums(albums: List<Album>) {
+        albumsListFlow.value = albums
+    }
+
     override fun observeAlbum(albumId: Long): Flow<Album?> {
         requestedAlbumIds += albumId
         return albumFlow.asStateFlow()
     }
+
+    override fun observeAlbums(): Flow<List<Album>> = albumsListFlow.asStateFlow()
 
     override fun observeAlbumSongs(albumId: Long): Flow<List<Song>> {
         requestedSongsAlbumIds += albumId

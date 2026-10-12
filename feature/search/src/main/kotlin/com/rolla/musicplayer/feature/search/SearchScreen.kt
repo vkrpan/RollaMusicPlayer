@@ -351,10 +351,17 @@ private fun NoResultsMessage(modifier: Modifier = Modifier) {
 }
 
 /**
+ * LazyColumn key for an artist result. It is the artist's name, which is the `GROUP BY` key and
+ * therefore unique. [Artist.id] is a synthetic FNV hash that is display-only: two names can hash to
+ * the same id, and a duplicate key would crash the list.
+ */
+internal fun searchArtistKey(artist: Artist): String = "artist-${artist.name}"
+
+/**
  * Results state: one LazyColumn with up to three sections (Songs / Albums / Artists), each
  * present only when its list is non-empty. Keys are prefixed per section (song-/album-/artist-)
- * since Song.id is a String while Album.id and Artist.id are Longs from an entirely different id
- * space -- an unprefixed key could collide across types.
+ * so keys from different sections can never collide: songs and albums are keyed by id, artists by
+ * name ([searchArtistKey]).
  */
 @Suppress("LongParameterList")
 @Composable
@@ -380,7 +387,7 @@ private fun SearchResultsList(
         }
         if (results.artists.isNotEmpty()) {
             item(key = "header-artists") { SectionHeader(text = "Artists") }
-            items(items = results.artists, key = { artist -> "artist-${artist.id}" }) { artist ->
+            items(items = results.artists, key = { artist -> searchArtistKey(artist) }) { artist ->
                 ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
             }
         }

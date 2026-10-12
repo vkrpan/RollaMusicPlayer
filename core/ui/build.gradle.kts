@@ -26,6 +26,8 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
+    testImplementation(project(":core:testing"))
+
     androidTestImplementation(project(":core:model"))
     androidTestImplementation(project(":core:designsystem"))
     androidTestImplementation(composeBom)

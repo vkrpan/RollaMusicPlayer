@@ -1,13 +1,8 @@
 package com.rolla.musicplayer.feature.equalizer
 
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.view.View
-import android.view.ViewGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -21,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
+import com.rolla.musicplayer.core.testing.drawLatestDialog
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Rule
@@ -29,7 +25,6 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.LooperMode
-import org.robolectric.shadows.ShadowDialog
 
 /** [SavePresetDialog] against spec §8.7: `large` shape and accentText for the field's blue text. */
 @RunWith(AndroidJUnit4::class)
@@ -97,22 +92,9 @@ class SavePresetDialogTest {
         composeRule.waitForIdle()
         val pane = composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.PaneTitle))
             .getBoundsInRoot()
-        lateinit var bitmap: Bitmap
-        composeRule.runOnUiThread {
-            val view = ShadowDialog.getLatestDialog().window!!.decorView.findComposeView()
-            bitmap = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
-            view.draw(Canvas(bitmap))
-        }
+        val bitmap = composeRule.drawLatestDialog()
         val (x, y) = with(composeRule.density) { (pane.left.roundToPx() + 1) to (pane.top.roundToPx() + 1) }
         return bitmap.getPixel(x, y) ushr ALPHA_SHIFT
-    }
-
-    private fun View.findComposeView(): View = checkNotNull(composeViewOrNull()) { "no Compose view in the dialog" }
-
-    private fun View.composeViewOrNull(): View? = when (this) {
-        is AbstractComposeView -> this
-        is ViewGroup -> (0 until childCount).firstNotNullOfOrNull { getChildAt(it).composeViewOrNull() }
-        else -> null
     }
 
     private companion object {

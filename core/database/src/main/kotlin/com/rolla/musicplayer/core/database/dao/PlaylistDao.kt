@@ -26,7 +26,7 @@ interface PlaylistDao {
         FROM playlists
         LEFT JOIN playlist_songs ON playlists.id = playlist_songs.playlist_id
         GROUP BY playlists.id
-        ORDER BY playlists.name ASC
+        ORDER BY playlists.name COLLATE NOCASE ASC, playlists.id ASC
         """,
     )
     fun observePlaylistsWithCounts(): Flow<List<PlaylistWithCount>>
