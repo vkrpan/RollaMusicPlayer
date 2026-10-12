@@ -7,6 +7,7 @@ import com.rolla.musicplayer.core.database.converter.ShortListConverter
 import com.rolla.musicplayer.core.database.dao.AlbumDao
 import com.rolla.musicplayer.core.database.dao.ArtistDao
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
+import com.rolla.musicplayer.core.database.dao.FolderDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.dao.SongDao
@@ -22,7 +23,7 @@ import com.rolla.musicplayer.core.database.entity.SongEntity
         PlaylistSongCrossRef::class,
         EqualizerPresetEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 @TypeConverters(ShortListConverter::class)
@@ -45,6 +46,10 @@ abstract class MusicDatabase : RoomDatabase() {
     // Same rationale as albumDao() above — artist-detail queries over the existing `songs`
     // table, no schema change (see ArtistDao's KDoc).
     abstract fun artistDao(): ArtistDao
+
+    // Folder queries over `songs.folder_path`. Unlike the DAOs above, this one comes WITH a schema change:
+    // the v4 column, added by MIGRATION_3_4 (see FolderDao's KDoc).
+    abstract fun folderDao(): FolderDao
 
     companion object {
         const val DATABASE_NAME = "music_database"

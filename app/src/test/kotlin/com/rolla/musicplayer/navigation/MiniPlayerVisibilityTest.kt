@@ -7,6 +7,8 @@ import org.junit.Test
 
 class MiniPlayerVisibilityTest {
 
+    // Spec §7.3 lists FolderDetail among the screens that show the pill.
+    // Mutation: add FolderDetail::class to routesWithoutMiniPlayer → RED.
     @Test
     fun shownOnBrowsingScreens() {
         listOf(
@@ -14,6 +16,7 @@ class MiniPlayerVisibilityTest {
             Search::class,
             AlbumDetail::class,
             ArtistDetail::class,
+            FolderDetail::class,
             PlaylistDetail::class,
             SmartPlaylist::class,
         ).forEach { assertTrue(it.simpleName, showsMiniPlayer(it)) }
@@ -42,6 +45,6 @@ class MiniPlayerVisibilityTest {
     fun everyRouteIsClassified() {
         // Pins removals from allRoutes: dropping a route makes routeClass() return null for its destination, which
         // hides the pill there. RouteClassTest checks every destination of the real graph maps to its route.
-        assertEquals(14, allRoutes.size)
+        assertEquals(15, allRoutes.size)
     }
 }

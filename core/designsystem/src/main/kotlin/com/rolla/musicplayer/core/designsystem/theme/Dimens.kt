@@ -69,6 +69,12 @@ object RollaDimens {
     val listTrailingEnd = 43.dp // end of trailing text such as "0 tracks"
     val listDividerEnd: Dp get() = fastScrollWidth + fastScrollEnd
 
+    // The folder mark on a FolderRow thumbnail (spec §8.1). Measured from the reference at 3.0 px/dp: a ~14 × 11 dp
+    // glyph ~5 dp from the thumbnail's end and ~6 dp from its bottom. The 20 dp icon box puts the 24-grid glyph there
+    // with a 2 dp inset. Provisional until Phase 7 calibration.
+    val folderBadge = 20.dp
+    val folderBadgeInset = 2.dp
+
     // Mini-player
     val miniPlayerHeight = 60.dp
     val miniPlayerSideMargin = 4.dp

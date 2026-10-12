@@ -88,6 +88,53 @@ class LibraryIndexerTest {
         coVerify(exactly = 1) { songDao.deleteByMediaStoreIds(listOf(7L)) }
     }
 
+    // Review Focus 2. Mutation: drop the folder-path clause from the stale check → no upsert → RED.
+    @Test
+    fun sync_unscannedFolderPath_backfillsAndKeepsUserState() = runTest {
+        val existing = entityWithUserState(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = null)
+        coEvery { scanner.scan() } returns
+            listOf(scannedSong(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = "Music/Chill"))
+        coEvery { songDao.getAllSongs() } returns listOf(existing)
+
+        indexer.sync()
+
+        coVerify(exactly = 1) {
+            songDao.upsertSongs(
+                match { entities ->
+                    val entity = entities.single()
+                    entity.folderPath == "Music/Chill" && entity.preservesUserStateOf(existing, existing.title)
+                },
+            )
+        }
+    }
+
+    // Review Focus 1. Mutation: stale when `existing.folderPath.isNullOrEmpty()` → the root song is re-upserted → RED.
+    @Test
+    fun sync_rootSong_isNotRewrittenOnTheSecondSync() = runTest {
+        coEvery { scanner.scan() } returns
+            listOf(scannedSong(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = ""))
+        coEvery { songDao.getAllSongs() } returns
+            listOf(entityWithUserState(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = ""))
+
+        val result = indexer.sync()
+
+        assertEquals(SyncResult(added = 0, removed = 0), result)
+        coVerify(exactly = 0) { songDao.upsertSongs(any()) }
+    }
+
+    // Review Focus 4 (ruling 3). Mutation: the spec's original `existingEntity.folderPath == null` → no upsert → RED.
+    @Test
+    fun sync_movedSongWithUnchangedMtime_takesItsNewFolder() = runTest {
+        coEvery { scanner.scan() } returns
+            listOf(scannedSong(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = "Music/Chill"))
+        coEvery { songDao.getAllSongs() } returns
+            listOf(entityWithUserState(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = "Music"))
+
+        indexer.sync()
+
+        coVerify(exactly = 1) { songDao.upsertSongs(match { it.single().folderPath == "Music/Chill" }) }
+    }
+
     // ── concurrent invocation safety ───────────────────────────────────────
 
     /**
@@ -203,6 +250,19 @@ class LibraryIndexerTest {
         coVerify(exactly = 1) { songDao.deleteByMediaStoreIds(listOf(2L)) }
     }
 
+    // Fixture: the stored folder differs from the scanned one. Mutation: toEntity writes `existing?.folderPath ?:
+    // folderPath` → "Music" → RED.
+    @Test
+    fun syncSongs_writesTheScannedFolderPath() = runTest {
+        coEvery { scanner.scan(listOf(1L)) } returns listOf(scannedSong(mediaStoreId = 1L, folderPath = "Download"))
+        coEvery { songDao.getAllSongs() } returns
+            listOf(entityWithUserState(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, folderPath = "Music"))
+
+        indexer.syncSongs(listOf(1L))
+
+        coVerify(exactly = 1) { songDao.upsertSongs(match { it.single().folderPath == "Download" }) }
+    }
+
     @Test
     fun syncSongs_emptyIds_isNoOpWithoutTouchingScannerOrDao() = runTest {
         val result = indexer.syncSongs(emptyList())
@@ -232,6 +292,7 @@ private fun scannedSong(
     mediaStoreId: Long,
     title: String = "Title $mediaStoreId",
     dateModified: Long = NEW_DATE_MODIFIED,
+    folderPath: String = "Music",
 ): ScannedSong = ScannedSong(
     mediaStoreId = mediaStoreId,
     title = title,
@@ -244,9 +305,14 @@ private fun scannedSong(
     contentUri = "content://media/external/audio/media/$mediaStoreId",
     artworkUri = "content://media/external/audio/albumart/10",
     dateModified = dateModified,
+    folderPath = folderPath,
 )
 
-private fun entityWithUserState(mediaStoreId: Long, dateModified: Long): SongEntity = SongEntity(
+private fun entityWithUserState(
+    mediaStoreId: Long,
+    dateModified: Long,
+    folderPath: String? = "Music",
+): SongEntity = SongEntity(
     id = mediaStoreId.toString(),
     mediaStoreId = mediaStoreId,
     title = "Title $mediaStoreId",
@@ -263,4 +329,5 @@ private fun entityWithUserState(mediaStoreId: Long, dateModified: Long): SongEnt
     isFavorite = true,
     playCount = 4,
     lastPlayed = 900L,
+    folderPath = folderPath,
 )

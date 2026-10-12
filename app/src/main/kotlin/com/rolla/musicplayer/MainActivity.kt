@@ -36,6 +36,7 @@ import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.AlbumDetailRoute
 import com.rolla.musicplayer.feature.library.ArtistDetailRoute
+import com.rolla.musicplayer.feature.library.FolderDetailRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
@@ -56,6 +57,7 @@ import com.rolla.musicplayer.navigation.AppShell
 import com.rolla.musicplayer.navigation.ArtistDetail
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
+import com.rolla.musicplayer.navigation.FolderDetail
 import com.rolla.musicplayer.navigation.Home
 import com.rolla.musicplayer.navigation.Licenses
 import com.rolla.musicplayer.navigation.NowPlayingPresence
@@ -198,10 +200,11 @@ private fun RollaNavHost() {
  * (RouteClassTest checks routeClass() against each destination).
  *
  * Every pushed destination below is a Scaffold that owns its navigation-bar inset (default contentWindowInsets; Search
- * excludes only the IME), so PushedScreen adds only the mini-player inset. Home and Now Playing are not wrapped: Home
- * pads its lists itself, and Now Playing owns contentWindowInsets = WindowInsets.navigationBars with the pill hidden.
+ * excludes only the IME), so PushedScreen adds only the mini-player inset. Home, FolderDetail and Now Playing are not
+ * wrapped: Home and FolderDetail pad their lists themselves, and Now Playing owns contentWindowInsets =
+ * WindowInsets.navigationBars with the pill hidden.
  */
-@Suppress("LongMethod") // one flat entry per route (14); splitting it would scatter the graph across files
+@Suppress("LongMethod") // one flat entry per route (15); splitting it would scatter the graph across files
 @OptIn(ExperimentalSharedTransitionApi::class)
 internal fun NavGraphBuilder.appDestinations(
     navController: NavHostController,
@@ -228,10 +231,13 @@ internal fun NavGraphBuilder.appDestinations(
             },
             onPlaylistClick = { id -> navController.navigate(PlaylistDetail(playlistId = id)) },
             onSmartPlaylistClick = { kind -> navController.navigate(SmartPlaylist(kind = kind.name)) },
-            // No popUpTo on either detail route, so back returns to Home on the same tab (the pager state is saveable).
+            // No popUpTo on any detail route, so back returns to Home on the same tab (the pager state is saveable).
             onAlbumClick = { id -> navController.navigate(AlbumDetail(albumId = id)) { launchSingleTop = true } },
             onArtistClick = { name ->
                 navController.navigate(ArtistDetail(artistName = name)) { launchSingleTop = true }
+            },
+            onFolderClick = { path ->
+                navController.navigate(FolderDetail(folderPath = path)) { launchSingleTop = true }
             },
         )
     }
@@ -297,6 +303,19 @@ internal fun NavGraphBuilder.appDestinations(
                 },
             )
         }
+    }
+    // FolderDetail is reached from Home's Folders tab only. Back = navigateUp(), so it pops back to Home on the same
+    // tab (the pager state is saveable). It is not wrapped in PushedScreen: its list pads by the pill itself and
+    // scrolls under it (Phase 4b ruling 7). "Edit tags" pushes TagEditor like Home's options sheet does.
+    composable<FolderDetail> {
+        FolderDetailRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onEditTagsClick = { song ->
+                song.id.toLongOrNull()?.let { id ->
+                    navController.navigate(TagEditor(id)) { launchSingleTop = true }
+                }
+            },
+        )
     }
     // Search is reachable from the Home header (wired above) and the rollamusic://search deep
     // link. No popUpTo here: navigateUp() always pops Search off and returns to whichever

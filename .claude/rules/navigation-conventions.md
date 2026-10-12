@@ -8,6 +8,12 @@ Routing style: *type-safe @Serializable routes* (Navigation Compose 2.8.0+).
 Do not introduce string-based routes or sealed class routes — see "Why not sealed
 classes" below.
 
+> **The examples below predate the One UI Home shell.** The real start destination
+> is `Home` (a pager of six tabs), there is no `Library` route, `LibraryScreen` or
+> bottom nav, and the audio-item route names use `Song`, not `Track`. Copy the
+> patterns, not the route names; read `app/.../navigation/Routes.kt` for the real
+> graph. The redesign's Phase 7 docs pass rewrites these examples (spec §16).
+
 ## Route definitions
 
 All routes live in a single source of truth: navigation/Routes.kt.
@@ -46,6 +52,11 @@ itself must be a standalone @Serializable object/data class, not a sealed member
   these as query params automatically
 - If a screen "needs" more than 2-3 simple args, that's a signal data should be
   fetched downstream instead of threaded through navigation
+- An empty String is a valid non-optional argument: `FolderDetail(folderPath: String)`
+  uses `""` for the root folder, and Navigation 2.8 accepts an empty path argument
+  (pinned by `FolderDetailRouteTest`). A ViewModel reads route args from its own
+  `SavedStateHandle`; `NavBackStackEntry.savedStateHandle` is the result handle and
+  does not carry them
 
 ## Declaring destinations
 

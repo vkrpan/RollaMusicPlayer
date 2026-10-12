@@ -66,6 +66,12 @@ data class SongEntity(
 
     @ColumnInfo(name = "last_played")
     val lastPlayed: Long? = null,
+
+    // The song's folder relative to its storage volume, "/"-separated with no leading or trailing slash
+    // ("Music/Chill"). "" is the volume root; null means not scanned since the v4 migration, and LibraryIndexer
+    // fills it (spec §9.4).
+    @ColumnInfo(name = "folder_path", defaultValue = "NULL")
+    val folderPath: String? = null,
 )
 
 fun SongEntity.toDomain(): Song = Song(
@@ -79,19 +85,4 @@ fun SongEntity.toDomain(): Song = Song(
     year = year,
     contentUri = contentUri,
     artworkUri = artworkUri,
-)
-
-fun Song.toEntity(mediaStoreId: Long, dateModified: Long): SongEntity = SongEntity(
-    id = id,
-    mediaStoreId = mediaStoreId,
-    title = title,
-    artist = artist,
-    album = album,
-    albumId = albumId,
-    durationMs = durationMs,
-    trackNumber = trackNumber,
-    year = year,
-    contentUri = contentUri,
-    artworkUri = artworkUri,
-    dateModified = dateModified,
 )

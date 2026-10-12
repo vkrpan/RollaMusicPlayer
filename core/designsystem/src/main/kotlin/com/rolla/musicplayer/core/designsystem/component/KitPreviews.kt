@@ -26,6 +26,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -82,8 +83,16 @@ private fun KitPanelSection() {
             CircleIconButton(icon = RollaIcons.Shuffle, contentDescription = "Shuffle", onClick = {})
             CircleIconButton(icon = RollaIcons.Play, contentDescription = "Play", onClick = {})
         }
-        Row(Modifier.padding(start = RollaDimens.listThumbStart)) {
+        Row(
+            Modifier.padding(start = RollaDimens.listThumbStart),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             ArtworkPlaceholder(modifier = Modifier.size(RollaDimens.listThumb))
+            // A folder thumbnail: the badge over the placeholder's bottom-end corner (FolderRow's anatomy).
+            Box(Modifier.size(RollaDimens.listThumb)) {
+                ArtworkPlaceholder(modifier = Modifier.matchParentSize())
+                FolderBadge(Modifier.align(Alignment.BottomEnd).padding(RollaDimens.folderBadgeInset))
+            }
         }
         InsetDivider(startInset = RollaDimens.listTextStart, modifier = Modifier.padding(top = 12.dp))
     }

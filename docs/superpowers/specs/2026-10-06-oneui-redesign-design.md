@@ -111,6 +111,7 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 | `artworkPlaceholder` | `#454547` | `#E6E6E8` | List thumbnails, feature cards, folder thumbs |
 | `artworkPlaceholderLarge` | `#3B3B3B` | `#E9E9EB` | Now Playing artwork placeholder |
 | `artworkPlaceholderGlyph` | `#FCFCFE` | `#7A7A7E` | The note glyph on placeholders. Dark: 9.34:1. Light: 3.43:1 (white on light gray would only reach 1.4:1). |
+| `folderBadgeStroke` / `folderBadgeFill` | `#FFFFFF` / `#000000` | same | The `FolderBadge` outline and its fill on folder thumbnails. The same in both themes, because the badge sits on artwork, not a theme surface (amended 2026-10-12, Phase 4b ruling 5). |
 | `miniPlayerContainer` | `#282035` | `#E9E4F2` | Mini-player pill |
 | `miniPlayerArtPlaceholder` | `#FFFFFF` at 18 % alpha | `#000000` at 10 % alpha | Art circle over the pill |
 | `miniPlayerArtGlyph` | `#FCFCFE` | `#707074` | Note glyph on the mini-player art circle. 8.53:1 dark and 3.16:1 light over the composited circle. White would only reach 1.6:1 in light (Phase 1 audit). |
@@ -214,7 +215,8 @@ never declare private `dp` literals for anything this table covers.
 | `featureCardGlyph` | 44 dp | `minTouchTarget` | 48 dp |
 | `listOverflowEnd` | 26 dp (end of the ⋮ 48 dp box; reaches 4 dp into the rail strip) | `listTrailingEnd` | 43 dp (trailing text end) |
 | `listDividerEnd` | = `fastScrollWidth` + `fastScrollEnd` (30 dp) | `featureCardLabelGap` | 8 dp (unmeasured; Phase 7) |
-| `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | | |
+| `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | `folderBadge` | 20 dp (icon box; measured glyph ~14 × 11 dp at 3.0 px/dp; Phase 4b ruling 5) |
+| `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | | |
 
 **Touch targets.** Glyphs keep their measured visual size, but every interactive element is at least 48 × 48 dp, through
 `minimumInteractiveComponentSize()` or padding. Examples: the 34 dp circle buttons, the 40 dp chips and the 35 dp switch (whose
@@ -258,7 +260,7 @@ A new `:core:designsystem/icon/RollaIcons.kt` holds hand-authored `ImageVector`s
 | `Repeat` / `RepeatOne` | line | `Play` / `Pause` | solid |
 | `SkipPrevious` / `SkipNext` (bar + two triangles, ⏮ ⏭) | solid | `Replay15` / `Forward15` (widget, Now Playing ±15 if used) | line |
 | `MusicNote` (placeholder glyph) | line, 2.0 stroke | `FolderBadge` (small folder outline) | line |
-| `Close`, `Edit`, `Check`, `PlaylistAdd`, `Album`, `Person` | line | | |
+| `Close`, `Edit`, `Check`, `PlaylistAdd`, `Album`, `Person` | line | `FolderBadgeFill` (the `FolderBadge` outline as one filled shape, drawn under it; Phase 4b ruling 5) | solid |
 
 Material icons stay only where no visible One UI equivalent exists, such as the tag-editor form affordances. Each one is listed in the
 plan as an explicit exception.
@@ -319,6 +321,10 @@ indicative; the plan may refine names, but not responsibilities.
 // Gray rounded box with a centered note glyph (artworkPlaceholder + artworkPlaceholderGlyph)
 @Composable fun ArtworkPlaceholder(modifier: Modifier = Modifier, shape: Shape = MaterialTheme.shapes.small,
                                    large: Boolean = false, glyphSize: Dp = 24.dp)
+
+// The folder mark for FolderRow thumbnails: FolderBadgeFill (folderBadgeFill) under FolderBadge (folderBadgeStroke),
+// sized folderBadge. The caller places it, inset folderBadgeInset from the bottom-end corner (added 2026-10-12, Phase 4b)
+@Composable fun FolderBadge(modifier: Modifier = Modifier)
 
 // Inset hairline in outlineVariant
 @Composable fun InsetDivider(startInset: Dp, modifier: Modifier = Modifier, endInset: Dp = 0.dp)
@@ -409,8 +415,9 @@ All values come from §5 tokens and §6 components. "Row" means `SongListItem` a
   `featureCardLabel` and `featureCardCount`.
 - **`AlbumCard`:** used by the Albums grid. A square `featureCard`-shape art box, then a left-aligned `featureCardLabel` title (one
   line) and a `featureCardCount` artist (one line).
-- **`FolderRow`** (new): a 48 dp thumbnail showing the first song's art (or a placeholder) with a `FolderBadge` in the bottom-right corner,
-  the folder name as `songTitle`, and the path as `artistName` ("/Internal storage/Music").
+- **`FolderRow`** (new): a 48 dp thumbnail showing the first song's art (or a placeholder) with a `FolderBadge` in the bottom-end corner,
+  the folder name as `songTitle`, and the path as `artistName` ("/Internal storage/Music"). The badge is a white outline over a black fill,
+  inset `folderBadgeInset` from the thumbnail's bottom-end corner (amended 2026-10-12, Phase 4b ruling 5).
 
 ### 8.2 Tabs
 
@@ -533,19 +540,25 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
   - **Columns:** `MediaStoreColumns` adds `RELATIVE_PATH` on API 29+ and `DATA` on API 24–28.
   - **Parsing:** pure functions in `FolderPaths.kt` (`:core:data`), unit-tested with real-world inputs:
     - `fromRelativePath(String?)`: trims the trailing `/`. Null input gives `''`.
-    - `fromDataPath(String?)`: strips the volume prefix (`/storage/emulated/<n>/`, `/storage/<UUID>/`, `/sdcard/`), drops the
-      filename and trims slashes. Null or unparseable input gives `''`.
+    - `fromDataPath(String?)`: strips the volume prefix (`/storage/emulated/<n>/`, `/storage/self/primary/`, `/storage/<UUID>/`,
+      `/sdcard/`, `/mnt/sdcard/`), drops the filename and trims slashes. Null or unparseable input gives `''`. (The `self/primary`
+      and `/mnt/sdcard` prefixes were added on 2026-10-12, Phase 4b ruling 16.)
   - **Mapping:** `ScannedSong` carries `folderPath`, and `toEntity` writes it.
-- **Backfill:** in `LibraryIndexer.sync()` a row is stale when it is new, when `dateModified` changed, **or when `existing.folderPath == null`**.
-  The first sync after upgrading fills every row once. Root-level songs get `''`, so they are not re-written forever.
-  `syncSongs(ids)` (the tag-editor path) also writes the folder path.
-- **Queries:**
-  - `SongDao.observeFolders()` groups by `folder_path` where it is not null, and returns the path, song count and artwork of the
-    alphabetically first song. Ordered by path, case-insensitive.
-  - `SongDao.observeSongsInFolder(path)` orders by title.
+- **Backfill:** in `LibraryIndexer.sync()` a row is stale when it is new, when `dateModified` changed, **or when its stored
+  `folderPath` differs from the scanned one**. That covers the NULL left by the migration, so the first sync after upgrading fills
+  every row once, and also a file moved to another folder without its mtime changing. Root-level songs store and scan `''`, so they are
+  not re-written forever. `syncSongs(ids)` (the tag-editor path) also writes the folder path. (Amended 2026-10-12, Phase 4b ruling 3;
+  the original rule was `existing.folderPath == null`.)
+- **Queries** live in a new `FolderDao`, not `SongDao`, which is at detekt's interface limit (amended 2026-10-12, Phase 4b ruling 1):
+  - `FolderDao.observeFolders()` groups by the exact `folder_path` where it is not null, and returns the path, song count and
+    artwork of the alphabetically first song. Ordered by path, case-insensitive, then exactly.
+  - `FolderDao.observeSongsInFolder(path)` returns the songs directly in that folder, by `title COLLATE NOCASE` (Phase 4b ruling 10).
 - **Model:** add `data class Folder(val path: String, val name: String, val songCount: Int, val artworkUri: String)` to `:core:model`. `name` is the last
   path segment, or "Internal storage" for `''`.
 - **Repository:** add `FolderRepository` (`observeFolders`, `observeFolderSongs`) in `:core:data`, bound in `DataModule`.
+  `observeFolders` sorts by the display name case-insensitively, then by the path case-insensitively, then exactly, because the
+  header reads "Name" and §10's rail sections come from the displayed names (amended 2026-10-12, Phase 4b ruling 2). Like NOCASE, this
+  does not fold accents: the Phase 5 Unicode-collation choice applies here too.
 - **Display path:** `"/Internal storage" + (if (path.isEmpty()) "" else "/$path")`.
 - **Known limitation:** the same relative path on two volumes merges into one folder. This is documented, not fixed.
 
@@ -632,7 +645,8 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
 - Queue mapping: shuffle on and off, empty, single item, current index.
 - New ViewModels: `FavouritesTabViewModel`, `AlbumsTabViewModel`, `ArtistsTabViewModel`, `FoldersTabViewModel` and `FolderDetailViewModel`
   (Turbine and MockK, the project's existing style).
-- `LibraryIndexer`: the null-`folderPath` backfill rule, with root songs not rewritten on the second sync.
+- `LibraryIndexer`: the folder re-scan rule (a stored `folderPath` that differs from the scanned one, NULL included), with root songs
+  not rewritten on the second sync and a moved file taking its new folder (Phase 4b ruling 3).
 - Shuffle-all and play-all wiring in the tab ViewModels.
 - Now Playing overflow and volume actions: callbacks invoked; the volume call goes through an injectable seam.
 - Every existing test the redesign touches gets updated, not deleted: the library, playlists, player, settings and equalizer suites.

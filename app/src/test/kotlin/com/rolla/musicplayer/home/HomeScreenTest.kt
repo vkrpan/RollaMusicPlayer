@@ -82,10 +82,10 @@ class HomeScreenTest {
         assertEquals(HomeTab.TRACKS.ordinal, pagerState.currentPage)
     }
 
-    // Mutation: HomeTabsAndPager's titles drop the last entry → "Artists" is missing → RED. (Opening on Tracks is
+    // Mutation: HomeTabsAndPager's titles drop the last entry → "Folders" is missing → RED. (Opening on Tracks is
     // pinned by startsOnTracksAndTitleIsRollaMusic.)
     @Test
-    fun `home shows all five tab titles`() {
+    fun `home shows all six tab titles`() {
         setHome()
 
         HomeTab.entries.forEach { composeRule.onNodeWithText(it.title).assertExists() }

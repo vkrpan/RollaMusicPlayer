@@ -41,6 +41,13 @@ data class Artist(
     val artworkUri: String = ""   // cover of the artist's alphabetically first album; identity stays the name
 )
 
+data class Folder(
+    val path: String,
+    val name: String,
+    val songCount: Int,
+    val artworkUri: String
+) // path relative to its volume ("" = root) is the identity; name = last segment or "Internal storage"
+
 data class Playlist(
     val id: Long,
     val name: String,
@@ -64,6 +71,7 @@ Naming conventions:
 - A single audio item is always a **`Song`** (variable: `song`, list: `songs`, id: `songId`).
 - Detail route is **`SongDetail(val songId: Long)`** → screen `SongDetailScreen`, callback `onSongClick`.
 - Entities map to these models via `toDomain()` / `toEntity()`; entities may be named `SongEntity`, etc.
+- A folder's identity is its `path`. Routes and list keys use the path; `name` is display-only.
 
 ## Rename map (model `Track` → `Song`)
 

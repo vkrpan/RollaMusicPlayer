@@ -20,7 +20,8 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 
 /**
  * The 48 dp list thumbnail: [ArtworkPlaceholder] underneath, with the Coil image drawn on top when there is art.
- * Shared by [SongListItem], [AlbumRow], [ArtistRow] (a circle with a person glyph) and the player's queue rows.
+ * Shared by [SongListItem], [AlbumRow], [ArtistRow] (a circle with a person glyph), [FolderRow] (with a folder badge)
+ * and the player's queue rows.
  */
 @Composable
 fun ArtworkThumbnail(

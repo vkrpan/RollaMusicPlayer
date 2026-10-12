@@ -44,7 +44,7 @@ class HomeScreenRestorationTest {
         }
     }
 
-    // The last tab, two pages right of Tracks: back from ArtistDetail (no popUpTo) re-enters Home on this tab.
+    // A non-default tab, two pages right of Tracks: back from ArtistDetail (no popUpTo) re-enters Home on this tab.
     // Mutation (already pinned by the Playlists case above): drop rememberHomePagerState's rememberSaveable backing,
     // e.g. remember { PagerState(currentPage = HomeTab.TRACKS.ordinal) { HomeTab.entries.size } } → reopens on Tracks.
     @Test

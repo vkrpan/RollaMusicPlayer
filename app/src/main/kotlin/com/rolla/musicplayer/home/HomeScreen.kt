@@ -47,6 +47,7 @@ import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 import com.rolla.musicplayer.feature.library.AlbumsTab
 import com.rolla.musicplayer.feature.library.ArtistsTab
+import com.rolla.musicplayer.feature.library.FoldersTab
 import com.rolla.musicplayer.feature.library.TracksTab
 import com.rolla.musicplayer.feature.playlists.FavouritesTab
 import com.rolla.musicplayer.feature.playlists.PlaylistsTab
@@ -54,13 +55,15 @@ import com.rolla.musicplayer.feature.playlists.SmartPlaylistKind
 import kotlinx.coroutines.launch
 
 /**
- * Home (spec §7.2): the "Rolla Music" header, the Favourites / Playlists / Tracks / Albums / Artists tab row and the
- * pager hosting those five tabs. It opens on Tracks. [MediaPermissionGate] wraps the tab row and pager only, so the
- * header (Search, Settings) stays usable while access is denied, and its first grant runs the library sync for every
- * tab. Album and artist taps leave Home through [onAlbumClick] (album id) and [onArtistClick] (artist name).
+ * Home (spec §7.2): the "Rolla Music" header, the Favourites / Playlists / Tracks / Albums / Artists / Folders tab row
+ * and the pager hosting those six tabs. It opens on Tracks. [MediaPermissionGate] wraps the tab row and pager only, so
+ * the header (Search, Settings) stays usable while access is denied, and its first grant runs the library sync for
+ * every tab. Album, artist and folder taps leave Home through [onAlbumClick] (album id), [onArtistClick] (artist name)
+ * and [onFolderClick] (folder path).
  */
-// Eight navigation callbacks plus the injectable ViewModel: each is a distinct exit from Home.
-@Suppress("LongParameterList")
+// Nine navigation callbacks plus the injectable ViewModel: each is a distinct exit from Home. LongMethod: one
+// when-branch per tab (six) keeps the tab-to-page dispatch in one place.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun HomeRoute(
     onSearchClick: () -> Unit,
@@ -71,6 +74,7 @@ fun HomeRoute(
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (String) -> Unit,
+    onFolderClick: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -98,6 +102,7 @@ fun HomeRoute(
             HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
             HomeTab.ALBUMS -> AlbumsTab(scanState = scanState, onAlbumClick = onAlbumClick)
             HomeTab.ARTISTS -> ArtistsTab(scanState = scanState, onArtistClick = onArtistClick)
+            HomeTab.FOLDERS -> FoldersTab(scanState = scanState, onFolderClick = onFolderClick)
         }
     }
 }

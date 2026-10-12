@@ -36,10 +36,11 @@ class LibraryIndexer @Inject constructor(
     private val mutex = Mutex()
 
     /**
-     * Full-library incremental sync: inserts new rows, updates rows whose `dateModified` changed,
-     * and deletes rows MediaStore no longer reports. Never wipes the table. Every upsert goes
-     * through [ScannedSong.toEntity]'s merge so favourites/play-count/last-played/date-added
-     * survive across a re-scan of a changed file.
+     * Full-library incremental sync: inserts new rows, updates rows whose `dateModified` changed or
+     * whose stored `folderPath` differs from the scanned one (a NULL left by the v4 migration, or a
+     * file moved without its mtime changing), and deletes rows MediaStore no longer reports. Never
+     * wipes the table. Every upsert goes through [ScannedSong.toEntity]'s merge so
+     * favourites/play-count/last-played/date-added survive across a re-scan of a changed file.
      *
      * Safe to call while another [sync] or [syncSongs] is in flight -- see the class-level KDoc for
      * the serialization guarantee. Always runs on [Dispatchers.IO] regardless of the caller's
@@ -54,7 +55,12 @@ class LibraryIndexer @Inject constructor(
             val toUpsert = scanned
                 .filter { song ->
                     val existingEntity = existing[song.mediaStoreId]
-                    existingEntity == null || existingEntity.dateModified != song.dateModified
+                    // Stale when new, when the file changed, or when its stored folder differs from the scanned one:
+                    // NULL after the v4 migration (the one-time backfill) or a move that kept the mtime. Root songs
+                    // store "" and scan "", so they are not rewritten on every sync (spec §9.4, Phase 4b ruling 3).
+                    existingEntity == null ||
+                        existingEntity.dateModified != song.dateModified ||
+                        existingEntity.folderPath != song.folderPath
                 }
                 .map { it.toEntity(existing[it.mediaStoreId]) }
 

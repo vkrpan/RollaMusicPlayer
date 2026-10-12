@@ -86,4 +86,5 @@ private fun pairingsOf(p: RollaPalette): List<Pairing> = listOf(
         p.miniPlayerArtPlaceholder.compositeOver(p.miniPlayerContainer),
         NON_TEXT,
     ),
+    Pairing("folderBadgeStroke on folderBadgeFill", p.folderBadgeStroke, p.folderBadgeFill, NON_TEXT),
 )

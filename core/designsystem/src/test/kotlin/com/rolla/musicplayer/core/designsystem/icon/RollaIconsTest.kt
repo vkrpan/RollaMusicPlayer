@@ -18,10 +18,11 @@ private const val NOTE_LINE_WIDTH = 2.0f
 private val CONTRACT_NAMES = setOf(
     "Search", "More", "Add", "Sort", "Shuffle", "Queue", "ChevronBack", "ChevronDown", "Volume", "EqualizerBars",
     "Heart", "HeartFilled", "PlayOrder", "Repeat", "RepeatOne", "Play", "Pause", "SkipPrevious", "SkipNext",
-    "MusicNote", "FolderBadge", "Close", "Edit", "Check", "PlaylistAdd", "Album", "Person",
+    "MusicNote", "FolderBadge", "FolderBadgeFill", "Close", "Edit", "Check", "PlaylistAdd", "Album", "Person",
 )
 private val DIRECTIONAL_NAMES = setOf("ChevronBack", "Sort", "Queue", "PlaylistAdd", "Volume")
-private val SOLID_ONLY_NAMES = setOf("More", "Play", "Pause", "SkipPrevious", "SkipNext", "HeartFilled")
+private val SOLID_ONLY_NAMES =
+    setOf("More", "Play", "Pause", "SkipPrevious", "SkipNext", "HeartFilled", "FolderBadgeFill")
 
 class RollaIconsTest {
 
@@ -37,7 +38,7 @@ class RollaIconsTest {
     @Test
     fun iconSetIsCompleteAndUniquelyNamed() {
         val names = RollaIcons.all.map { it.name }
-        assertEquals(27, names.size)
+        assertEquals(28, names.size)
         assertEquals(names.size, names.toSet().size)
     }
 

@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.core.database.migration
 
+import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
@@ -339,5 +340,80 @@ class MigrationTest {
         }
 
         migratedDb.close()
+    }
+
+    // Review Focus 2. Mutations: (a) `ADD COLUMN folder_path TEXT DEFAULT ''` → validation fails (default '' vs NULL)
+    // and isNull is false → RED; (b) `ADD COLUMN folder_path INTEGER` → validation fails → RED; (c) a migration that
+    // recreates `songs` without copying rows → the row is missing → RED.
+    @Test
+    fun migrate3To4_addsANullFolderPathAndKeepsSongsUserStateAndPlaylists() {
+        helper.createDatabase(testDbName, 3).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms, track_number, year,
+                    content_uri, artwork_uri, date_modified, date_added, is_favorite, play_count, last_played
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000, 1, 2024,
+                    'content://media/external/audio/media/1', 'content://media/external/audio/albumart/10',
+                    1500000000000, 1400000000000, 1, 7, 1600000000000
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO playlists (id, name, created_at, updated_at) VALUES (1, 'Road trip', 1000, 1000)")
+            execSQL("INSERT INTO playlist_songs (playlist_id, song_id, position, added_at) VALUES (1, '1', 0, 2000)")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 4, true, MIGRATION_3_4)
+
+        migratedDb.query("SELECT * FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(cursor.getColumnIndexOrThrow("title")))
+            assertEquals(1400000000000L, cursor.getLong(cursor.getColumnIndexOrThrow("date_added")))
+            assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("is_favorite")))
+            assertEquals(7, cursor.getInt(cursor.getColumnIndexOrThrow("play_count")))
+            assertEquals(1600000000000L, cursor.getLong(cursor.getColumnIndexOrThrow("last_played")))
+            assertTrue(cursor.isNull(cursor.getColumnIndexOrThrow("folder_path")))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = 1 AND song_id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
+        migratedDb.close()
+    }
+
+    // Review Focus 2: the list DatabaseModule installs opens a v1 file at the current version. Mutation: drop
+    // MIGRATION_3_4 from ALL_MIGRATIONS → "A migration from 3 to 4 was required but not found" → RED.
+    @Test
+    fun allMigrations_openAVersion1DatabaseAtTheCurrentVersion() {
+        helper.createDatabase(testDbName, 1).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms,
+                    track_number, year, content_uri, artwork_uri, date_modified
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000,
+                    1, 2024, 'content://media/external/audio/media/1',
+                    'content://media/external/audio/albumart/10', 1500000000000
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val database = Room.databaseBuilder(
+            InstrumentationRegistry.getInstrumentation().targetContext,
+            MusicDatabase::class.java,
+            testDbName,
+        ).addMigrations(*ALL_MIGRATIONS).build()
+        helper.closeWhenFinished(database)
+
+        database.openHelper.writableDatabase.query("SELECT title, folder_path FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(0))
+            assertTrue(cursor.isNull(1))
+        }
     }
 }

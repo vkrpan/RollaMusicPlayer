@@ -60,6 +60,8 @@ internal data class RollaPalette(
     val artworkPlaceholder: Color,
     val artworkPlaceholderLarge: Color,
     val artworkPlaceholderGlyph: Color,
+    val folderBadgeStroke: Color,
+    val folderBadgeFill: Color,
     val miniPlayerContainer: Color,
     val miniPlayerArtPlaceholder: Color,
     val miniPlayerArtGlyph: Color,
@@ -96,6 +98,10 @@ internal val DarkPalette = RollaPalette(
     artworkPlaceholder = Color(0xFF454547),
     artworkPlaceholderLarge = Color(0xFF3B3B3B),
     artworkPlaceholderGlyph = Color(0xFFFCFCFE),
+    // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
+    folderBadgeStroke = Color(0xFFFFFFFF),
+    // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
+    folderBadgeFill = Color(0xFF000000),
     miniPlayerContainer = Color(0xFF282035),
     miniPlayerArtPlaceholder = Color(0x2EFFFFFF), // white @ 18 % over the pill = #4F4859 (measured #504C5A)
     miniPlayerArtGlyph = Color(0xFFFCFCFE),
@@ -137,6 +143,10 @@ internal val LightPalette = RollaPalette(
     artworkPlaceholder = Color(0xFFE6E6E8),
     artworkPlaceholderLarge = Color(0xFFE9E9EB),
     artworkPlaceholderGlyph = Color(0xFF7A7A7E),
+    // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
+    folderBadgeStroke = Color(0xFFFFFFFF),
+    // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
+    folderBadgeFill = Color(0xFF000000),
     miniPlayerContainer = Color(0xFFE9E4F2),
     miniPlayerArtPlaceholder = Color(0x1A000000), // black @ 10 %
     miniPlayerArtGlyph = Color(0xFF707074),
@@ -217,6 +227,16 @@ val ColorScheme.artworkPlaceholderLarge: Color
 val ColorScheme.artworkPlaceholderGlyph: Color
     @Composable @ReadOnlyComposable
     get() = currentPalette.artworkPlaceholderGlyph
+
+/** The folder badge's outline (FolderBadge). It sits on artwork, so it is white in both themes. */
+val ColorScheme.folderBadgeStroke: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.folderBadgeStroke
+
+/** The folder badge's body under the outline (FolderBadge). It sits on artwork, so it is black in both themes. */
+val ColorScheme.folderBadgeFill: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.folderBadgeFill
 
 /** The floating mini-player pill. Text on it is always `onSurface` (audited); never `primary`. */
 val ColorScheme.miniPlayerContainer: Color

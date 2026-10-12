@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 interface Route
 
-// The start destination: the One UI Home pager (Playlists / Tracks tabs).
+// The start destination: the One UI Home pager (the six library tabs).
 @Serializable
 data object Home : Route
 
@@ -25,11 +25,18 @@ data class SmartPlaylist(val kind: String) : Route
 @Serializable
 data class AlbumDetail(val albumId: Long) : Route
 
-// Routed by NAME, not id: the songs schema has no artist_id column (artists exist only as a
-// GROUP BY artist grouping; the Artist.id in search is a list-key-only FNV hash). The name is the
-// real identity and ArtistRepository is keyed by it. Contrast AlbumDetail above (real album_id).
+// Routed by NAME, not id: the songs schema has no artist_id column (artists exist only as a GROUP BY artist
+// grouping). Artist.id is a synthetic FNV-1a hash that is display-only; lists key artists by name (redesign Phase 4a
+// ruling 12). The name is the real identity and ArtistRepository is keyed by it. Contrast AlbumDetail above (real
+// album_id).
 @Serializable
 data class ArtistDetail(val artistName: String) : Route
+
+// Routed by the folder's path relative to its storage volume ("Music/Chill"); "" is the root ("Internal storage"),
+// which Navigation 2.8 accepts as an empty path argument (FolderDetailRouteTest). The path is the folder's identity
+// and FolderRepository is keyed by it. FolderDetailViewModel reads it by this property name.
+@Serializable
+data class FolderDetail(val folderPath: String) : Route
 
 @Serializable
 data class TagEditor(val songId: Long) : Route

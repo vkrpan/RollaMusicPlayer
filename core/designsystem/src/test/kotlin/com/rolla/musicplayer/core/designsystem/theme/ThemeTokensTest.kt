@@ -52,4 +52,25 @@ class ThemeTokensTest {
         assertEquals(LightPalette.accentText, accent)
         assertEquals(LightPalette.artworkPlaceholder, placeholder)
     }
+
+    // The folder badge sits on artwork, not on a theme surface, so its colours must not follow the theme (Phase 4b
+    // ruling 5). Mutation: DarkPalette `folderBadgeStroke = Color(0xFFEEEEEE)` → RED.
+    @Test
+    fun folderBadgeStrokeIsTheSameInBothThemes() {
+        assertEquals(
+            "folderBadgeStroke must not differ between themes",
+            LightPalette.folderBadgeStroke,
+            DarkPalette.folderBadgeStroke,
+        )
+    }
+
+    // Mutation: DarkPalette `folderBadgeFill = Color(0xFF333333)` → RED.
+    @Test
+    fun folderBadgeFillIsTheSameInBothThemes() {
+        assertEquals(
+            "folderBadgeFill must not differ between themes",
+            LightPalette.folderBadgeFill,
+            DarkPalette.folderBadgeFill,
+        )
+    }
 }

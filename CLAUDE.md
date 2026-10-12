@@ -315,6 +315,14 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   `:core:ui` (`SongOptionsHost`). `AlbumArtworkCache.peek` gives Coil a fast path that does
 >   not suspend, and cache files are published by an atomic rename. The Robolectric pixel-test helpers live in
 >   `:core:testing` (`PixelCapture.kt`). `:core:testing` is test-only and must stay `testImplementation`.
+> - **Phase 4b:** Home has six tabs; Folders (`FoldersTab`) lists every folder that directly holds songs, by display name,
+>   and opens `FolderDetail(folderPath)`. That is a One UI pushed screen that pads its own list for the pill, not `PushedScreen`. The
+>   database is **Room v4**: `songs.folder_path` (NULL = not scanned yet, `''` = the volume root), `MIGRATION_3_4`, and one
+>   `ALL_MIGRATIONS` list that `DatabaseModule` installs and `MigrationTest` replays. Folder queries live in `FolderDao`
+>   (`SongDao` is at detekt's interface limit); `FolderRepository` maps them to `Folder` (`:core:model`, with `folderName`
+>   and `folderDisplayPath`). The scanner reads RELATIVE_PATH (API 29+) or DATA (24–28) through `FolderPaths`, and
+>   `LibraryIndexer` re-upserts a row whenever its stored folder differs from the scanned one, which backfills an upgraded
+>   install on its first sync. Rows share `ListRowScaffold` (`AlbumRow`, `ArtistRow`, `FolderRow`).
 >
 > The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
 > at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the

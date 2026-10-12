@@ -3,6 +3,8 @@ package com.rolla.musicplayer.core.data.scanner
 import android.content.ContentUris
 import android.content.Context
 import android.database.Cursor
+import android.os.Build
+import androidx.annotation.VisibleForTesting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -40,7 +42,8 @@ class MediaScanner @Inject constructor(
         )?.use { cursor -> readSongs(cursor) } ?: emptyList()
     }
 
-    private fun readSongs(cursor: Cursor): List<ScannedSong> {
+    @VisibleForTesting
+    internal fun readSongs(cursor: Cursor): List<ScannedSong> {
         val cols = ColumnIndices.from(cursor)
         val results = mutableListOf<ScannedSong>()
         while (cursor.moveToNext()) {
@@ -61,6 +64,7 @@ class MediaScanner @Inject constructor(
                 contentUri = ContentUris.withAppendedId(MediaStoreColumns.COLLECTION, id).toString(),
                 artworkUri = ContentUris.withAppendedId(MediaStoreColumns.ALBUM_ART_URI, albumId).toString(),
                 dateModified = cursor.getLong(cols.dateModified),
+                folderPath = FolderPaths.fromColumn(Build.VERSION.SDK_INT, cursor.getString(cols.folder)),
             )
         }
         return results
@@ -76,6 +80,7 @@ class MediaScanner @Inject constructor(
         val track: Int,
         val year: Int,
         val dateModified: Int,
+        val folder: Int,
     ) {
         companion object {
             fun from(cursor: Cursor) = ColumnIndices(
@@ -88,6 +93,7 @@ class MediaScanner @Inject constructor(
                 track = cursor.getColumnIndexOrThrow(MediaStoreColumns.TRACK),
                 year = cursor.getColumnIndexOrThrow(MediaStoreColumns.YEAR),
                 dateModified = cursor.getColumnIndexOrThrow(MediaStoreColumns.DATE_MODIFIED),
+                folder = cursor.getColumnIndexOrThrow(MediaStoreColumns.FOLDER),
             )
         }
     }

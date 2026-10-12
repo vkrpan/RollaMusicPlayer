@@ -361,6 +361,21 @@ object RollaIcons {
         }
     }
 
+    /** FolderBadge's outline as one filled shape, drawn under the outline so the badge reads on any artwork. */
+    val FolderBadgeFill: ImageVector by lazy {
+        icon("FolderBadgeFill") {
+            solid {
+                moveTo(3.5f, 6.5f)
+                lineTo(9f, 6.5f)
+                lineTo(11f, 8.5f)
+                lineTo(20.5f, 8.5f)
+                lineTo(20.5f, 18.5f)
+                lineTo(3.5f, 18.5f)
+                close()
+            }
+        }
+    }
+
     val Close: ImageVector by lazy {
         icon("Close") {
             line {
@@ -441,6 +456,6 @@ object RollaIcons {
         get() = listOf(
             Search, More, Add, Sort, Shuffle, Queue, ChevronBack, ChevronDown, Volume, EqualizerBars, Heart,
             HeartFilled, PlayOrder, Repeat, RepeatOne, Play, Pause, SkipPrevious, SkipNext, MusicNote, FolderBadge,
-            Close, Edit, Check, PlaylistAdd, Album, Person,
+            FolderBadgeFill, Close, Edit, Check, PlaylistAdd, Album, Person,
         )
 }

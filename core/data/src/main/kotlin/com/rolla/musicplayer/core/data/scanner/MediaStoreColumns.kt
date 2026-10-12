@@ -19,6 +19,18 @@ internal object MediaStoreColumns {
     val YEAR: String = MediaStore.Audio.Media.YEAR
     val DATE_MODIFIED: String = MediaStore.Audio.Media.DATE_MODIFIED
 
+    /**
+     * Where the scanner reads a song's folder from (spec §9.4): RELATIVE_PATH on API 29+, DATA below it, where
+     * RELATIVE_PATH does not exist. FolderPaths.fromColumn parses either.
+     */
+    @Suppress("DEPRECATION") // DATA is the only folder source below API 29.
+    val FOLDER: String =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            MediaStore.Audio.Media.RELATIVE_PATH
+        } else {
+            MediaStore.Audio.Media.DATA
+        }
+
     val PROJECTION: Array<String> = arrayOf(
         ID,
         TITLE,
@@ -29,6 +41,7 @@ internal object MediaStoreColumns {
         TRACK,
         YEAR,
         DATE_MODIFIED,
+        FOLDER,
     )
 
     val SELECTION: String = "${MediaStore.Audio.Media.IS_MUSIC} != 0"

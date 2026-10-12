@@ -14,6 +14,7 @@ internal data class ScannedSong(
     val contentUri: String,
     val artworkUri: String,
     val dateModified: Long,
+    val folderPath: String,
 )
 
 /**
@@ -29,6 +30,9 @@ internal data class ScannedSong(
  * indexed for the first time — in which case it gets `dateAdded = System.currentTimeMillis()`,
  * which backs the "Recently added" smart playlist's ordering. When [existing] is non-null every
  * user-state column is carried forward unchanged.
+ *
+ * The folder path always comes from the scan, never from [existing]: a stored NULL or a moved file must take the
+ * scanned value.
  */
 internal fun ScannedSong.toEntity(existing: SongEntity?): SongEntity =
     SongEntity(
@@ -48,4 +52,5 @@ internal fun ScannedSong.toEntity(existing: SongEntity?): SongEntity =
         isFavorite = existing?.isFavorite ?: false,
         playCount = existing?.playCount ?: 0,
         lastPlayed = existing?.lastPlayed,
+        folderPath = folderPath,
     )
