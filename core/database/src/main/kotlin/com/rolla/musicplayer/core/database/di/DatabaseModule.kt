@@ -7,6 +7,7 @@ import com.rolla.musicplayer.core.database.dao.AlbumDao
 import com.rolla.musicplayer.core.database.dao.ArtistDao
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.FolderDao
+import com.rolla.musicplayer.core.database.dao.PlaybackQueueDao
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.dao.SearchDao
 import com.rolla.musicplayer.core.database.dao.SongDao
@@ -22,7 +23,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
 
-    // addMigrations is vararg-only; the spread copies a 3-element array once per process, at database creation.
+    // addMigrations is vararg-only; the spread copies the small ALL_MIGRATIONS array once per process, at database
+    // creation.
     @Suppress("SpreadOperator")
     @Provides
     @Singleton
@@ -51,4 +53,7 @@ object DatabaseModule {
 
     @Provides
     fun provideFolderDao(database: MusicDatabase): FolderDao = database.folderDao()
+
+    @Provides
+    fun providePlaybackQueueDao(database: MusicDatabase): PlaybackQueueDao = database.playbackQueueDao()
 }

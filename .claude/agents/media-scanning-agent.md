@@ -2,7 +2,7 @@
 name: media-scanning-agent
 description: Owner of the local audio indexer (data/scanner/ package). Queries MediaStore.Audio, maps rows to library entities, and performs incremental diff syncs into Room. Coordinates with data-layer-agent on schema. Fully offline — no online metadata or artwork lookups.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

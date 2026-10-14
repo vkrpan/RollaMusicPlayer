@@ -2,7 +2,7 @@
 name: widget-agent
 description: Exclusive owner of the home screen widget (:feature:widget module). Builds and maintains the Glance App Widget — album artwork, progress bar, 15-second skip, prev/next, play/pause — driven by local playback state. All widget operation is fully offline; artwork comes from local bitmaps only.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## The three invariants that make the widget actually work

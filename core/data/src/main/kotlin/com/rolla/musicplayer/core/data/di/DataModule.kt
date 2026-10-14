@@ -12,6 +12,8 @@ import com.rolla.musicplayer.core.data.repository.ArtistRepository
 import com.rolla.musicplayer.core.data.repository.ArtistRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.FolderRepository
 import com.rolla.musicplayer.core.data.repository.FolderRepositoryImpl
+import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
+import com.rolla.musicplayer.core.data.repository.PlaybackStateRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.PlaylistRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.SearchRepository
@@ -60,6 +62,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindFolderRepository(impl: FolderRepositoryImpl): FolderRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPlaybackStateRepository(impl: PlaybackStateRepositoryImpl): PlaybackStateRepository
 
     @Binds
     @Singleton

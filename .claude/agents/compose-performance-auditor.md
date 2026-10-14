@@ -2,7 +2,7 @@
 name: compose-performance-auditor
 description: Read-only agent for identifying and diagnosing Jetpack Compose recomposition performance issues. Expert at detecting unstable lambda captures, missing optimization opportunities, wide recomposition scopes, and missing key() parameters that cause jank and performance degradation.
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 ---
 
 ## Scope

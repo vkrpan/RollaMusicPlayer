@@ -2,7 +2,7 @@
 name: equalizer-agent
 description: Owner of the audio/equalizer/ package — the 8-band graphic equalizer. Binds android.media.audiofx.Equalizer to the ExoPlayer audio session, maps the project's target frequencies to device bands, applies/persists gains, and manages presets in Room. Consumes the audio session id from audio-engineer; all processing is local and offline.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

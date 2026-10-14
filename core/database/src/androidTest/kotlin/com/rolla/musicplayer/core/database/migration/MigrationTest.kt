@@ -383,8 +383,65 @@ class MigrationTest {
         migratedDb.close()
     }
 
+    // Mutations: (a) drop the playback_state CREATE → validation fails (missing table) → RED; (b) `song_id TEXT`
+    // without NOT NULL → validation fails (nullability) → RED; (c) a migration that also runs `DELETE FROM songs` →
+    // the song row is missing → RED; (d) a migration that also runs `UPDATE songs SET is_favorite = 0` → is_favorite
+    // is 0 → RED; (e) a migration that also runs `DELETE FROM equalizer_presets` → the preset count is 0 → RED.
+    @Test
+    fun migrate4To5_createsEmptyPlaybackTablesAndKeepsEverything() {
+        helper.createDatabase(testDbName, 4).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms, track_number, year,
+                    content_uri, artwork_uri, date_modified, date_added, is_favorite, play_count, last_played,
+                    folder_path
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000, 1, 2024,
+                    'content://media/external/audio/media/1', 'content://media/external/audio/albumart/10',
+                    1500000000000, 1400000000000, 1, 7, 1600000000000, 'Music'
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO playlists (id, name, created_at, updated_at) VALUES (1, 'Road trip', 1000, 1000)")
+            execSQL("INSERT INTO playlist_songs (playlist_id, song_id, position, added_at) VALUES (1, '1', 0, 2000)")
+            execSQL(
+                """
+                INSERT INTO equalizer_presets (id, name, is_custom, gains_millibel, created_at)
+                VALUES (1, 'Rock', 1, '300,200,100,0,-100,-200,0,100,200', 5000)
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 5, true, MIGRATION_4_5)
+
+        migratedDb.query("SELECT title, play_count, folder_path, is_favorite FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(0))
+            assertEquals(7, cursor.getInt(1))
+            assertEquals("Music", cursor.getString(2))
+            assertEquals(1, cursor.getInt(3))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM playlist_songs WHERE playlist_id = 1 AND song_id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
+        migratedDb.query("SELECT COUNT(*) FROM equalizer_presets").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(1, cursor.getInt(0))
+        }
+        for (table in listOf("playback_queue", "playback_state")) {
+            migratedDb.query("SELECT COUNT(*) FROM $table").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(table, 0, cursor.getInt(0))
+            }
+        }
+        migratedDb.close()
+    }
+
     // Review Focus 2: the list DatabaseModule installs opens a v1 file at the current version. Mutation: drop
-    // MIGRATION_3_4 from ALL_MIGRATIONS → "A migration from 3 to 4 was required but not found" → RED.
+    // MIGRATION_4_5 from ALL_MIGRATIONS → "A migration from 1 to 5 was required but not found" → RED.
     @Test
     fun allMigrations_openAVersion1DatabaseAtTheCurrentVersion() {
         helper.createDatabase(testDbName, 1).apply {
@@ -414,6 +471,10 @@ class MigrationTest {
             assertTrue(cursor.moveToFirst())
             assertEquals("Test Song", cursor.getString(0))
             assertTrue(cursor.isNull(1))
+        }
+        database.openHelper.writableDatabase.query("SELECT COUNT(*) FROM playback_queue").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(0, cursor.getInt(0))
         }
     }
 }

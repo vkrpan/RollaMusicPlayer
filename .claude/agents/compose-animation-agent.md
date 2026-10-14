@@ -2,7 +2,7 @@
 name: compose-animation-agent
 description: Specialist for creating, optimizing, and maintaining all animations and interactive transitions in Jetpack Compose. Ensures smooth 60fps animations using appropriate APIs (animate*AsState, AnimatedVisibility, AnimatedContent, updateTransition) while following Material Design motion principles.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

@@ -48,6 +48,19 @@ data class Folder(
     val artworkUri: String
 ) // path relative to its volume ("" = root) is the identity; name = last segment or "Internal storage"
 
+data class SavedPlaybackState(
+    val currentIndex: Int,        // index into the owning SavedPlayback.songs
+    val positionMs: Long,
+    val shuffleEnabled: Boolean,
+    val repeatMode: RepeatMode
+)
+
+data class SavedPlayback(
+    val songs: List<Song>,        // the restorable queue, in queue order
+    val shuffleOrder: List<Int>,  // a permutation of songs.indices: the shuffled playback order
+    val state: SavedPlaybackState
+) // queue restore: what PlaybackStateRepository loads and RestoreCoordinator applies
+
 data class Playlist(
     val id: Long,
     val name: String,

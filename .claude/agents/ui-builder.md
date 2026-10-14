@@ -2,7 +2,7 @@
 name: ui-builder
 description: Specialized agent for designing and implementing user interfaces using Jetpack Compose and Material Design 3. Creates screens, custom components, and interactive controls for offline-first music player. No network loading states or online features.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

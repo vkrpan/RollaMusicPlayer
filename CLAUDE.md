@@ -103,7 +103,7 @@ compaction, when the skill body is out of context.
 - **Equalizer Presets**: Stored in local Room database
 - **Settings**: DataStore (Preferences) for app configuration and equalizer active-state
 - **Album Artwork**: Cached locally in app-specific storage
-- **Playback State**: Persisted locally for session restoration
+- **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. The System UI media controls work while the session is alive, but its carousel does not resume the queue after the process has died (that needs a `MediaLibraryService`, a non-goal)
 
 ### Technical Implications
 
@@ -136,7 +136,7 @@ compaction, when the skill body is out of context.
 - Complete playlist management (create, edit, delete, reorder)
 - Shuffle and repeat modes (off, all, one)
 - Background playback with notification controls
-- Persistent playback state across app restarts
+- Persistent playback queue across app restarts (restored paused; resumable from a headset or Bluetooth Play; the System UI controls work while the session is alive, but its carousel does not resume after the process has died)
 
 ### Advanced Audio Features
 - 8-band graphic equalizer (40Hz, 80Hz, 160Hz, 315Hz, 630Hz, 1.25kHz, 2.5kHz, 5kHz, 10kHz)
@@ -317,12 +317,24 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   `:core:testing` (`PixelCapture.kt`). `:core:testing` is test-only and must stay `testImplementation`.
 > - **Phase 4b:** Home has six tabs; Folders (`FoldersTab`) lists every folder that directly holds songs, by display name,
 >   and opens `FolderDetail(folderPath)`. That is a One UI pushed screen that pads its own list for the pill, not `PushedScreen`. The
->   database is **Room v4**: `songs.folder_path` (NULL = not scanned yet, `''` = the volume root), `MIGRATION_3_4`, and one
+>   database gained **Room v4**: `songs.folder_path` (NULL = not scanned yet, `''` = the volume root), `MIGRATION_3_4`, and one
 >   `ALL_MIGRATIONS` list that `DatabaseModule` installs and `MigrationTest` replays. Folder queries live in `FolderDao`
 >   (`SongDao` is at detekt's interface limit); `FolderRepository` maps them to `Folder` (`:core:model`, with `folderName`
 >   and `folderDisplayPath`). The scanner reads RELATIVE_PATH (API 29+) or DATA (24–28) through `FolderPaths`, and
 >   `LibraryIndexer` re-upserts a row whenever its stored folder differs from the scanned one, which backfills an upgraded
 >   install on its first sync. Rows share `ListRowScaffold` (`AlbumRow`, `ArtistRow`, `FolderRow`).
+> - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
+>   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
+>   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to
+>   `SavedPlayback`. In `:core:media`, `QueuePersister` saves the queue on playlist changes and the state on pause, seek,
+>   mode changes and every 10 s while playing, plus `saveFinal()` in `PlaybackService.onDestroy`. `RestoreCoordinator`
+>   restores the queue paused when the service starts, and `RestoredShuffleOrder` (registered after
+>   `StartFirstShuffleEnforcer`) puts the exact shuffle order back. `PlaybackSessionCallback.onPlaybackResumption` plus
+>   Media3's `MediaButtonReceiver` resume from a headset or Bluetooth Play. The System UI controls work while the session
+>   is alive, but its carousel does not resume after the process has died: that needs a `MediaLibraryService` (spec §12
+>   P7). `MediaButtonStartFallback` keeps a media-button start with nothing to resume, or a key UP that Media3 ignores,
+>   from crashing the foreground-service contract. It also stops a service that a non-play key started cold (the
+>   paused notification's delete intent sends STOP when the process dies), so the next app open restores prepared (P8).
 >
 > The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
 > at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the

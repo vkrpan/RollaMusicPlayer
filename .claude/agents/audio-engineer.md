@@ -2,7 +2,7 @@
 name: audio-engineer
 description: Specialized agent for audio playback, media processing, and audio-related features. Handles Media3 ExoPlayer integration, foreground service architecture, MediaSession, audio focus, and all offline audio operations from local files. Exposes the ExoPlayer audio session id for equalizer-agent; does NOT own the equalizer effect, gains, or presets.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

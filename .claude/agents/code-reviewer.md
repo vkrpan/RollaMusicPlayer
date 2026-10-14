@@ -2,7 +2,7 @@
 name: code-reviewer
 description: Specialized agent for code quality assurance, architecture review, and best practices enforcement. Reviews code for MVVM compliance, offline-first principles, memory leaks, performance issues, and ensures no network dependencies are introduced.
 tools: Read, Grep, Glob
-model: sonnet
+model: opus
 ---
 
 ## Scope

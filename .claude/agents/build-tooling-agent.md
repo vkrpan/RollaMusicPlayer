@@ -2,7 +2,7 @@
 name: build-tooling-agent
 description: Owner of the build system and developer tooling — build.gradle.kts files, the gradle/libs.versions.toml version catalog, convention plugins, R8/ProGuard rules, baseline-profile/benchmark config, static-analysis config, and CI. Enforces the no-network-dependency rule at the build level. Does not write feature code.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

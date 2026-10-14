@@ -2,7 +2,7 @@
 name: data-layer-agent
 description: Exclusive owner of all Room database components including entity definitions, DAOs, repository implementations, and database migrations. Maintains strict isolation of schema changes to prevent concurrent modifications and data loss. All data operations work completely offline.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

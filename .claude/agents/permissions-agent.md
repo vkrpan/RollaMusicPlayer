@@ -2,7 +2,7 @@
 name: permissions-agent
 description: Owner of the runtime permission flow and the permission/ package. Handles the version-aware media permission (READ_MEDIA_AUDIO on 13+, READ_EXTERNAL_STORAGE on older), rationale UI, permanent-denial routing to Settings, and the Compose permission gate. Storage-only — never requests INTERNET or WRITE permissions.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

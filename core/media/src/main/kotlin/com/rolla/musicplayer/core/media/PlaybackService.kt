@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.core.media
 
+import android.content.Intent
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -9,9 +10,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.equalizer.EqualizerSessionManager
-import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.AndroidEntryPoint
@@ -26,6 +27,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -47,6 +49,9 @@ class PlaybackService : MediaSessionService() {
     @Inject
     lateinit var playbackUpdateDispatcher: PlaybackUpdateDispatcher
 
+    @Inject
+    lateinit var playbackStateRepository: PlaybackStateRepository
+
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaSession
 
@@ -55,6 +60,18 @@ class PlaybackService : MediaSessionService() {
 
     // Keeps shuffle orders start-first so Shuffle reaches every track (see StartFirstShuffleEnforcer).
     private lateinit var shuffleEnforcer: StartFirstShuffleEnforcer
+
+    // Queue restore (spec 2026-10-12): restoredShuffleOrder is registered after the enforcer (ruling R3).
+    private lateinit var restoredShuffleOrder: RestoredShuffleOrder
+    private lateinit var queuePersister: QueuePersister
+    private lateinit var restoreCoordinator: RestoreCoordinator
+
+    // Ruling P6 and final-review I2: a media-button start that nothing else puts in the foreground (nothing to resume,
+    // or a key UP, which Media3 ignores) must still enter (and leave) it. Ruling P8: a first start by a non-play key
+    // (the notification's deleteIntent STOP) stops the service once the restore settles idle, so the next open
+    // creates a fresh service with a prepared restore.
+    private val mediaButtonStartFallback =
+        MediaButtonStartFallback(this, ::hasNothingToPlay, ::isIdleWithoutResumption)
 
     private val supervisorJob = SupervisorJob()
 
@@ -136,12 +153,7 @@ class PlaybackService : MediaSessionService() {
         }
 
         override fun onRepeatModeChanged(repeatMode: Int) {
-            val mode = when (repeatMode) {
-                Player.REPEAT_MODE_ONE -> RepeatMode.ONE
-                Player.REPEAT_MODE_ALL -> RepeatMode.ALL
-                else -> RepeatMode.OFF
-            }
-            playbackStateHolder.setRepeatMode(mode)
+            playbackStateHolder.setRepeatMode(repeatMode.toRepeatMode())
         }
     }
 
@@ -155,7 +167,7 @@ class PlaybackService : MediaSessionService() {
         player.addListener(queuePublisher)
         shuffleEnforcer = StartFirstShuffleEnforcer(player)
         player.addListener(shuffleEnforcer)
-        mediaSession = MediaSession.Builder(this, player).build()
+        mediaSession = installQueueRestore()
         startPositionTicker()
         bindEqualizerToAudioSession()
         playbackSettingsBinder.bind(player, serviceScope)
@@ -163,20 +175,36 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
 
+    // Recorded before super: Media3 posts the media-button dispatch, so the record is in place before any resumption.
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        mediaButtonStartFallback.onStartCommand(intent, startId, isPlaybackOngoing())
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onDestroy() {
-        player.removeListener(playerListener)
-        player.removeListener(queuePublisher)
-        player.removeListener(shuffleEnforcer)
         // Stop the session-binding collectors BEFORE releasing the effect/player, and wait for
         // them: cancelAndJoin lets an in-flight attach/apply run to its next suspension point, so
         // nothing new can land on the effect or the player after the release calls below (an
         // attach/apply that slipped in afterward would leak an AudioEffect nobody ever releases,
         // or call into an already-released player). The wait is bounded — each collector body is
         // one native effect creation / one DataStore read plus a couple of player calls.
+        // The listeners are removed only after this block. That is safe only because nothing inside it calls a player
+        // setter (a setter on this thread delivers callbacks synchronously); runBlocking holds the main thread, so no
+        // other player callback can be delivered before the removals below.
         runBlocking {
+            // Ruling R7: the last position, written while the persister is attached and the player still holds its
+            // items. The timeout bounds the wait for the persister's write lock (a write already in flight); once the
+            // final write itself has started, Room runs it in withContext, which the timeout cannot interrupt.
+            // saveFinal logs and drops its failures.
+            withTimeoutOrNull(FINAL_SAVE_TIMEOUT_MS) { queuePersister.saveFinal() }
             equalizerBindJob?.cancelAndJoin()
             playbackSettingsBinder.unbind()
         }
+        player.removeListener(playerListener)
+        player.removeListener(queuePublisher)
+        player.removeListener(shuffleEnforcer)
+        player.removeListener(restoredShuffleOrder)
+        player.removeListener(queuePersister)
         // Release the equalizer effect while its audio session still exists (i.e. before the
         // player that owns that session is torn down).
         equalizerSessionManager.release()
@@ -185,6 +213,41 @@ class PlaybackService : MediaSessionService() {
         supervisorJob.cancel()
         super.onDestroy()
     }
+
+    // Listener order matters: the enforcer is already registered, so restoredShuffleOrder runs after it (ruling R3).
+    // The persister starts writing only once the restore settles (spec §6.3). Its consumer runs on serviceScope
+    // (Dispatchers.Default), never main: onDestroy's runBlocking on main awaits its write mutex in saveFinal.
+    private fun installQueueRestore(): MediaSession {
+        restoredShuffleOrder = RestoredShuffleOrder(player)
+        player.addListener(restoredShuffleOrder)
+        queuePersister = QueuePersister(player, playbackStateRepository, serviceScope)
+        player.addListener(queuePersister)
+        val main = Dispatchers.Main.immediate
+        restoreCoordinator = RestoreCoordinator(playbackStateRepository, serviceScope, main) {
+            queuePersister.enable()
+            mediaButtonStartFallback.onRestoreSettled()
+        }
+        val callback = PlaybackSessionCallback(
+            serviceScope,
+            main,
+            restoreCoordinator,
+            restoredShuffleOrder,
+            mediaButtonStartFallback::onNothingToResume,
+        )
+        val session = MediaSession.Builder(this, player).setCallback(callback).build()
+        restoreCoordinator.restoreInto(player, restoredShuffleOrder, playbackStateHolder)
+        return session
+    }
+
+    // The restore settled without a queue (nothing saved) and none has arrived since; a resumption in flight
+    // (HANDED_TO_RESUMPTION) decides for itself. Main thread only.
+    private fun hasNothingToPlay(): Boolean =
+        restoreCoordinator.outcome == RestoreCoordinator.Outcome.DISCARDED && player.mediaItemCount == 0
+
+    // Ruling P8: nothing is playing or about to (no playWhenReady) and no resumption took the first load. An APPLIED
+    // restore counts as idle: a deleteIntent STOP is exactly APPLIED plus STOP. Main thread only.
+    private fun isIdleWithoutResumption(): Boolean =
+        restoreCoordinator.outcome != RestoreCoordinator.Outcome.HANDED_TO_RESUMPTION && !player.playWhenReady
 
     // serviceScope runs on Dispatchers.Default, so the DataStore read (EqualizerRepository) and
     // the effect attach/apply (EqualizerController) never execute on the player's callback
@@ -226,6 +289,7 @@ class PlaybackService : MediaSessionService() {
                 val didUpdatePosition = withContext(Dispatchers.Main.immediate) {
                     if (player.playbackState == Player.STATE_READY && player.isPlaying) {
                         playbackStateHolder.setPositionMs(player.currentPosition.coerceAtLeast(0L))
+                        queuePersister.onPlayingTick()
                         true
                     } else {
                         false
@@ -243,5 +307,6 @@ class PlaybackService : MediaSessionService() {
     companion object {
         private const val TAG = "PlaybackService"
         private const val POSITION_POLL_INTERVAL_MS = 1_000L
+        private const val FINAL_SAVE_TIMEOUT_MS = 500L
     }
 }

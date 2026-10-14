@@ -2,7 +2,7 @@
 name: viewmodel-architect
 description: Specialized agent for designing and implementing Android MVVM architecture patterns with exclusive focus on the ViewModel layer and state management. Expert in StateFlow/UiState patterns, event handling, coroutine management, and preventing common state management failures.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

@@ -3,10 +3,8 @@ package com.rolla.musicplayer.core.media
 import android.content.ComponentName
 import android.content.Context
 import androidx.annotation.VisibleForTesting
-import androidx.core.net.toUri
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -64,12 +62,12 @@ class PlaybackController @Inject constructor(
     }
 
     fun play(song: Song) {
-        val item = buildMediaItem(song)
+        val item = song.toMediaItem()
         withConnectedController { startPlayback(it, item) }
     }
 
     fun playAll(songs: List<Song>, startIndex: Int = 0) {
-        val items = songs.map(::buildMediaItem)
+        val items = songs.map { it.toMediaItem() }
         withConnectedController { startQueuePlayback(it, items, startIndex) }
     }
 
@@ -100,20 +98,6 @@ class PlaybackController @Inject constructor(
         }
     }
 
-    private fun buildMediaItem(song: Song): MediaItem =
-        MediaItem.Builder()
-            .setMediaId(song.id)
-            .setUri(song.contentUri)
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(song.title)
-                    .setArtist(song.artist)
-                    .setAlbumTitle(song.album)
-                    .setArtworkUri(song.artworkUri.ifEmpty { null }?.toUri())
-                    .build(),
-            )
-            .build()
-
     private fun startPlayback(c: MediaController, item: MediaItem) {
         c.setMediaItem(item)
         c.prepare()
@@ -140,7 +124,7 @@ class PlaybackController @Inject constructor(
             playbackStateHolder.setCurrentSong(song)
         }
         val c = controller ?: return
-        val item = buildMediaItem(song)
+        val item = song.toMediaItem()
         for (index in 0 until c.mediaItemCount) {
             if (c.getMediaItemAt(index).mediaId == song.id) {
                 c.replaceMediaItem(index, item)

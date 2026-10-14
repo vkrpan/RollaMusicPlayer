@@ -2,7 +2,7 @@
 name: test-writer
 description: Specialized agent for creating comprehensive test suites ensuring code quality through testing. Covers unit tests (ViewModels, repositories, use cases), integration tests (Room database), and UI tests (Compose). Maintains high test coverage with focus on offline functionality verification.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope

@@ -2,7 +2,7 @@
 name: tag-editor-agent
 description: Owner of the tageditor/ package — reading and writing ID3/Vorbis/MP4 metadata on local audio files. Handles scoped-storage write consent (MediaStore.createWriteRequest on 30+, RecoverableSecurityException on 29), single and batch edits, artwork embedding, and re-indexing after save. Fully local — no online metadata or artwork lookups.
 tools: Read, Edit, Grep, Glob, Bash
-model: sonnet
+model: opus
 ---
 
 ## Scope
