@@ -16,8 +16,8 @@ class PlaybackService : Service() {
         player = ExoPlayer.Builder(this)
             .setAudioAttributes(
                 AudioAttributes.Builder()
-                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .setUsage(C.USAGE_MEDIA)
                     .build(),
                 /* handleAudioFocus = */ true
             )
@@ -37,15 +37,15 @@ class PlaybackService : Service() {
 
 ### Audio Attributes
 - Always set appropriate audio attributes
-- Use `CONTENT_TYPE_MUSIC` for music playback
-- Use `USAGE_MEDIA` for media usage
+- Use `C.AUDIO_CONTENT_TYPE_MUSIC` for music playback
+- Use `C.USAGE_MEDIA` for media usage
 - Enable audio focus handling
 
 ```kotlin
-// Good
+// Good (androidx.media3.common.AudioAttributes has no constants of its own; they live on C)
 val audioAttributes = AudioAttributes.Builder()
-    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-    .setUsage(AudioAttributes.USAGE_MEDIA)
+    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+    .setUsage(C.USAGE_MEDIA)
     .build()
 
 player.setAudioAttributes(audioAttributes, /* handleAudioFocus = */ true)
@@ -281,14 +281,15 @@ private inner class MediaSessionCallback : MediaSession.Callback {
 ## Notification
 
 ### Creating Notification
+In this app Media3's `DefaultMediaNotificationProvider` owns the playback notification (`PlaybackService` sets no custom provider), so the sample below is reference only.
+
 ```kotlin
 private fun createNotification(): Notification {
     val mediaSession = mediaSession ?: return createDefaultNotification()
     
     return NotificationCompat.Builder(this, CHANNEL_ID)
         .setStyle(
-            MediaStyle()
-                .setMediaSession(mediaSession.sessionCompatToken)
+            MediaStyleNotificationHelper.MediaStyle(mediaSession)
                 .setShowActionsInCompactView(0, 1, 2)
         )
         .setSmallIcon(R.drawable.ic_notification)

@@ -4,6 +4,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.configure
 import org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
 
 class RollaAndroidApplicationPlugin : Plugin<Project> {
     override fun apply(target: Project) {
@@ -21,7 +23,7 @@ class RollaAndroidApplicationPlugin : Plugin<Project> {
                 )
             }
             extensions.configure<ApplicationExtension> {
-                compileSdk = 34
+                compileSdk = 36
                 defaultConfig {
                     minSdk = 24
                     targetSdk = 34
@@ -33,14 +35,12 @@ class RollaAndroidApplicationPlugin : Plugin<Project> {
                     sourceCompatibility = JavaVersion.VERSION_17
                     targetCompatibility = JavaVersion.VERSION_17
                 }
-                kotlinOptions {
-                    jvmTarget = "17"
+            }
+            extensions.configure<KotlinAndroidProjectExtension> {
+                compilerOptions {
+                    jvmTarget.set(JvmTarget.JVM_17)
                 }
             }
         }
     }
-}
-
-fun ApplicationExtension.kotlinOptions(block: org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions.() -> Unit) {
-    (this as org.gradle.api.plugins.ExtensionAware).extensions.configure("kotlinOptions", block)
 }

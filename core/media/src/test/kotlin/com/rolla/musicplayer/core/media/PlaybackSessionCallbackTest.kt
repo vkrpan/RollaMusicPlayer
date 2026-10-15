@@ -108,8 +108,35 @@ class PlaybackSessionCallbackTest {
             state = SavedPlaybackState(currentIndex = 3, positionMs = 61_000L, shuffleEnabled = true, RepeatMode.ONE),
         )
 
-        val future = callback().onPlaybackResumption(session, controller)
+        val future = callback().onPlaybackResumption(session, controller, isForPlayback = true)
         // runCurrent, not advanceUntilIdle: the callback's coroutine and the load live in backgroundScope.
+        runCurrent()
+        assertTrue(future.isDone)
+        val result = future.get()
+        player.setMediaItems(result.mediaItems, result.startIndex, result.startPositionMs)
+        idle()
+
+        assertEquals((0 until 4).map { "s$it" }, result.mediaItems.map { it.mediaId })
+        assertEquals(3, result.startIndex)
+        assertEquals(61_000L, result.startPositionMs)
+        assertEquals(listOf(2, 0, 3, 1), player.queueState().items.map { it.index })
+        assertEquals(true, player.shuffleModeEnabled)
+        assertEquals(Player.REPEAT_MODE_ONE, player.repeatMode)
+    }
+
+    // Media3 1.11's isForPlayback has no meaning here yet: false resumes the same saved queue exactly as true does
+    // (the test above), with the same fixture guard so the order assertion cannot pass vacuously. Mutation: fail the
+    // future when isForPlayback is false → future.get() throws → RED.
+    @Test
+    fun resumptionNotForPlayback_resumesTheSameSavedQueue() = runTest {
+        assertNotEquals(3, media3Order(4, startIndex = 3).first())
+        repository.saved = SavedPlayback(
+            songs = (0 until 4).map(::song),
+            shuffleOrder = listOf(2, 0, 3, 1),
+            state = SavedPlaybackState(currentIndex = 3, positionMs = 61_000L, shuffleEnabled = true, RepeatMode.ONE),
+        )
+
+        val future = callback().onPlaybackResumption(session, controller, isForPlayback = false)
         runCurrent()
         assertTrue(future.isDone)
         val result = future.get()
@@ -127,7 +154,7 @@ class PlaybackSessionCallbackTest {
     // Mutation: return an empty MediaItemsWithStartPosition instead of failing → future.get() succeeds → RED.
     @Test
     fun nothingSaved_failsTheFuture() = runTest {
-        val future = callback().onPlaybackResumption(session, controller)
+        val future = callback().onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
         assertTrue(future.isDone)
 
@@ -144,7 +171,7 @@ class PlaybackSessionCallbackTest {
         val cancelledScope = CoroutineScope(Job().apply { cancel() })
 
         val future = PlaybackSessionCallback(cancelledScope, main, coordinator, restoredOrder) {}
-            .onPlaybackResumption(session, controller)
+            .onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
 
         assertTrue(future.isCancelled)
@@ -160,7 +187,7 @@ class PlaybackSessionCallbackTest {
         future = callback {
             reports++
             doneWhenReported = future.isDone
-        }.onPlaybackResumption(session, controller)
+        }.onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
 
         assertEquals(1, reports)
@@ -180,7 +207,7 @@ class PlaybackSessionCallbackTest {
         every { session.player } throws IllegalStateException("player gone")
         var reports = 0
 
-        val future = callback { reports++ }.onPlaybackResumption(session, controller)
+        val future = callback { reports++ }.onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
 
         assertEquals(1, reports)
@@ -197,7 +224,7 @@ class PlaybackSessionCallbackTest {
         )
         var reports = 0
 
-        val future = callback { reports++ }.onPlaybackResumption(session, controller)
+        val future = callback { reports++ }.onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
 
         assertEquals(1, future.get().startIndex)

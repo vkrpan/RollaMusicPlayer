@@ -362,3 +362,17 @@ Decided while planning and executing; each amends the section that cites it.
   `startForeground` (it came through `startService`; on API 31+ a background `startForeground` throws). `onDestroy`
   then runs `saveFinal`, and the next open creates a fresh service whose restore is prepared. If the stop's destroy
   runs before Media3's posted STOP, `MediaSessionImpl.release()` removes that posted dispatch (amends §7.6).
+- **R1, R3, P2, P6, P8 (Media3 1.11.1)** Re-verified on 2026-10-15 against the 1.11.1 sources; none changed or retired,
+  and the 1.4.1 facts they cite still hold. A Play on an empty player still reaches `onPlaybackResumption`, now with
+  `isForPlayback = true` and after `onPlayRequested`, which resolves true for an empty player on every API level
+  (`MediaSessionImpl.java:1295-1345`, `MediaSessionService.java:995-1008`). `MediaButtonReceiver` now drops a key UP
+  itself (`MediaButtonReceiver.java:144-150`), so the key-UP branch of `MediaButtonStartFallback` (§7.6, final review
+  I2) is redundant for the receiver; it stays for a direct start of the exported service. The deleteIntent is still a
+  `getService` STOP and now also marks the notification dismissed (`DefaultActionFactory.java:116-123`). Since Media3
+  1.6 a paused service stays in the foreground for 10 minutes (`MediaNotificationManager.java:275-286`,
+  `MediaSessionService.java:186`). P8's trigger, the deleteIntent STOP on process death, therefore needs a process the
+  system can kill: after that hold has expired, or straight after the task is swiped away while paused. The swipe ends
+  the hold (`pauseAllPlayersAndStopSelf`), but the app's in-process MediaController binding keeps the service and its
+  paused notification alive, so a later kill still fires the deleteIntent. The SM-S901B showed one `requestCode=86`
+  restart on both routes, stopped by P8. A Robolectric test drives the resumption through a real `MediaSession`
+  (`PlaybackResumptionThroughSessionTest`).

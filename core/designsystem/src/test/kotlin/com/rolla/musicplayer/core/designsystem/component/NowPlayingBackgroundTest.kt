@@ -33,8 +33,9 @@ class NowPlayingBackgroundTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-    // Mutation: make the element a plain class (identity equality) → RED. Equality is what keeps drawWithCache from
-    // rebuilding its brushes on every caller recomposition (Phase 1 Task 4 minor).
+    // Mutation: remove the explicit equals/hashCode from NowPlayingBackgroundElement (identity equality) → RED.
+    // Equality is what keeps drawWithCache from rebuilding its brushes on every caller recomposition (Phase 1 Task 4
+    // minor).
     @Test
     fun modifiersWithEqualGradientsAreEqual() {
         val g = NowPlayingGradient(Color.Black, Color.DarkGray, Color.Red, Color.Blue)

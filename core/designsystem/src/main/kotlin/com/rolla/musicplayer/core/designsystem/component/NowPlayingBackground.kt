@@ -28,7 +28,9 @@ private const val WASH_START_FRACTION = 0.55f
 fun Modifier.nowPlayingBackground(gradient: NowPlayingGradient): Modifier =
     this then NowPlayingBackgroundElement(gradient)
 
-private data class NowPlayingBackgroundElement(val gradient: NowPlayingGradient) :
+// Not a data class: AGP 8.13 lint crashes Compose 1.7's ModifierDeclarationDetector on the generated copy() of a
+// data-class Modifier. The hand-written equals/hashCode keep the same value equality on `gradient`.
+private class NowPlayingBackgroundElement(private val gradient: NowPlayingGradient) :
     ModifierNodeElement<NowPlayingBackgroundNode>() {
     override fun create() = NowPlayingBackgroundNode(gradient)
 
@@ -40,6 +42,10 @@ private data class NowPlayingBackgroundElement(val gradient: NowPlayingGradient)
         name = "nowPlayingBackground"
         properties["gradient"] = gradient
     }
+
+    override fun equals(other: Any?): Boolean = other is NowPlayingBackgroundElement && other.gradient == gradient
+
+    override fun hashCode(): Int = gradient.hashCode()
 }
 
 private class NowPlayingBackgroundNode(private var gradient: NowPlayingGradient) : Modifier.Node(), DrawModifierNode {

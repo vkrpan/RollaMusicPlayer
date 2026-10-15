@@ -11,9 +11,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
- * Serves Media3's playback resumption (queue-restore spec §7.6, ruling R1). Media3 1.4.1 calls it for any Play on an
- * empty player: from our own MediaController (the app, the widget), a media button, or the System UI. It then sets
- * the returned items and plays.
+ * Serves Media3's playback resumption (queue-restore spec §7.6, ruling R1). Media3 calls it for any Play on an empty
+ * player: from our own MediaController (the app, the widget), a media button, or the System UI. It then sets the
+ * returned items and plays.
+ *
+ * Media3 1.11 adds `isForPlayback`. Media3 passes `false` only from a MediaLibrarySession (a metadata request for the
+ * System UI's resumption notification), which this service is not. Both values resume the same way today; the
+ * panel-resume project gives the parameter its meaning.
  *
  * [onNothingToResume] runs on [mainDispatcher] just before the future fails because nothing could be resumed (ruling
  * P6: a media-button start must still keep the foreground-start contract).
@@ -30,7 +34,10 @@ internal class PlaybackSessionCallback(
     override fun onPlaybackResumption(
         mediaSession: MediaSession,
         controller: MediaSession.ControllerInfo,
-    ): ListenableFuture<MediaItemsWithStartPosition> {
+        isForPlayback: Boolean,
+    ): ListenableFuture<MediaItemsWithStartPosition> = resumeSavedQueue(mediaSession)
+
+    private fun resumeSavedQueue(mediaSession: MediaSession): ListenableFuture<MediaItemsWithStartPosition> {
         val future = SettableFuture.create<MediaItemsWithStartPosition>()
         scope.launch(mainDispatcher) {
             try {

@@ -115,14 +115,14 @@ compaction, when the skill body is out of context.
 
 ## Tech Stack
 
-- **Language**: Kotlin
+- **Language**: Kotlin 2.2 (2.2.21, KSP2)
 - **UI Framework**: Jetpack Compose with Material Design 3
 - **Architecture**: MVVM (Model-View-ViewModel), multi-module (hybrid feature + core)
-- **Build**: Gradle Kotlin DSL with version catalog + convention plugins (build-logic)
+- **Build**: Gradle Kotlin DSL with version catalog + convention plugins (build-logic); AGP 8.13.2, Gradle 8.13, `compileSdk 36`
 - **Visual style**: One UI–inspired dark (OLED black, blue accent, soft rounded surfaces). Binding spec: `.claude/rules/ui-style-guide.md`; tokens implemented in `:core:designsystem` (Color.kt / Type.kt / Shape.kt / Theme.kt)
-- **Audio Playback**: Media3 ExoPlayer
+- **Audio Playback**: Media3 1.11.1 ExoPlayer
 - **Database**: Room for local data persistence
-- **Dependency Injection**: Hilt
+- **Dependency Injection**: Hilt 2.57.2 (2.59.x needs AGP 9)
 - **Coroutines**: For asynchronous operations
 - **Media Session**: For playback control and notification integration
 - **Foreground Service**: For background playback
@@ -428,7 +428,7 @@ self-healing items were logged as backlog rather than fixed pre-merge:
 
 ## Notes
 
-- Target Android API: 24 (Android 7.0) minimum, 34 (Android 14) target
+- Target Android API: 24 (Android 7.0) minimum, 34 (Android 14) target, compile 36
 - Use Material Design 3 components throughout
 - Follow Kotlin coding conventions
 - Write unit tests for business logic

@@ -23,11 +23,12 @@ import androidx.media3.session.DefaultMediaNotificationProvider
  * kills the app (ForegroundServiceDidNotStartInTimeException on API 31+). In that case this enters the foreground with
  * a silent notification, leaves it at once and stops the service.
  *
- * The receiver filters on the key code only, so a headset's key UP starts the service too, but Media3 acts only on
- * ACTION_DOWN: a non-DOWN key start with no playback ongoing enters and leaves the foreground at once. It never stops a
- * service that an earlier start (a DOWN whose resumption may be running) already owns. If the key UP made the
- * service's first start, the service stops once the restore settles with [hasNothingToPlay], through `stopSelf` with
- * that start's id, so any later start (a DOWN, Media3's own foreground start) keeps it alive.
+ * Media3 acts only on ACTION_DOWN. In Media3 1.11.1 the MediaButtonReceiver itself also drops key UPs and repeats
+ * (1.4.1 filtered on the key code only), so a non-DOWN key start now comes only from a direct start of the exported
+ * service; this branch guards that. A non-DOWN key start with no playback ongoing enters and leaves the foreground at
+ * once. It never stops a service that an earlier start (a DOWN whose resumption may be running) already owns. If the
+ * key UP made the service's first start, the service stops once the restore settles with [hasNothingToPlay], through
+ * `stopSelf` with that start's id, so any later start (a DOWN, Media3's own foreground start) keeps it alive.
  *
  * A DOWN of a key other than Play, Play/Pause or Headset hook (ruling P8: the media notification's deleteIntent STOP,
  * which the system fires when it cancels a dead process's notification) arrives through `startService`, so it owes no
