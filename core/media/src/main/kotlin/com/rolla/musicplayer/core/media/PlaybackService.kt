@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.core.media
 
+import android.content.Context
 import android.content.Intent
 import android.util.Log
 import androidx.media3.common.AudioAttributes
@@ -266,17 +267,7 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun buildPlayer(): ExoPlayer =
-        ExoPlayer.Builder(this)
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
-                    .setUsage(C.USAGE_MEDIA)
-                    .build(),
-                true,
-            )
-            .setWakeMode(C.WAKE_MODE_LOCAL)
-            .build()
+    private fun buildPlayer(): ExoPlayer = playbackPlayerBuilder(this).build()
 
     // The loop itself keeps running on its fixed cadence regardless of play state -- it never stops
     // while paused, it just skips the holder write below. The hook dispatch therefore has to be
@@ -310,3 +301,23 @@ class PlaybackService : MediaSessionService() {
         private const val FINAL_SAVE_TIMEOUT_MS = 500L
     }
 }
+
+/**
+ * The service player's configuration. Platform diagnostics are off: on API 31+ ExoPlayer would
+ * otherwise report playback events to the platform's MediaMetricsManager, which Google may collect
+ * when the user shares usage and diagnostics data, and this app promises that no data leaves the device. This turns off
+ * ExoPlayer's own event reporting only: on API 31+ the platform still assigns a log-session id to the codecs and
+ * AudioTrack, and OS-level codec metrics are outside the app's control.
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+internal fun playbackPlayerBuilder(context: Context): ExoPlayer.Builder =
+    ExoPlayer.Builder(context)
+        .setAudioAttributes(
+            AudioAttributes.Builder()
+                .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                .setUsage(C.USAGE_MEDIA)
+                .build(),
+            true,
+        )
+        .setWakeMode(C.WAKE_MODE_LOCAL)
+        .setUsePlatformDiagnostics(false)
