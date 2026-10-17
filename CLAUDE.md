@@ -215,7 +215,9 @@ are shipped: Core Playback, Library (Songs list + Album/Artist detail), Playlist
 Editor, Search, Settings, Home Widget, plus an accessibility pass, a baseline profile, and a signed,
 R8-minified release build (`versionCode 1` / `versionName "1.0.0"`) regression-tested in airplane mode.
 Final code-review gate passed 2026-07-23 with no blocking findings (see "Review follow-ups" below).
-**Last Updated**: 2026-07-23
+**Phase 9 (post-1.0 maintenance) in progress** — see `PHASE9-POST-1.0.md`. Prompt 1 (the three review
+follow-ups) done; Prompt 2 (`:core:common` consolidate-or-delete) awaits a decision.
+**Last Updated**: 2026-10-17
 
 ### Post-1.0 cuts (deliberate, not defects)
 
@@ -267,12 +269,16 @@ post-1.0 ask rather than building them under a "polish" mandate.
 | Accessibility pass | `89ae1da` | Full TalkBack walk of every screen; meaningful contentDescriptions/stateDescriptions, `mergeDescendants` on rows; custom accessibility actions ("Move up"/"Move down") added to `PlaylistDetailScreen` as an accessible equivalent to the drag-based reorder; ≥48dp touch targets everywhere (EQ sliders, overflow, widget controls); WCAG AA contrast re-verified in both themes; fontScale 1.5 survives without clipping |
 | Test debt closure | `4d5f2eb` | `MediaWriteRequester` SDK-branch tests (`createWriteRequest` 30+ / `RecoverableSecurityException` 29 / legacy ≤28) via Robolectric/mockkStatic; Compose UI smoke suite covering library → tap song → mini-player → expand now-playing, search query → tap result, and add-to-playlist |
 | Baseline profile | `e0b2636` | `:baselineprofile` Macrobenchmark module: cold-start and library-scroll journeys generated on a frames-capable managed device; profile committed and packaged into the release build |
+| Widget hot-fixes (post-1.0) | `33ef91a`, `cb44620` | Controls hop to the main thread (MediaController rejects off-thread calls, Glance swallowed the error), live state collected inside the Glance composition, position pushed on seek discontinuities, `SizeMode.Exact` full-height layout |
 | Release build | `1f86d53`, `074e994` | R8 `minifyEnabled` + `shrinkResources` with verified keep rules (kotlinx-serialization `@Serializable` routes, jaudiotagger reflection, Media3, Glance receivers, Room, Hilt); local keystore signing read only from `local.properties`/env, never committed — the release build type ships **unsigned with a warning** if signing config is absent rather than silently falling back to debug signing; `versionCode 1` / `versionName "1.0.0"`; a `checkReleaseManifestNoInternet` Gradle task reads the real merged manifest and fails `./gradlew check` if `INTERNET` (or similar) ever sneaks in; regression-tested on the release build in airplane mode (play, EQ, tag edit + scoped-storage consent, search, playlists, widget, deep links, process-death restore) |
 
-### Review follow-ups (non-blocking, from the Phase 8 final gate — 2026-07-23)
+### Review follow-ups (non-blocking, from the Phase 8 final gate — 2026-07-23) — ✅ resolved in Phase 9 Prompt 1
 
 code-reviewer's final pass before the v1.0 merge found no CRITICAL/HIGH issues. Three narrow,
-self-healing items were logged as backlog rather than fixed pre-merge:
+self-healing items were logged as backlog rather than fixed pre-merge. All three are now fixed
+(details in `PHASE9-POST-1.0.md`): (1) invalidation isolated in `invalidateArtworkBestEffort`;
+(2) temp-file + rename write with a post-lock re-check; (3) `invalidations` trimmed — consumers
+already key on the rewritten file's `lastModified`. Original findings, for the record:
 
 1. `TagSaveFinalizer.onSongsSaved` puts `albumArtworkCache.invalidate(it)` in the same try block as
    `refreshPlayback(songs)` — if invalidation throws, the metadata refresh is silently skipped too.
@@ -288,12 +294,11 @@ self-healing items were logged as backlog rather than fixed pre-merge:
 ### What remains (post-1.0 backlog)
 
 - The three deliberate cuts above (custom tag system, A–Z fast-scroll, tab bar/Folders) — revisit only on explicit ask
-- The three review follow-ups above
 - Optional consolidation: build `:core:common` for real (shared dispatcher qualifiers replacing the per-feature ones) or drop the module — still an empty `Placeholder.kt`
 
 ## Next Steps (post-1.0)
 
-1. Triage the review follow-ups above (all low/medium severity, non-blocking)
+1. ~~Triage the review follow-ups above~~ — done (Phase 9 Prompt 1)
 2. Decide `:core:common`'s fate — consolidate shared dispatchers/Result types for real, or delete the placeholder module
 3. If there's appetite for further scope: custom tag system, A–Z fast-scroll index, or the center-weighted tab bar/Folders browsing — each is a new feature, not a fix, so treat as a fresh ask
 

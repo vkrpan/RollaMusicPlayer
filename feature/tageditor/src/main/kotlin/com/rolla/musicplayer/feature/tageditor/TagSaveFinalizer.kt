@@ -29,7 +29,8 @@ import javax.inject.Inject
  *    widget, so the stale cached cover must already be gone by then -- dropping it first means
  *    those re-renders (and Coil, via the file's changed last-modified) re-decode the freshly
  *    embedded art instead of serving the evicted copy. Multiple saved songs can share an album,
- *    so `distinct()` avoids redundant invalidations.
+ *    so `distinct()` avoids redundant invalidations. A failure here is contained to this step (see
+ *    [invalidateArtworkBestEffort]) -- it must not skip the playback refresh below.
  * 4. **Refresh playback** -- for each saved song, [PlaybackController.updateSongMetadata] with the
  *    freshly re-synced row, so the now-playing UI, queue, and media notification (and the widget,
  *    once Phase 6 builds it on the same playback state) re-render the new tags if that song is
@@ -59,12 +60,30 @@ class TagSaveFinalizer @Inject constructor(
             val paths = songs.mapNotNull { songFileResolver.resolveFilePath(it) }
             mediaScanNotifier.awaitScan(paths)
             libraryIndexer.syncSongs(songs.mapNotNull { it.id.toLongOrNull() })
-            songs.map { it.albumId }.distinct().forEach { albumArtworkCache.invalidate(it) }
+            invalidateArtworkBestEffort(songs.map { it.albumId }.distinct())
             refreshPlayback(songs)
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
             // Best-effort: the file write already succeeded; never surface this as a save error.
+        }
+    }
+
+    /**
+     * Step 3, isolated in its own try/catch so a cache failure (e.g. disk IO) can never skip step 4:
+     * the artwork cache is a pure performance layer, while the playback refresh carries the new
+     * tags to now-playing/the notification/the widget. Each album is attempted independently for
+     * the same reason. Mirrors `SettingsViewModel.clearArtworkCacheBestEffort`.
+     */
+    private suspend fun invalidateArtworkBestEffort(albumIds: List<Long>) {
+        albumIds.forEach { albumId ->
+            try {
+                albumArtworkCache.invalidate(albumId)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                // Dropped deliberately; see KDoc above.
+            }
         }
     }
 

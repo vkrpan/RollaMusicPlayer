@@ -65,8 +65,9 @@ import javax.inject.Singleton
  * decoded from: for the cache-file path that's `(File.getAbsolutePath, File.lastModified)`, not
  * just the path -- [AlbumArtworkCache.invalidate] deletes and lets the next [AlbumArtworkCache.get]
  * rewrite the file with fresh bytes AND a fresh `lastModified`, so a genuinely edited cover busts
- * the memo and re-decodes automatically. Subscribing to [AlbumArtworkCache.invalidations] to
- * explicitly clear the memo was considered and rejected as unnecessary complexity: this loader
+ * the memo and re-decodes automatically. A separate invalidation signal to explicitly clear the
+ * memo was considered and rejected as unnecessary complexity (and later removed from the cache
+ * contract, since no consumer needed it): this loader
  * already re-resolves [AlbumArtworkCache.get] on every [load] call (the widget re-renders after a
  * tag edit anyway, via the existing `PlaybackUpdateHook` metadata refresh), so the lastModified
  * comparison alone is sufficient to detect staleness without a second, independent invalidation

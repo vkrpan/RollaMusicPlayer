@@ -144,18 +144,31 @@ class TagSaveFinalizerTest {
     }
 
     @Test
-    fun onSongsSaved_artworkCacheInvalidationFailure_isSwallowedAndSaveStaysSuccessful() = runTest {
-        // Best-effort contract: a cache eviction failure must not propagate into the caller's
-        // save flow either -- the file write (and re-sync) already succeeded.
+    fun onSongsSaved_artworkCacheInvalidationFailure_stillRefreshesPlayback() = runTest {
+        // A cache eviction failure is contained to the invalidation step: it must neither propagate
+        // into the caller's save flow nor skip the playback refresh that carries the new tags.
         coEvery { albumArtworkCache.invalidate(any()) } throws IOException("cache dir unwritable")
-        fakeSongRepository.emit(listOf(song1))
+        val reSynced = song1.copy(title = "Retitled")
+        fakeSongRepository.emit(listOf(reSynced))
 
         finalizer.onSongsSaved(listOf(song1))
 
         coVerify(exactly = 1) { albumArtworkCache.invalidate(1L) }
-        // Downstream step (playback refresh) is skipped because the exception aborted the try
-        // block, but the call itself must not throw out of onSongsSaved.
-        verify(exactly = 0) { playbackController.updateSongMetadata(any()) }
+        verify(exactly = 1) { playbackController.updateSongMetadata(reSynced) }
+    }
+
+    @Test
+    fun onSongsSaved_oneAlbumInvalidationFailure_doesNotSkipTheOtherAlbums() = runTest {
+        val albumASong = testSong("1", albumId = 10L)
+        val albumBSong = testSong("2", albumId = 20L)
+        coEvery { songFileResolver.resolveFilePath(albumASong) } returns "/music/1.mp3"
+        coEvery { songFileResolver.resolveFilePath(albumBSong) } returns "/music/2.mp3"
+        coEvery { albumArtworkCache.invalidate(10L) } throws IOException("cache dir unwritable")
+        fakeSongRepository.emit(listOf(albumASong, albumBSong))
+
+        finalizer.onSongsSaved(listOf(albumASong, albumBSong))
+
+        coVerify(exactly = 1) { albumArtworkCache.invalidate(20L) }
     }
 }
 

@@ -1,6 +1,5 @@
 package com.rolla.musicplayer.core.data.artwork
 
-import kotlinx.coroutines.flow.SharedFlow
 import java.io.File
 
 /**
@@ -14,7 +13,9 @@ import java.io.File
  * behind that uri change but the uri STRING does not, so anything caching by that uri string (Coil
  * included) keeps serving the old cover until told otherwise. This cache solves both: [get] decodes
  * once and reuses the decoded file thereafter, and [invalidate] gives a byte-changing write (like a
- * cover embed) an explicit, albumId-keyed way to evict the stale copy and tell every consumer.
+ * cover embed) an explicit, albumId-keyed way to evict the stale copy. Consumers need no separate
+ * eviction signal: the next [get] rewrites the file with a fresh `lastModified`, which both Coil's
+ * file cache key and the widget's decode memo already include.
  *
  * ### Consumers (wave 2, not implemented here)
  * Coil (`:app`), `TagSaveFinalizer` (`:feature:tageditor`), and `WidgetArtworkLoader`
@@ -35,12 +36,9 @@ interface AlbumArtworkCache {
      */
     suspend fun get(albumId: Long, sourceUri: String): File?
 
-    /** Drops [albumId]'s cached file and emits [albumId] on [invalidations] so Coil/widget evict their own copies. */
+    /** Drops [albumId]'s cached file so the next [get] re-decodes (and re-stamps) it. */
     suspend fun invalidate(albumId: Long)
 
     /** Wipes the whole cache directory (used on a full manual rescan). */
     suspend fun clear()
-
-    /** Emits an albumId each time its cached art is invalidated. */
-    val invalidations: SharedFlow<Long>
 }

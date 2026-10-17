@@ -3,10 +3,6 @@ package com.rolla.musicplayer.core.data.artwork
 import com.rolla.musicplayer.core.data.di.CoreDataIoDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -32,7 +28,12 @@ import javax.inject.Singleton
  * directory over [MAX_CACHE_BYTES]. [mutex] guards every write to the directory (the miss-path
  * write + eviction, and [clear]) so concurrent [get] calls from many simultaneously binding list
  * rows can't corrupt the eviction pass or double-write the same file -- mirroring `LibraryIndexer`'s
- * internal-[Mutex] precedent. A cache HIT needs no lock: it only stats an already-complete file.
+ * internal-[Mutex] precedent. A cache HIT needs no lock because a cache file only ever appears
+ * complete: a miss writes the bytes to a sibling temp file and renames it into place (an atomic
+ * replace on the same filesystem), so the unlocked `exists()` check can never observe a
+ * partially-written JPEG. A miss also re-checks `exists()` once it holds the lock, so when two
+ * first-time requests for the same album race, the loser returns the winner's file instead of
+ * rewriting it (which would needlessly bump its `lastModified`).
  *
  * All work runs on [ioDispatcher].
  */
@@ -45,12 +46,6 @@ class AlbumArtworkCacheImpl @Inject constructor(
 
     private val mutex = Mutex()
 
-    private val mutableInvalidations = MutableSharedFlow<Long>(
-        extraBufferCapacity = INVALIDATION_BUFFER_CAPACITY,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST,
-    )
-    override val invalidations: SharedFlow<Long> = mutableInvalidations.asSharedFlow()
-
     override suspend fun get(albumId: Long, sourceUri: String): File? = withContext(ioDispatcher) {
         val file = fileFor(albumId)
         // Hit: return the file as-is. Do NOT touch lastModified -- Coil's and the widget's caches
@@ -59,9 +54,16 @@ class AlbumArtworkCacheImpl @Inject constructor(
 
         val bytes = decodeSafely(sourceUri) ?: return@withContext null
         mutex.withLock {
+            // Another caller finished the same album while this one was decoding.
+            if (file.exists()) return@withContext file
             cacheDir.mkdirs()
-            file.writeBytes(bytes)
-            file.setLastModified(System.currentTimeMillis())
+            val temp = File(cacheDir, tempFileName(albumId))
+            temp.writeBytes(bytes)
+            temp.setLastModified(System.currentTimeMillis())
+            if (!temp.renameTo(file)) {
+                temp.delete()
+                return@withContext null
+            }
             evictOldestWritten(protectedFile = file)
         }
         file
@@ -71,17 +73,9 @@ class AlbumArtworkCacheImpl @Inject constructor(
         withContext(ioDispatcher) {
             mutex.withLock { fileFor(albumId).delete() }
         }
-        // extraBufferCapacity + DROP_OLDEST guarantees tryEmit never suspends/drops silently in a
-        // way callers need to check -- see the class-level contract on AlbumArtworkCache.
-        mutableInvalidations.tryEmit(albumId)
     }
 
-    /**
-     * Wipes every cached file. Deliberately emits NOTHING on [invalidations] -- a full clear is
-     * only ever triggered by a full manual rescan, and that rescan's own `LibraryIndexer.sync`
-     * already re-syncs Room wholesale, so consumers (Coil/widget) pick up fresh state through their
-     * own rescan hook rather than draining one [invalidations] event per album.
-     */
+    /** Wipes every cached file (and any temp file a killed process left behind). */
     override suspend fun clear() {
         withContext(ioDispatcher) {
             mutex.withLock {
@@ -129,9 +123,15 @@ class AlbumArtworkCacheImpl @Inject constructor(
     internal companion object {
         /** ~150x150dp feature cards, now-playing artwork, and list thumbnails all fit well inside this budget. */
         const val MAX_CACHE_BYTES = 32L * 1024 * 1024
-        const val INVALIDATION_BUFFER_CAPACITY = 16
     }
 }
 
 /** `albumId` -> stable, distinct cache filename. Exposed `internal` so key derivation is unit-testable in isolation. */
 internal fun cacheFileName(albumId: Long): String = "$albumId.jpg"
+
+/**
+ * Where a miss writes [albumId]'s bytes before renaming them into [cacheFileName]. Lives in the
+ * cache directory itself so the rename stays on one filesystem (and therefore atomic); a leftover
+ * from a process killed mid-write still counts toward the byte budget and is evicted like any entry.
+ */
+internal fun tempFileName(albumId: Long): String = "$albumId.jpg.tmp"

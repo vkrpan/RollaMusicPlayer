@@ -1,6 +1,5 @@
 package com.rolla.musicplayer.core.data.artwork
 
-import app.cash.turbine.test
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertArrayEquals
@@ -15,8 +14,8 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 /**
- * Unit tests for [AlbumArtworkCacheImpl]'s cache bookkeeping -- key derivation, hit/miss,
- * invalidation, and LRU eviction. [ArtworkDecoder] is faked throughout: the real
+ * Unit tests for [AlbumArtworkCacheImpl]'s cache bookkeeping -- key derivation, hit/miss, atomic
+ * miss writes, invalidation, and LRU eviction. [ArtworkDecoder] is faked throughout: the real
  * [BitmapArtworkDecoder] calls into `android.graphics.BitmapFactory`, an unimplemented stub under
  * plain JUnit (the same constraint `WidgetArtworkLoaderTest` documents for its own decode path),
  * so none of that is exercised here -- only the plain-Kotlin logic this class owns.
@@ -114,29 +113,57 @@ class AlbumArtworkCacheImplTest {
         assertTrue(reDecoded.lastModified() > BASE_TIME)
     }
 
+    @Test
+    fun get_miss_leavesNoTempFileBehind() = runTest {
+        // The miss writes through a temp file renamed into place (so an unlocked hit-path exists()
+        // can never see a half-written JPEG); only the final cache file may remain afterwards.
+        val artworkCache = cache(FakeArtworkDecoder())
+
+        artworkCache.get(albumId = 1L, sourceUri = "content://a")
+
+        assertEquals(listOf(cacheFileName(1L)), tempFolder.root.list()?.toList())
+    }
+
+    @Test
+    fun get_racingWriterFinishedFirst_returnsItsFileWithoutRewriting() = runTest {
+        // Simulates a second first-time request for the same album completing while this one was
+        // decoding: the post-lock re-check must hand back that file untouched.
+        val winnerBytes = byteArrayOf(9, 9, 9)
+        val winnerFile = tempFolder.root.resolve(cacheFileName(1L))
+        val decoder = FakeArtworkDecoder {
+            winnerFile.writeBytes(winnerBytes)
+            winnerFile.setLastModified(BASE_TIME)
+            FakeArtworkDecoder.DEFAULT_BYTES
+        }
+        val artworkCache = cache(decoder)
+
+        val file = artworkCache.get(albumId = 1L, sourceUri = "content://a")
+
+        assertEquals(winnerFile, file)
+        assertArrayEquals(winnerBytes, file!!.readBytes())
+        assertEquals(BASE_TIME, file.lastModified())
+    }
+
     // ── invalidate ────────────────────────────────────────────────────────────
 
     @Test
-    fun invalidate_deletesFileAndEmitsAlbumId() = runTest {
+    fun invalidate_deletesFile() = runTest {
         val decoder = FakeArtworkDecoder()
         val artworkCache = cache(decoder)
         val file = artworkCache.get(albumId = 7L, sourceUri = "content://a")!!
 
-        artworkCache.invalidations.test {
-            artworkCache.invalidate(7L)
-            assertEquals(7L, awaitItem())
-        }
+        artworkCache.invalidate(7L)
+
         assertFalse(file.exists())
     }
 
     @Test
-    fun invalidate_uncachedAlbumId_stillEmits() = runTest {
+    fun invalidate_uncachedAlbumId_isANoOp() = runTest {
         val artworkCache = cache(FakeArtworkDecoder())
 
-        artworkCache.invalidations.test {
-            artworkCache.invalidate(999L)
-            assertEquals(999L, awaitItem())
-        }
+        artworkCache.invalidate(999L)
+
+        assertTrue(tempFolder.root.listFiles()?.toList().orEmpty().isEmpty())
     }
 
     // ── clear ─────────────────────────────────────────────────────────────────
