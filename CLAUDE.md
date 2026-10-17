@@ -46,6 +46,12 @@ false record. Before writing to any file a skill reads at run time (a
 state file), load that skill: a state file that describes itself is not a
 substitute for the skill that owns it.
 
+Whenever superpowers' writing-plans, subagent-driven-development, brainstorming or
+test-driven-development loads, also load the user-owned companion skill
+`superpowers-extras` in the same batch, if it is installed (staged by the
+2026-10-17 observation review), and read its reference file for that host
+skill before the host's first action.
+
 The task-observer workspace for this project is:
   C:/Users/VK/.claude/task-observer-workspace
 Every path the skill uses derives from that root and nothing else:

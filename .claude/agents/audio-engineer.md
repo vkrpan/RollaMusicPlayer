@@ -737,6 +737,8 @@ class GaplessPlaybackManager(
                 )
                 .setHandleAudioBecomingNoisy(true)
                 .setWakeMode(C.WAKE_MODE_LOCAL)
+                // Privacy: no playback events to the platform's MediaMetricsManager (on by default on API 31+)
+                .setUsePlatformDiagnostics(false)
                 // Enable gapless playback
                 .setSeekBackIncrementMs(10_000)
                 .setSeekForwardIncrementMs(10_000)

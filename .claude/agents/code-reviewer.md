@@ -163,6 +163,9 @@ Specialized agent for code quality assurance, architecture review, and best prac
 - [ ] No analytics or tracking code
 - [ ] No external service dependencies (Firebase, etc.)
 - [ ] No data collection or transmission
+- [ ] No library default that reports through the platform: ExoPlayer is built with `setUsePlatformDiagnostics(false)`
+      (pinned by `PlaybackPlayerBuilderTest`), and any `*Metrics*`/`*Diagnostics*` builder flag is off. Re-check on
+      every dependency bump, because "no network code" is not "no data leaves the device"
 - [ ] Privacy-preserving implementations
 - [ ] Works completely in airplane mode
 
