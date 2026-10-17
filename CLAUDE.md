@@ -103,7 +103,7 @@ compaction, when the skill body is out of context.
 - **Equalizer Presets**: Stored in local Room database
 - **Settings**: DataStore (Preferences) for app configuration and equalizer active-state
 - **Album Artwork**: Cached locally in app-specific storage
-- **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. The System UI media controls work while the session is alive, but its carousel does not resume the queue after the process has died (that needs a `MediaLibraryService`, a non-goal)
+- **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. A System UI media card that keeps the saved track after the process has died, with a Play that resumes the queue the same way, is designed for the stock-Android System UI (AOSP `MediaResumeListener`) and is **not yet device-verified** (`PlaybackService` is a `MediaLibraryService`; no library is browsable). On Samsung One UI (SM-S901B, Android 14) it is not delivered, because One UI never adds new apps to its media resume list, so on that phone the card disappears when the process dies
 
 ### Technical Implications
 
@@ -136,7 +136,7 @@ compaction, when the skill body is out of context.
 - Complete playlist management (create, edit, delete, reorder)
 - Shuffle and repeat modes (off, all, one)
 - Background playback with notification controls
-- Persistent playback queue across app restarts (restored paused; resumable from a headset or Bluetooth Play; the System UI controls work while the session is alive, but its carousel does not resume after the process has died)
+- Persistent playback queue across app restarts (restored paused; resumable from a headset or Bluetooth Play; a System UI media card that resumes it after the process has died is designed for the stock-Android System UI and not yet device-verified; Samsung One UI never adds new apps to its resume list, so it does not keep the card)
 
 ### Advanced Audio Features
 - 8-band graphic equalizer (40Hz, 80Hz, 160Hz, 315Hz, 630Hz, 1.25kHz, 2.5kHz, 5kHz, 10kHz)
@@ -330,11 +330,16 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   mode changes and every 10 s while playing, plus `saveFinal()` in `PlaybackService.onDestroy`. `RestoreCoordinator`
 >   restores the queue paused when the service starts, and `RestoredShuffleOrder` (registered after
 >   `StartFirstShuffleEnforcer`) puts the exact shuffle order back. `PlaybackSessionCallback.onPlaybackResumption` plus
->   Media3's `MediaButtonReceiver` resume from a headset or Bluetooth Play. The System UI controls work while the session
->   is alive, but its carousel does not resume after the process has died: that needs a `MediaLibraryService` (spec §12
->   P7). `MediaButtonStartFallback` keeps a media-button start with nothing to resume, or a key UP that Media3 ignores,
->   from crashing the foreground-service contract. It also stops a service that a non-play key started cold (the
->   paused notification's delete intent sends STOP when the process dies), so the next app open restores prepared (P8).
+>   Media3's `MediaButtonReceiver` resume from a headset or Bluetooth Play. **Panel resume** (spec
+>   `docs/superpowers/specs/2026-10-15-panel-resume-design.md`): `PlaybackService` is a `MediaLibraryService`, so that a
+>   stock-Android System UI media card (AOSP `MediaResumeListener`) can survive process death; this is designed for,
+>   not yet verified on, a stock device. Its metadata request (`isForPlayback = false`) reads through
+>   `RestoreCoordinator.peekSaved()`, changes nothing and returns `asPlayableLeaf()` items, and its Play resumes like a
+>   headset Play. On Samsung One UI (SM-S901B, Android 14) it is not delivered: One UI never adds new apps to its media
+>   resume list, so there the card goes when the process dies.
+>   `MediaButtonStartFallback` keeps a media-button start with nothing to resume, or a key UP that Media3 ignores, from
+>   crashing the foreground-service contract. It also stops a service that a non-play key started cold (the paused
+>   notification's delete intent sends STOP when the process dies), so the next app open restores prepared (P8).
 >
 > The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
 > at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the
@@ -378,7 +383,7 @@ post-1.0 ask rather than building them under a "polish" mandate.
 | `:core:designsystem` — theme | foundation | Color, Typography, Shape tokens + semantic extensions (`songTitle`, `miniPlayerContainer`, `sliderInactiveTrack`, etc.) per ui-style-guide |
 | `:core:permissions` — permission gate | foundation | Version-aware READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE, rationale UI, Settings routing |
 | `:core:data` — repositories + scanner | foundation | MediaStore scanner, Song/Album/Artist repositories |
-| `:core:media` — ExoPlayer service | `c0c507d`+ | `PlaybackService` (MediaSessionService), `PlaybackController`, `PlaybackStateHolder`, position ticker |
+| `:core:media` — ExoPlayer service | `c0c507d`+ | `PlaybackService` (MediaLibraryService), `PlaybackController`, `PlaybackStateHolder`, position ticker |
 | `:feature:library` — library screens | foundation | Songs/Albums/Artists/Genres lists |
 | `:feature:player` — Now Playing + Mini-player | `286867f`, `066306b` | Full Now Playing screen, persistent mini-player pill, shared-element artwork transition (spring physics, reduced-motion aware), `PlayerViewModel`, `MiniPlayerViewModel` |
 | Navigation | `c0c507d` | Type-safe `@Serializable` routes, `SharedTransitionLayout` wiring |

@@ -225,6 +225,64 @@ class RestoreCoordinatorTest {
         assertEquals(2, repository.loadCount)
     }
 
+    // Panel-resume spec §5.4. A peek while loading shares the first load and leaves the restore to the app. Control:
+    // the in-app restore applies (APPLIED, 5 items). Mutation: implement peekSaved as savedForResumption() →
+    // HANDED_TO_RESUMPTION and an empty player → RED.
+    @Test
+    fun aPeekWhileLoading_sharesTheFirstLoadAndTheAppStillRestores() = runTest {
+        repository.saved = saved
+        repository.loadGate = CompletableDeferred()
+        val coordinator = coordinator()
+        coordinator.restoreInto(player, restoredOrder, holder)
+        settle()
+
+        val peeked = async { coordinator.peekSaved() }
+        settle()
+        repository.loadGate!!.complete(Unit)
+        settle()
+
+        assertEquals(saved, peeked.await())
+        assertEquals(Outcome.APPLIED, coordinator.outcome)
+        assertEquals(5, player.mediaItemCount)
+        assertEquals(listOf(3, 0, 4, 1, 2), player.queueState().items.map { it.index })
+        assertEquals(1, repository.loadCount)
+        assertEquals(1, settledCount)
+    }
+
+    // Spec §5.4 (as ruling R6). Once settled a peek reads again and never settles a second time. Mutations: always
+    // return the first load → the stale queue → RED; call onSettled in peekSaved → settledCount 2 → RED.
+    @Test
+    fun aPeekAfterSettling_readsAgainWithoutSettling() = runTest {
+        repository.saved = saved
+        val coordinator = coordinator()
+        coordinator.restoreInto(player, restoredOrder, holder)
+        settle()
+        assertEquals(Outcome.APPLIED, coordinator.outcome)
+
+        val newer = saved.copy(songs = saved.songs.take(2), shuffleOrder = listOf(1, 0))
+        repository.saved = newer
+
+        assertEquals(newer, coordinator.peekSaved())
+        assertEquals(2, repository.loadCount)
+        assertEquals(Outcome.APPLIED, coordinator.outcome)
+        assertEquals(1, settledCount)
+    }
+
+    // Spec §5.4. With no in-app restore started, a peek leaves the coordinator LOADING. Control: it returns the save.
+    // Mutation: set outcome = HANDED_TO_RESUMPTION in peekSaved → RED.
+    @Test
+    fun aPeekAlone_leavesTheCoordinatorLoading() = runTest {
+        repository.saved = saved
+        val coordinator = coordinator()
+
+        val peeked = async { coordinator.peekSaved() }
+        settle()
+
+        assertEquals(saved, peeked.await())
+        assertEquals(Outcome.LOADING, coordinator.outcome)
+        assertEquals(0, settledCount)
+    }
+
     private companion object {
         const val MEDIA3_ORDER_SEED = 1L
     }

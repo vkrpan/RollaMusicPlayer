@@ -44,6 +44,26 @@ class MediaItemsTest {
         assertNull(song.copy(artworkUri = "").toMediaItem().mediaMetadata.artworkUri)
     }
 
+    // Media3's LibraryResult.ofItemList rejects an item without both flags (panel-resume final review). Control: the
+    // song's own item has neither flag, so the leaf's flags come from asPlayableLeaf. Mutation: drop
+    // setIsPlayable(true) → isPlayable null → RED.
+    @Test
+    fun asPlayableLeaf_keepsTheItemAndFlagsItAPlayableLeaf() {
+        val item = song.toMediaItem()
+        val leaf = item.asPlayableLeaf()
+
+        assertNull(item.mediaMetadata.isBrowsable)
+        assertNull(item.mediaMetadata.isPlayable)
+        assertEquals("42", leaf.mediaId)
+        assertEquals("content://media/external/audio/media/42", leaf.localConfiguration?.uri.toString())
+        assertEquals("Title", leaf.mediaMetadata.title)
+        assertEquals("Artist", leaf.mediaMetadata.artist)
+        assertEquals("Album", leaf.mediaMetadata.albumTitle)
+        assertEquals("content://media/external/audio/albumart/7", leaf.mediaMetadata.artworkUri.toString())
+        assertEquals(false, leaf.mediaMetadata.isBrowsable)
+        assertEquals(true, leaf.mediaMetadata.isPlayable)
+    }
+
     // Mutation: swap ONE and ALL in either mapping → RED.
     @Test
     fun repeatModesRoundTrip() {

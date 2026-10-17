@@ -9,8 +9,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaLibraryService
+import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.equalizer.EqualizerSessionManager
@@ -33,7 +34,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 @androidx.annotation.OptIn(UnstableApi::class)
-class PlaybackService : MediaSessionService() {
+class PlaybackService : MediaLibraryService() {
 
     @Inject
     lateinit var playbackStateHolder: PlaybackStateHolder
@@ -54,7 +55,7 @@ class PlaybackService : MediaSessionService() {
     lateinit var playbackStateRepository: PlaybackStateRepository
 
     private lateinit var player: ExoPlayer
-    private lateinit var mediaSession: MediaSession
+    private lateinit var mediaSession: MediaLibrarySession
 
     /** Publishes the queue into [playbackStateHolder] (ruling 1); added after playerListener, before the enforcer. */
     private lateinit var queuePublisher: QueuePublisher
@@ -174,7 +175,7 @@ class PlaybackService : MediaSessionService() {
         playbackSettingsBinder.bind(player, serviceScope)
     }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession = mediaSession
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession = mediaSession
 
     // Recorded before super: Media3 posts the media-button dispatch, so the record is in place before any resumption.
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -218,7 +219,7 @@ class PlaybackService : MediaSessionService() {
     // Listener order matters: the enforcer is already registered, so restoredShuffleOrder runs after it (ruling R3).
     // The persister starts writing only once the restore settles (spec §6.3). Its consumer runs on serviceScope
     // (Dispatchers.Default), never main: onDestroy's runBlocking on main awaits its write mutex in saveFinal.
-    private fun installQueueRestore(): MediaSession {
+    private fun installQueueRestore(): MediaLibrarySession {
         restoredShuffleOrder = RestoredShuffleOrder(player)
         player.addListener(restoredShuffleOrder)
         queuePersister = QueuePersister(player, playbackStateRepository, serviceScope)
@@ -235,7 +236,7 @@ class PlaybackService : MediaSessionService() {
             restoredShuffleOrder,
             mediaButtonStartFallback::onNothingToResume,
         )
-        val session = MediaSession.Builder(this, player).setCallback(callback).build()
+        val session = MediaLibrarySession.Builder(this, player, callback).build()
         restoreCoordinator.restoreInto(player, restoredShuffleOrder, playbackStateHolder)
         return session
     }

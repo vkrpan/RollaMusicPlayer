@@ -15,9 +15,9 @@ import kotlinx.coroutines.withContext
 
 /**
  * Restores the saved queue once per service start (queue-restore spec §7.1). It reads the database once
- * ([firstLoad]); the in-app restore ([restoreInto]) and a resumption arriving while loading ([savedForResumption])
- * share that read. [outcome] is read and written only on [mainDispatcher]. [onSettled] runs once, when it leaves
- * [Outcome.LOADING].
+ * ([firstLoad]); the in-app restore ([restoreInto]), a resumption arriving while loading ([savedForResumption]) and a
+ * metadata request arriving while loading ([peekSaved], which reads without settling) share that read. [outcome] is
+ * read and written only on [mainDispatcher]. [onSettled] runs once, when it leaves [Outcome.LOADING].
  */
 internal class RestoreCoordinator(
     private val repository: PlaybackStateRepository,
@@ -66,6 +66,13 @@ internal class RestoreCoordinator(
         onSettled()
         return firstLoad.await()
     }
+
+    /**
+     * A metadata request (System UI's card, or any browser reading the recent root; panel-resume spec §5.4): reads
+     * without settling [outcome]. While loading it shares the first load, so the in-app restore still applies; once
+     * settled it reads again (ruling R6). It never calls [onSettled]. Call it on [mainDispatcher].
+     */
+    suspend fun peekSaved(): SavedPlayback? = if (outcome == Outcome.LOADING) firstLoad.await() else loadOrNull()
 
     /** Ruling P1: a failed load is logged and treated as nothing saved; it does not clear a save that may be good. */
     private suspend fun loadOrNull(): SavedPlayback? = try {

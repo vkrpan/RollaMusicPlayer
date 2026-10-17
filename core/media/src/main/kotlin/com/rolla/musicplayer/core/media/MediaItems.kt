@@ -22,6 +22,12 @@ internal fun Song.toMediaItem(): MediaItem =
         )
         .build()
 
+/** A playable leaf for a MediaLibrarySession result (Media3's LibraryResult.verifyMediaItem requires both flags). */
+internal fun MediaItem.asPlayableLeaf(): MediaItem =
+    buildUpon()
+        .setMediaMetadata(mediaMetadata.buildUpon().setIsBrowsable(false).setIsPlayable(true).build())
+        .build()
+
 internal fun RepeatMode.toPlayerRepeatMode(): Int = when (this) {
     RepeatMode.OFF -> Player.REPEAT_MODE_OFF
     RepeatMode.ONE -> Player.REPEAT_MODE_ONE

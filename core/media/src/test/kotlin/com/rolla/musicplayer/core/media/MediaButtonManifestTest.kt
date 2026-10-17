@@ -29,4 +29,16 @@ class MediaButtonManifestTest {
         val services = context.packageManager.queryIntentServices(mediaButton, 0)
         assertTrue(services.any { it.serviceInfo.name == PlaybackService::class.java.name })
     }
+
+    // Panel-resume spec §5.2. The System UI binds the legacy MediaBrowserService action, and Media3 looks the service
+    // up by its MediaLibraryService action. Control: the existing MEDIA_BUTTON test proves the query sees this
+    // service. Mutations: drop either action from the service's intent filter → RED.
+    @Test
+    fun theServiceIsALibraryAndALegacyBrowser() {
+        val actions = listOf("androidx.media3.session.MediaLibraryService", "android.media.browse.MediaBrowserService")
+        for (action in actions) {
+            val services = context.packageManager.queryIntentServices(Intent(action).setPackage(context.packageName), 0)
+            assertTrue(action, services.any { it.serviceInfo.name == PlaybackService::class.java.name })
+        }
+    }
 }

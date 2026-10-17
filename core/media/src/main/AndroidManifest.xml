@@ -7,12 +7,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
 
     <application>
+        <!-- Panel resume (panel-resume spec §5.2): the System UI binds the browser service to fill and resume its media
+             card after the process died. Media3 serves the recent ROOT only to the System UI, but answers its CHILDREN
+             (the saved current track's title, artist, album and artwork URI) for any connected browser (spec §10).
+             No other library is browsable. -->
         <service
             android:name="com.rolla.musicplayer.core.media.PlaybackService"
             android:foregroundServiceType="mediaPlayback"
             android:exported="true">
             <intent-filter>
                 <action android:name="androidx.media3.session.MediaSessionService" />
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+                <action android:name="android.media.browse.MediaBrowserService" />
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
             </intent-filter>
         </service>

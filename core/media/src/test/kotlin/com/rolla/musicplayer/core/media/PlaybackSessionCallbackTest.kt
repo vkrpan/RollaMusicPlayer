@@ -17,6 +17,8 @@ import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakePlaybackStateRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -26,12 +28,14 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Shadows.shadowOf
+import java.io.IOException
 import java.util.concurrent.ExecutionException
 import kotlin.random.Random
 
@@ -124,31 +128,125 @@ class PlaybackSessionCallbackTest {
         assertEquals(Player.REPEAT_MODE_ONE, player.repeatMode)
     }
 
-    // Media3 1.11's isForPlayback has no meaning here yet: false resumes the same saved queue exactly as true does
-    // (the test above), with the same fixture guard so the order assertion cannot pass vacuously. Mutation: fail the
-    // future when isForPlayback is false → future.get() throws → RED.
-    @Test
-    fun resumptionNotForPlayback_resumesTheSameSavedQueue() = runTest {
-        assertNotEquals(3, media3Order(4, startIndex = 3).first())
-        repository.saved = SavedPlayback(
-            songs = (0 until 4).map(::song),
-            shuffleOrder = listOf(2, 0, 3, 1),
-            state = SavedPlaybackState(currentIndex = 3, positionMs = 61_000L, shuffleEnabled = true, RepeatMode.ONE),
-        )
+    private val savedFour = SavedPlayback(
+        songs = (0 until 4).map(::song),
+        shuffleOrder = listOf(2, 0, 3, 1),
+        state = SavedPlaybackState(currentIndex = 3, positionMs = 61_000L, shuffleEnabled = true, RepeatMode.ONE),
+    )
 
-        val future = callback().onPlaybackResumption(session, controller, isForPlayback = false)
+    private fun TestScope.coordinatorAndCallback(
+        onNothingToResume: () -> Unit,
+    ): Pair<RestoreCoordinator, PlaybackSessionCallback> {
+        val main = StandardTestDispatcher(testScheduler)
+        val coordinator = RestoreCoordinator(repository, backgroundScope, main) {}
+        val callback = PlaybackSessionCallback(backgroundScope, main, coordinator, restoredOrder, onNothingToResume)
+        return coordinator to callback
+    }
+
+    private fun TestScope.settle() {
         runCurrent()
-        assertTrue(future.isDone)
-        val result = future.get()
-        player.setMediaItems(result.mediaItems, result.startIndex, result.startPositionMs)
         idle()
+        runCurrent()
+    }
 
+    // Panel-resume spec §5.3, Review Focus 1. The System UI asks while the in-app restore is loading: it gets the saved
+    // queue, and the app still restores it paused with its order. Control: the in-app restore applies (APPLIED, 4
+    // items, saved order). Mutation: give false the true branch's loader, onNothing and prepareRestore →
+    // HANDED_TO_RESUMPTION, empty player → RED. Mutation: read mediaSession.player.currentPosition on the false path →
+    // the session's player is read → RED. Mutation: arm the saved order on the false path from a coroutine posted to
+    // mainDispatcher, so it lands after the in-app restore → the order stays armed → RED. (An arm inside beforeReturn
+    // is invisible here: the in-app restore re-arms the same order and its setMediaItems consumes it;
+    // notForPlayback_afterSettling catches that one.)
+    @Test
+    fun notForPlayback_whileLoading_describesTheQueueAndTheAppStillRestores() = runTest {
+        assertNotEquals(3, media3Order(4, startIndex = 3).first())
+        repository.saved = savedFour
+        repository.loadGate = CompletableDeferred()
+        var reports = 0
+        val (coordinator, callback) = coordinatorAndCallback { reports++ }
+        coordinator.restoreInto(player, restoredOrder, PlaybackStateHolder())
+        settle()
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+        repository.loadGate!!.complete(Unit)
+        settle()
+
+        val result = future.get()
         assertEquals((0 until 4).map { "s$it" }, result.mediaItems.map { it.mediaId })
         assertEquals(3, result.startIndex)
         assertEquals(61_000L, result.startPositionMs)
+        assertEquals(RestoreCoordinator.Outcome.APPLIED, coordinator.outcome)
+        assertEquals(4, player.mediaItemCount)
         assertEquals(listOf(2, 0, 3, 1), player.queueState().items.map { it.index })
-        assertEquals(true, player.shuffleModeEnabled)
-        assertEquals(Player.REPEAT_MODE_ONE, player.repeatMode)
+        assertEquals(0, reports)
+        verify(exactly = 0) { session.player }
+        assertFalse(restoredOrder.isArmed)
+    }
+
+    // Review Focus 2. The restore settled with nothing saved; the user's empty player and default modes must survive a
+    // later metadata request, which reads the newer save. Control: the request returns that save. Mutations: call
+    // prepareRestore on the false path → armed, shuffle on, repeat ONE → RED; return the first load (null) → the
+    // future fails → RED; read mediaSession.player on the false path → RED.
+    @Test
+    fun notForPlayback_afterSettling_neitherArmsNorSetsModes() = runTest {
+        val (coordinator, callback) = coordinatorAndCallback {}
+        coordinator.restoreInto(player, restoredOrder, PlaybackStateHolder())
+        settle()
+        assertEquals(RestoreCoordinator.Outcome.DISCARDED, coordinator.outcome)
+        repository.saved = savedFour
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+
+        assertEquals((0 until 4).map { "s$it" }, future.get().mediaItems.map { it.mediaId })
+        assertFalse(restoredOrder.isArmed)
+        assertFalse(player.shuffleModeEnabled)
+        assertEquals(Player.REPEAT_MODE_OFF, player.repeatMode)
+        assertEquals(0, player.mediaItemCount)
+        assertEquals(RestoreCoordinator.Outcome.DISCARDED, coordinator.outcome)
+        verify(exactly = 0) { session.player }
+    }
+
+    // Review Focus 3. Nothing saved: the future fails, the media-button fallback (ruling P6) never runs, and the
+    // coordinator is untouched. Control: the future is done (it failed). Mutations: call onNothingToResume on the
+    // false path → reports 1 → RED; use savedForResumption → HANDED_TO_RESUMPTION → RED; read mediaSession.player on
+    // the false path → RED.
+    @Test
+    fun notForPlayback_nothingSaved_failsWithoutTheFallback() = runTest {
+        var reports = 0
+        val (coordinator, callback) = coordinatorAndCallback { reports++ }
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+
+        assertTrue(future.isDone)
+        assertTrue(runCatching { future.get() }.exceptionOrNull() is ExecutionException)
+        assertEquals(0, reports)
+        assertEquals(RestoreCoordinator.Outcome.LOADING, coordinator.outcome)
+        verify(exactly = 0) { session.player }
+    }
+
+    // Review Focus 3. A failing load is logged and treated as nothing saved (ruling P1): same outcome, still no
+    // fallback. Control: the load ran (loadCount 1). Mutations: call onNothingToResume on the false path → RED; let the
+    // first load rethrow (repository.load() instead of loadOrNull()) → the cause is the IOException → RED; use
+    // savedForResumption → HANDED_TO_RESUMPTION → RED; read mediaSession.player on the false path → RED.
+    @Test
+    fun notForPlayback_aFailingLoad_failsWithoutTheFallback() = runTest {
+        repository.loadFailure = IOException("corrupt")
+        var reports = 0
+        val (coordinator, callback) = coordinatorAndCallback { reports++ }
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+
+        assertEquals(1, repository.loadCount)
+        val failure = runCatching { future.get() }.exceptionOrNull()
+        assertTrue(failure is ExecutionException)
+        assertTrue(failure?.cause is IllegalStateException)
+        assertEquals(0, reports)
+        assertEquals(RestoreCoordinator.Outcome.LOADING, coordinator.outcome)
+        verify(exactly = 0) { session.player }
     }
 
     // Mutation: return an empty MediaItemsWithStartPosition instead of failing → future.get() succeeds → RED.

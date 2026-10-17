@@ -349,6 +349,9 @@ Decided while planning and executing; each amends the section that cites it.
   only `MediaLibrarySessionImpl` answers it (`MediaLibrarySessionImpl.java:135`, `params.isRecent`), and
   `PlaybackService` is a `MediaSessionService` (§4 non-goal). Headset and Bluetooth Play resume through
   `MediaButtonReceiver`; the System UI controls work while the session is alive (amends §2 criterion 5, §7.3, §7.6).
+  Addressed by the panel-resume project (`docs/superpowers/specs/2026-10-15-panel-resume-design.md`, 2026-10-15): the
+  card path is designed for the stock-Android System UI (AOSP `MediaResumeListener`) and is not yet device-verified.
+  On Samsung One UI (SM-S901B, Android 14) it is not delivered, because One UI never adds new apps to its resume list.
 - **P8** A notification-delete STOP restart stops the restarted service instead of changing STOP (device check D1).
   When the process dies while paused, the system cancels its media notification and fires the deleteIntent, which
   Media3 1.4.1's `DefaultActionFactory` builds with `PendingIntent.getService` as an `ACTION_MEDIA_BUTTON`
