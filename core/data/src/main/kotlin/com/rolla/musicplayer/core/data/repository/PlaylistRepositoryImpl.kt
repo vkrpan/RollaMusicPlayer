@@ -1,28 +1,38 @@
 package com.rolla.musicplayer.core.data.repository
 
+import com.rolla.musicplayer.core.common.text.sortedByLibraryName
+import com.rolla.musicplayer.core.data.di.CoreDataDefaultDispatcher
 import com.rolla.musicplayer.core.database.dao.PlaylistDao
 import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.database.entity.toDomain
 import com.rolla.musicplayer.core.database.entity.toEntity
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 // distinctUntilChanged() drops Room's content-identical re-emissions on unrelated table
-// invalidations — see the matching note in SongRepositoryImpl.
+// invalidations — see the matching note in SongRepositoryImpl. The playlist list then sorts in the
+// library order on [sortDispatcher] (Phase 5 rulings 1, 3 and 4).
 class PlaylistRepositoryImpl @Inject constructor(
     private val playlistDao: PlaylistDao,
+    @CoreDataDefaultDispatcher private val sortDispatcher: CoroutineDispatcher,
 ) : PlaylistRepository {
 
     override fun observePlaylists(): Flow<List<Playlist>> =
         playlistDao.observePlaylistsWithCounts()
             .map { list -> list.map { it.playlist.toDomain(it.songCount) } }
             .distinctUntilChanged()
+            .map { playlists ->
+                playlists.sortedByLibraryName(compareBy<Playlist> { it.name }.thenBy { it.id }) { it.name }
+            }
+            .flowOn(sortDispatcher)
 
     override fun observePlaylistSongs(playlistId: Long): Flow<List<Song>> =
         playlistDao.observePlaylistSongs(playlistId)

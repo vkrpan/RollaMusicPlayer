@@ -11,15 +11,20 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -29,11 +34,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.nowPlayingGradient
+import com.rolla.musicplayer.core.designsystem.theme.songTitle
 
 private val PreviewTabs = listOf("Favourites", "Playlists", "Tracks", "Albums", "Artists", "Folders")
 
@@ -58,6 +65,80 @@ private fun PreviewOneUiKit() {
                 )
             }
         }
+    }
+}
+
+// A 432 dp rail fits all 27 labels at fontScale 1; at 1.5 the letter slot grows to the line height and labels drop.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Fast scroll rail - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Fast scroll rail - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Fast scroll rail - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewFastScrollRail() {
+    PreviewRail(height = 432.dp)
+}
+
+// A 200 dp rail has 7.4 dp slots, shorter than a letter's line: every 3rd label shows (at fontScale 1 and 1.5), each
+// at its natural height, centred on its own slot and unclipped.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Fast scroll rail, short - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Fast scroll rail, short - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Fast scroll rail, short - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewFastScrollRailShort() {
+    PreviewRail(height = 200.dp)
+}
+
+@Composable
+private fun PreviewRail(height: Dp) {
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            FastScrollRail(
+                sections = buildFastScrollSections(listOf("Abba", "Mango", "Zed")),
+                onSectionSelected = {},
+                modifier = Modifier.height(height),
+            )
+        }
+    }
+}
+
+// The container over a list that scrolls: 50 rows, "Alpha 0".."Alpha 24" then "Mango 0".."Mango 24", so A and M are
+// populated. 432 dp fits all 27 labels at fontScale 1; at 1.5 labels drop. No bottom padding: there is no pill here.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Fast scroll container - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Fast scroll container - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Fast scroll container - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewFastScrollContainer() {
+    val rows = remember { List(25) { "Alpha $it" } + List(25) { "Mango $it" } }
+    val sections = remember(rows) { buildFastScrollSections(rows) }
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            val listState = rememberLazyListState()
+            FastScrollContainer(
+                listState = listState,
+                sections = sections,
+                railBottomPadding = 0.dp,
+                modifier = Modifier.fillMaxWidth().height(432.dp),
+            ) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(rows, key = { it }) { row -> PreviewTextRow(row) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewTextRow(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(RollaDimens.singleLineRowHeight)
+            .padding(start = RollaDimens.listThumbStart),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(text = text, style = MaterialTheme.typography.songTitle, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

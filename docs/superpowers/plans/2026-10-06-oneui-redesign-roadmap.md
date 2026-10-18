@@ -14,7 +14,17 @@ the orchestrator writes Phase N+1's plan after Phase N is accepted, reading the 
 | 3 Now Playing, queue, mini-player, Equaliser, Settings | [`2026-10-09-oneui-phase3-player-eq-settings.md`](2026-10-09-oneui-phase3-player-eq-settings.md) | Accepted 2026-10-11 (gates green, phase review clean, device check done, artwork transition confirmed by the user) | 1, 2 (`LocalMiniPlayerInset`, overlay) |
 | 4a Favourites, Albums, Artists tabs | [`2026-10-11-oneui-phase4a-library-tabs.md`](2026-10-11-oneui-phase4a-library-tabs.md) | **Accepted 2026-10-12** (gates green; phase review 0 Critical/High after one fix wave; device check on the SM-S901B done, with 90/90 connected DAO tests and 12 device mutation proofs). Phase 4b/5 carry-overs are in the SDD ledger: Unicode-aware collation for the rail lists (NOCASE is ASCII-only), FolderDao instead of growing SongDao, extracting the row scaffold when FolderRow lands, and the stale Routes.kt FNV comment | 2, 3 (`PlaybackController` helpers) |
 | 4b Folders: migration v4, scanner, FolderDetail | [`2026-10-12-oneui-phase4b-folders.md`](2026-10-12-oneui-phase4b-folders.md) | **Accepted 2026-10-12** (gates green; phase review 0 Critical/High after one fix wave; device check on the SM-S901B done: 98/98 connected `:core:database` tests, migration 3→4 included, 14 device mutation proofs, and an in-place upgrade over 4a with the library intact and Folders backfilled). Phase 5 carry-over: Unicode-aware collation must also cover `FolderRepositoryImpl`'s folder order | 2, 4a |
-| 5 A–Z fast-scroll rail | `…-oneui-phase5-fast-scroll.md` | Written after Phase 4b | 2, 4a, 4b |
+| 5 A–Z fast-scroll rail | [`2026-10-17-oneui-phase5-fast-scroll.md`](2026-10-17-oneui-phase5-fast-scroll.md) | **Accepted 2026-10-18.** The gate is green, with 1031 debug unit tests. The phase review found 0 Critical/High after one fix wave, and the compose-performance audit's one blocker (main-thread section building) is fixed. The device check on the SM-S901B is done: the ICU parity test passes 2/2 with a device mutation proof; the rail works on Tracks and Artists in portrait and landscape with the pill; TalkBack sees one node; the user confirmed the haptic ticks.
+
+The phase adds the library order (spec §9.0) in `:core:common`, and `FastScrollRail`/`FastScrollContainer` on five tabs.
+
+Phase 7 carry-overs are in the SDD ledger:
+- a Perfetto trace of a rail jump (about one dropped frame per jump);
+- a baseline profile with a rail journey;
+- the drag-start slop point;
+- end labels that overflow the rail;
+- `BoxWithConstraints` → `Modifier.layout`;
+- inset calibration. | 2, 4a, 4b |
 | 6 Secondary screens and widget | `…-oneui-phase6-secondary-widget.md` | Written after Phase 5 | 1–5 |
 | 7 Device calibration, docs, baseline profile, final gate | `…-oneui-phase7-calibration-release.md` | Written after Phase 6 | all |
 

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -21,7 +22,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.CircleIconButton
+import com.rolla.musicplayer.core.designsystem.component.FastScrollContainer
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.buildFastScrollSections
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
@@ -165,20 +168,27 @@ private fun SongList(
     // or leaving selection mode flips selectionActive and recomposes every visible row, which must swap its ⋮ for a
     // checkbox anyway.
     val selectionActive by remember(selection) { derivedStateOf { selection.isActive } }
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag(SONG_LIST_TEST_TAG),
-        contentPadding = PaddingValues(bottom = bottomPadding),
-    ) {
-        items(items = songs, key = { song -> song.id }) { song ->
-            val isSelected by remember(song.id, selection) { derivedStateOf { selection.isSelected(song.id) } }
-            SongListItem(
-                song = song,
-                onClick = { if (selection.isActive) selection.toggle(song.id) else onSongClick(song) },
-                onMoreClick = { onMoreClick(song) },
-                selected = isSelected,
-                selectionModeActive = selectionActive,
-                onLongClick = { selection.toggle(song.id) },
-            )
+    val listState = rememberLazyListState()
+    // The repository hands the songs in library order, so each letter's rows are one run (Phase 5 ruling 1).
+    val sections = remember(songs) { buildFastScrollSections(songs.map { it.title }) }
+    FastScrollContainer(listState = listState, sections = sections, modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            // SONG_LIST_TEST_TAG stays on the LazyColumn itself: the :baselineprofile journey scrolls this node.
+            modifier = Modifier.fillMaxSize().testTag(SONG_LIST_TEST_TAG),
+            contentPadding = PaddingValues(bottom = bottomPadding),
+        ) {
+            items(items = songs, key = { song -> song.id }) { song ->
+                val isSelected by remember(song.id, selection) { derivedStateOf { selection.isSelected(song.id) } }
+                SongListItem(
+                    song = song,
+                    onClick = { if (selection.isActive) selection.toggle(song.id) else onSongClick(song) },
+                    onMoreClick = { onMoreClick(song) },
+                    selected = isSelected,
+                    selectionModeActive = selectionActive,
+                    onLongClick = { selection.toggle(song.id) },
+                )
+            }
         }
     }
 }

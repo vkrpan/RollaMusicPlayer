@@ -13,19 +13,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.FastScrollContainer
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.buildFastScrollSections
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
@@ -38,6 +46,9 @@ import com.rolla.musicplayer.core.ui.tracksCountLabel
 
 /** Test tag on the horizontally scrolling row of smart-playlist feature cards. */
 internal const val FEATURE_CARD_ROW_TEST_TAG = "playlists_feature_cards"
+
+/** Test tag on the Playlists tab's list (the feature-card row, then the user playlists). */
+internal const val PLAYLIST_LIST_TEST_TAG = "playlist_list"
 
 /**
  * The Home pager's Playlists tab (spec §8.2). Home owns the header (its + action raises [showCreateDialog], and
@@ -109,6 +120,8 @@ internal fun PlaylistsTabContent(
 }
 
 /** The feature-card row, then the user playlists or their empty hint, in one list. */
+// One list with its rail: the card row's measured height is the rail's top inset, so the two must stay together.
+@Suppress("LongMethod")
 @Composable
 private fun PlaylistsList(
     smartPlaylists: List<SmartPlaylistSummary>,
@@ -117,18 +130,39 @@ private fun PlaylistsList(
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
+    val listState = rememberLazyListState()
+    // Spec §10: the rail covers the user rows only; the feature-card row is item 0, so jumps skip it.
+    val sections = remember(userPlaylists) { buildFastScrollSections(userPlaylists.map { it.name }) }
+    // The rail starts below the card row, so the cards' end stays tappable and swipeable (spec §10: user rows only).
+    // A fixed inset: the rail does not grow as the cards scroll away. Phase 7 calibrates it against the reference.
+    // Saved, so a list restored past the cards (pager, rotation) keeps the inset before the cards are measured again.
+    var featureCardsHeightPx by rememberSaveable { mutableIntStateOf(0) }
+    val railTopPadding = with(LocalDensity.current) { featureCardsHeightPx.toDp() }
+    FastScrollContainer(
+        listState = listState,
+        sections = sections,
+        itemOffset = 1,
+        railTopPadding = railTopPadding,
         modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
     ) {
-        item(key = "feature-cards") {
-            FeatureCardRow(smartPlaylists = smartPlaylists, onSmartPlaylistClick = onSmartPlaylistClick)
-        }
-        if (userPlaylists.isEmpty()) {
-            item(key = "empty-user-playlists") { EmptyUserPlaylistsState() }
-        } else {
-            items(items = userPlaylists, key = { it.id }) { playlist ->
-                PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().testTag(PLAYLIST_LIST_TEST_TAG),
+            contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+        ) {
+            item(key = "feature-cards") {
+                FeatureCardRow(
+                    smartPlaylists = smartPlaylists,
+                    onSmartPlaylistClick = onSmartPlaylistClick,
+                    modifier = Modifier.onSizeChanged { featureCardsHeightPx = it.height },
+                )
+            }
+            if (userPlaylists.isEmpty()) {
+                item(key = "empty-user-playlists") { EmptyUserPlaylistsState() }
+            } else {
+                items(items = userPlaylists, key = { it.id }) { playlist ->
+                    PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
+                }
             }
         }
     }

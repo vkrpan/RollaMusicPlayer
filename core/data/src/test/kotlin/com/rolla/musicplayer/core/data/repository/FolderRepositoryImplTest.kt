@@ -7,16 +7,33 @@ import com.rolla.musicplayer.core.model.Folder
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class FolderRepositoryImplTest {
 
     private val folderDao: FolderDao = mockk()
-    private val repository = FolderRepositoryImpl(folderDao)
+    private val repository = FolderRepositoryImpl(folderDao, UnconfinedTestDispatcher())
+
+    // Ruling 1 (the 4b carry-over). CASE_INSENSITIVE_ORDER puts "Éclair" after "Zed". Mutation: restore the 4b
+    // comparator → ["Abba", "Zed", "Éclair"] → RED.
+    @Test
+    fun observeFolders_sortsAccentedNamesWithTheirLetter() = runTest {
+        every { folderDao.observeFolders() } returns flowOf(
+            listOf(
+                FolderSummary("Music/Abba", 1, "a"),
+                FolderSummary("Music/Zed", 1, "z"),
+                FolderSummary("Éclair", 1, "e"),
+            ),
+        )
+        assertEquals(listOf("Abba", "Éclair", "Zed"), repository.observeFolders().first().map { it.name })
+    }
 
     // Ruling 2. The DAO hands rows in path order, which is not name order. Mutation: drop the sort →
     // [Internal storage, Alarms, Download, Abba] → RED; sort by path → the same → RED.

@@ -61,6 +61,18 @@ object RollaDimens {
     val fastScrollWidth = 22.dp
     val fastScrollEnd = 8.dp
 
+    /**
+     * Rail height one A–Z label needs (spec §10: the 11 sp letter plus spacing). Below 27 slots the rail shows only
+     * every k-th label.
+     */
+    val fastScrollLetterSlot = 16.dp
+
+    /**
+     * Six 16 dp slots: the shortest rail the container keeps when a top inset would squeeze it. At a large font scale
+     * the slot grows to the letter's line height, so this holds fewer slots.
+     */
+    val fastScrollMinRailHeight = 96.dp
+
     // Row trailing geometry, measured from the panel's end edge on the reference (Tracks/Playlists).
     // The A–Z rail (Phase 5) occupies the last listDividerEnd; rows never move when it lands. Trailing text
     // and the divider stay clear of it, but the ⋮ 48 dp touch box reaches 4 dp into the rail strip:

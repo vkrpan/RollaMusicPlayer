@@ -8,14 +8,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.FastScrollContainer
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.buildFastScrollSections
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Folder
@@ -68,13 +72,19 @@ internal fun FoldersTabContent(
 private fun FolderList(folders: List<Folder>, onFolderClick: (String) -> Unit, modifier: Modifier = Modifier) {
     // The list scrolls under the floating mini-player and the navigation bar, so its bottom padding is both
     // (spec §7.3): the last row can always be scrolled fully into view above the pill.
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag(FOLDER_LIST_TEST_TAG),
-        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
-    ) {
-        // Keyed by path, the folder's identity and unique; names repeat across parents (ruling 15).
-        items(items = folders, key = { folder -> folder.path }) { folder ->
-            FolderRow(folder = folder, onClick = { onFolderClick(folder.path) })
+    val listState = rememberLazyListState()
+    // Sections come from the displayed name, the order the repository sorts by (4b ruling 2, Phase 5 ruling 4).
+    val sections = remember(folders) { buildFastScrollSections(folders.map { it.name }) }
+    FastScrollContainer(listState = listState, sections = sections, modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().testTag(FOLDER_LIST_TEST_TAG),
+            contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+        ) {
+            // Keyed by path, the folder's identity and unique; names repeat across parents (ruling 15).
+            items(items = folders, key = { folder -> folder.path }) { folder ->
+                FolderRow(folder = folder, onClick = { onFolderClick(folder.path) })
+            }
         }
     }
 }

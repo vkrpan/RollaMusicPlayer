@@ -25,7 +25,14 @@ class PlaylistRepositoryImplTest {
     @Before
     fun setup() {
         fakePlaylistDao = FakePlaylistDao()
-        repository = PlaylistRepositoryImpl(fakePlaylistDao)
+        repository = PlaylistRepositoryImpl(fakePlaylistDao, mainDispatcherRule.testDispatcher)
+    }
+
+    // Ruling 1. Created in neither the expected nor binary order. Mutation: drop the sort → the fake's order → RED.
+    @Test
+    fun `observePlaylists_sortsInLibraryOrder`() = runTest {
+        listOf("Zebra", "Émile", "apple").forEach { repository.createPlaylist(it) }
+        assertEquals(listOf("apple", "Émile", "Zebra"), repository.observePlaylists().first().map { it.name })
     }
 
     // ── observePlaylists ──────────────────────────────────────────────────────

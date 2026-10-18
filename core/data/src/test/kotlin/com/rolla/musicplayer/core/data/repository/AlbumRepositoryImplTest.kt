@@ -6,18 +6,38 @@ import com.rolla.musicplayer.core.database.relation.AlbumSearchRow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AlbumRepositoryImplTest {
 
     private val albumDao: AlbumDao = mockk()
-    private val repository = AlbumRepositoryImpl(albumDao)
+    private val repository = AlbumRepositoryImpl(albumDao, UnconfinedTestDispatcher())
+
+    private fun albumRow(albumId: Long, title: String) = AlbumSearchRow(
+        albumId = albumId,
+        title = title,
+        artist = "Artist",
+        songCount = 1,
+        artworkUri = "art/$albumId",
+    )
+
+    // Ruling 5. The DAO order is NOCASE: "Émile" after "Zappa". Mutation: drop the sort → RED.
+    @Test
+    fun observeAlbums_sortsInLibraryOrder() = runTest {
+        every { albumDao.observeAlbums() } returns flowOf(
+            listOf(albumRow(1L, "Abba"), albumRow(2L, "Zappa"), albumRow(3L, "Émile")),
+        )
+        assertEquals(listOf("Abba", "Émile", "Zappa"), repository.observeAlbums().first().map { it.title })
+    }
 
     private fun songEntity(id: String, title: String, trackNumber: Int? = 1) = SongEntity(
         id = id,

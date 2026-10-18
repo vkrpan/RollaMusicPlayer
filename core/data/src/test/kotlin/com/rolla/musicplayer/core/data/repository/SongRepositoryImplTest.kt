@@ -27,7 +27,36 @@ class SongRepositoryImplTest {
     @Before
     fun setup() {
         fakeSongDao = FakeSongDao()
-        repository = SongRepositoryImpl(fakeSongDao)
+        repository = SongRepositoryImpl(fakeSongDao, mainDispatcherRule.testDispatcher)
+    }
+
+    // ── library order (Phase 5) ───────────────────────────────────────────────
+
+    // Ruling 1. Inserted in NOCASE order (accented initials after Z, as SQLite gives them).
+    // Mutation: drop the sort → ["Zed", "Émile"…] → RED.
+    @Test
+    fun `observeSongs_sortsInLibraryOrder`() = runTest {
+        listOf("1" to "Zed", "2" to "Émile", "3" to "echo", "4" to "Abba").forEach { (id, title) ->
+            fakeSongDao.upsertSongs(listOf(testSongEntity(id = id, mediaStoreId = id.toLong(), title = title)))
+        }
+        assertEquals(listOf("Abba", "echo", "Émile", "Zed"), repository.observeSongs().first().map { it.title })
+    }
+
+    // Ruling 4. Identical titles; the DAO hands the higher id first.
+    // Mutation: drop .thenBy { it.id } → ["9", "2"] → RED.
+    @Test
+    fun `observeSongs_breaksTitleTiesById`() = runTest {
+        fakeSongDao.upsertSongs(listOf(testSongEntity(id = "9", mediaStoreId = 9L, title = "Intro")))
+        fakeSongDao.upsertSongs(listOf(testSongEntity(id = "2", mediaStoreId = 2L, title = "Intro")))
+        assertEquals(listOf("2", "9"), repository.observeSongs().first().map { it.id })
+    }
+
+    // Mutation: leave observeFavourites unsorted → ["Zed", "Émile"] → RED. Control: both are favourites (count 2).
+    @Test
+    fun `observeFavourites_sortsInLibraryOrder`() = runTest {
+        fakeSongDao.upsertSongs(listOf(testSongEntity(id = "1", mediaStoreId = 1L, title = "Zed", isFavorite = true)))
+        fakeSongDao.upsertSongs(listOf(testSongEntity(id = "2", mediaStoreId = 2L, title = "Émile", isFavorite = true)))
+        assertEquals(listOf("Émile", "Zed"), repository.observeFavourites().first().map { it.title })
     }
 
     // ── observeSongs ──────────────────────────────────────────────────────────

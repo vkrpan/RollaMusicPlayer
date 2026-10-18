@@ -8,14 +8,18 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.FastScrollContainer
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.buildFastScrollSections
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Artist
@@ -67,14 +71,19 @@ internal fun ArtistsTabContent(
 private fun ArtistList(artists: List<Artist>, onArtistClick: (String) -> Unit, modifier: Modifier = Modifier) {
     // The list scrolls under the floating mini-player and the navigation bar, so its bottom padding is both
     // (spec §7.3): the last row can always be scrolled fully into view above the pill.
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag(ARTIST_LIST_TEST_TAG),
-        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
-    ) {
-        // Keyed by name, the GROUP BY key and so unique; never by the synthetic FNV id, whose collision would
-        // crash the list (ruling 12). "Queen" and "queen" are two artists with two keys.
-        items(items = artists, key = { artist -> artist.name }) { artist ->
-            ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
+    val listState = rememberLazyListState()
+    val sections = remember(artists) { buildFastScrollSections(artists.map { it.name }) }
+    FastScrollContainer(listState = listState, sections = sections, modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().testTag(ARTIST_LIST_TEST_TAG),
+            contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+        ) {
+            // Keyed by name, the GROUP BY key and so unique; never by the synthetic FNV id, whose collision would
+            // crash the list (ruling 12). "Queen" and "queen" are two artists with two keys.
+            items(items = artists, key = { artist -> artist.name }) { artist ->
+                ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
+            }
         }
     }
 }

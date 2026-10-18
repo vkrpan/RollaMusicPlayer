@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.feature.playlists
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -14,6 +15,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.FAST_SCROLL_RAIL_TEST_TAG
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Song
@@ -107,6 +109,29 @@ class FavouritesTabTest {
         composeRule.onNodeWithTag(FAVOURITES_LIST_TEST_TAG).assertExists()
     }
 
+    // Mutation: leave FavouritesList without the container → no rail → RED.
+    @Test
+    fun `the rail jumps to the first favourite of a letter`() {
+        setContent(songs = alphaMango())
+        jumpTo("M")
+        assertAtListTop(FAVOURITES_LIST_TEST_TAG, "Mango 0")
+    }
+
+    private fun jumpTo(label: String) {
+        val rail = composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).fetchSemanticsNode()
+        val actions = rail.config[SemanticsActions.CustomActions]
+        val matches = actions.filter { it.label == "Jump to $label" }
+        assertEquals("One \"Jump to $label\" action among ${actions.map { it.label }}", 1, matches.size)
+        composeRule.runOnIdle { matches.single().action() }
+        composeRule.waitForIdle()
+    }
+
+    private fun assertAtListTop(listTag: String, rowText: String) {
+        val listTop = composeRule.onNodeWithTag(listTag).getUnclippedBoundsInRoot().top
+        val rowTop = composeRule.onNodeWithText(rowText).getUnclippedBoundsInRoot().top
+        assertEquals(listTop.value, rowTop.value, 0.5f)
+    }
+
     // Defaulted test-host knobs: each test overrides only the inputs it probes.
     @Suppress("LongParameterList")
     private fun setContent(
@@ -152,5 +177,10 @@ class FavouritesTabTest {
             // Empty so rows render ArtworkPlaceholder and Coil never starts a load under Robolectric.
             artworkUri = "",
         )
+
+        /** As in TracksTabTest: 25 "Alpha" titles, then 25 "Mango" titles, in library order; every artist is "Zed". */
+        fun alphaMango(): List<Song> =
+            (List(25) { song(id = "a$it", title = "Alpha $it") } + List(25) { song(id = "m$it", title = "Mango $it") })
+                .map { it.copy(artist = "Zed") }
     }
 }

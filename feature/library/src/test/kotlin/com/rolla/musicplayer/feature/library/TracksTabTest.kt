@@ -5,10 +5,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
@@ -16,7 +20,9 @@ import androidx.compose.ui.test.assertIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -32,6 +38,7 @@ import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.FAST_SCROLL_RAIL_TEST_TAG
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Playlist
@@ -242,6 +249,104 @@ class TracksTabTest {
         }
     }
 
+    // 25 "Alpha" titles, then 25 "Mango" titles, as the repository orders them; every artist is "Zed".
+    // Mutation: key the sections on song.artist → only Z is populated, no "Jump to M" → RED.
+    // Control: the rail exists and "Mango 0" lands at the list's top.
+    @Test
+    fun `the rail jumps to the first track of a letter`() {
+        setTab(songs = alphaMango())
+        jumpTo("M")
+        assertAtListTop(SONG_LIST_TEST_TAG, "Mango 0")
+    }
+
+    // Review Focus 3. A rescan inserts 10 "Beta" titles before the Mangos. Mutation: remember the sections without the
+    // songs key → M still targets index 25 ("Beta 0" at the top) → RED.
+    @Test
+    fun `the rail follows the library when it changes`() {
+        var songs by mutableStateOf(alphaMango())
+        setTab(songsProvider = { songs })
+        songs = alphaMango().take(25) + List(10) { song("b$it", "Beta $it") } + alphaMango().drop(25)
+        composeRule.waitForIdle()
+        jumpTo("M")
+        assertAtListTop(SONG_LIST_TEST_TAG, "Mango 0")
+        // Fix round 1, I3: the rescan's own section arrived. B has a section only after the update.
+        jumpTo("B")
+        assertAtListTop(SONG_LIST_TEST_TAG, "Beta 0")
+    }
+
+    // Review Focus 5. Selection mode is on, and a tap lands on the rail over the rows' end. The list jumps; nothing is
+    // played, toggled or opened. Mutation: put the rail before the list in the container's Box (under the rows) → the
+    // tap reaches a row → toggles → RED. Control: the list moved off its first row.
+    @Test
+    fun `a tap on the rail never reaches the row under it`() {
+        val played = mutableListOf<Song>()
+        // SongSelectionState's constructor is internal to :core:ui, so the host's remembered state is selected here.
+        setTab(songs = alphaMango(), onSongClick = { played += it })
+        composeRule.runOnIdle { selection.toggle("a0") }
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).performTouchInput {
+            click(Offset(centerX, height * 13.5f / 27f))
+        }
+        composeRule.waitForIdle()
+        assertTrue(played.isEmpty())
+        assertEquals(setOf("a0"), selection.selectedIds)
+        composeRule.onNodeWithText("Add to playlist").assertDoesNotExist()
+        assertAtListTop(SONG_LIST_TEST_TAG, "Mango 0")
+    }
+
+    // Fix round 1, I2 (Review Focus 5 outside selection mode, ruling 9). The tap lands 2 dp inside the rail's start
+    // edge, inside the 4 dp where a row's 48 dp ⋮ box (ending listOverflowEnd = 26 dp before the row's end) reaches
+    // into the 30 dp rail strip. The list jumps; nothing is played and no options sheet opens. Mutation: put the rail
+    // under the list (before content() in the container's Box) → the tap reaches the row's ⋮ or the row → RED.
+    // Control: the list jumped to M.
+    @Test
+    fun `a tap on the rail's start edge never reaches the row's overflow`() {
+        val played = mutableListOf<Song>()
+        setTab(songs = alphaMango(), onSongClick = { played += it })
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).performTouchInput {
+            click(Offset(2.dp.toPx(), height * 13.5f / 27f))
+        }
+        composeRule.waitForIdle()
+        assertTrue("A tap on the rail must not play a track, played=$played", played.isEmpty())
+        composeRule.onNodeWithText("Add to playlist").assertDoesNotExist()
+        assertAtListTop(SONG_LIST_TEST_TAG, "Mango 0")
+    }
+
+    // 4b carry-over T6. Mutation: move the Scanning branch below the list branch → the list renders → RED.
+    @Test
+    fun `scanning wins over a non-empty list`() {
+        setTab(songs = alphaMango(), scanState = ScanState.Scanning)
+        composeRule.onNodeWithContentDescription("Scanning library").assertExists()
+        composeRule.onNodeWithTag(SONG_LIST_TEST_TAG).assertDoesNotExist()
+    }
+
+    // Spec §10: no rail when the list fits. Mutation: drop FastScrollContainer's canScroll gate → RED. Control (ruling
+    // P3): the rows show, and once the library grows past one screen the rail appears ("never render" → RED there).
+    @Test
+    fun `a short library has no rail`() {
+        var songs by mutableStateOf(alphaMango().take(3))
+        setTab(songsProvider = { songs })
+        composeRule.onNodeWithText("Alpha 2").assertExists()
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertDoesNotExist()
+        songs = alphaMango()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertExists()
+    }
+
+    private fun jumpTo(label: String) {
+        val rail = composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).fetchSemanticsNode()
+        val actions = rail.config[SemanticsActions.CustomActions]
+        val matches = actions.filter { it.label == "Jump to $label" }
+        assertEquals("One \"Jump to $label\" action among ${actions.map { it.label }}", 1, matches.size)
+        composeRule.runOnIdle { matches.single().action() }
+        composeRule.waitForIdle()
+    }
+
+    private fun assertAtListTop(listTag: String, rowText: String) {
+        val listTop = composeRule.onNodeWithTag(listTag).getUnclippedBoundsInRoot().top
+        val rowTop = composeRule.onNodeWithText(rowText).getUnclippedBoundsInRoot().top
+        assertEquals(listTop.value, rowTop.value, 0.5f)
+    }
+
     @Composable
     private fun PruningHost(songs: List<Song>, scanState: ScanState) {
         RollaMusicPlayerTheme(darkTheme = true) {
@@ -265,12 +370,15 @@ class TracksTabTest {
     @Suppress("LongParameterList")
     private fun setTab(
         songs: List<Song> = this.songs,
+        // Read inside the composition, so a test can swap the library (a rescan) after setContent.
+        songsProvider: () -> List<Song> = { songs },
         scanState: ScanState = ScanState.Done(added = 0, removed = 0),
         miniPlayerInset: Dp = 0.dp,
         hostHeight: Dp? = null,
         userPlaylists: List<Playlist> = emptyList(),
         onAddSongToPlaylist: (String, Long) -> Unit = { _, _ -> },
         onEditTagsClick: (Song) -> Unit = {},
+        onSongClick: (Song) -> Unit = { songClicks++ },
     ) {
         composeRule.setContent {
             view = LocalView.current
@@ -280,11 +388,11 @@ class TracksTabTest {
                     Box(hostModifier.testTag(HOST_TAG)) {
                         selection = rememberSongSelectionState()
                         TracksTabContent(
-                            songs = songs,
+                            songs = songsProvider(),
                             scanState = scanState,
                             selection = selection,
                             userPlaylists = userPlaylists,
-                            onSongClick = { songClicks++ },
+                            onSongClick = onSongClick,
                             onShuffleClick = { shuffleClicks++ },
                             onPlayClick = { playClicks++ },
                             onAddSongToPlaylist = onAddSongToPlaylist,
@@ -335,5 +443,23 @@ class TracksTabTest {
             // Empty so rows render ArtworkPlaceholder and Coil never starts a load under Robolectric.
             artworkUri = "",
         )
+
+        // Every artist is "Zed", so a rail keyed on the artist instead of the title is visible.
+        fun song(id: String, title: String) = Song(
+            id = id,
+            title = title,
+            artist = "Zed",
+            album = "Album",
+            albumId = 1L,
+            durationMs = 200_000L,
+            trackNumber = null,
+            year = 2001,
+            contentUri = "content://media/external/audio/media/$id",
+            artworkUri = "",
+        )
+
+        /** 50 songs in library order: a0..a24 "Alpha 0..24", then m0..m24 "Mango 0..24". */
+        fun alphaMango(): List<Song> =
+            List(25) { song("a$it", "Alpha $it") } + List(25) { song("m$it", "Mango $it") }
     }
 }

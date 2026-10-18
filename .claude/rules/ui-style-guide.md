@@ -113,7 +113,10 @@ Rule: containers and cards are **24dp+**; thumbnails **12dp**; anything button-l
 - **Dividers:** hairline `outlineVariant`, inset to start after the thumbnail.
 - **Section spacing:** 24dp between groups; 16dp between cards.
 - **Icons:** 24dp standard; large Play 56–64dp; mini-player transport 24dp.
-- **Touch targets:** ≥48dp always.
+- **Touch targets:** ≥48dp always, with two **documented exceptions** (spec §5.4), which the user accepted on 2026-10-06 in exchange
+  for the exact reference look. Both stay above WCAG 2.2 AA's 24 dp minimum, and both keep full semantic-action alternatives:
+  - **EQ slider columns:** the touch width is `eqColumnPitch` (28.7 dp). Each band has increase and decrease actions.
+  - **The A–Z rail:** the touch width is `fastScrollWidth + fastScrollEnd` (30 dp). Each populated section has a "Jump to X" action.
 - **Mini-player:** full-width minus 8dp side margins, height ~64dp, pill radius, sits above the nav-bar inset.
 - **Feature cards (Recently played, etc.):** ~150×150dp square, 28dp radius, horizontally scrollable row with 12dp gaps.
 
@@ -151,6 +154,8 @@ Leading 56dp/12dp artwork (Coil; placeholder = music-note glyph on `surfaceConta
 
 ### Fast-Scroll A–Z Index
 Vertical alphabet pinned to the right edge of the list, `fastScrollIndex` color, ~12sp; drag jumps to section.
+Built (Phase 5) as `FastScrollRail` / `FastScrollContainer` in `:core:designsystem`; binding behaviour is spec §10, and the
+list order it relies on is spec §9.0 (`#` first, then A–Z, case and accents ignored).
 
 ### Feature Cards (Recently played / Favourites / Most played)
 Square 28dp cards; either a centered large music-note glyph on `surfaceContainerHigh`, or an album-art

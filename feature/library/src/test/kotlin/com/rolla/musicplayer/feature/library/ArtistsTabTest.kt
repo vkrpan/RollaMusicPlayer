@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.feature.library
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.FAST_SCROLL_RAIL_TEST_TAG
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Artist
@@ -78,6 +80,40 @@ class ArtistsTabTest {
         val last = composeRule.onNodeWithText("Artist 19").getUnclippedBoundsInRoot()
         val root = composeRule.onRoot().getUnclippedBoundsInRoot()
         assertTrue(last.bottom <= root.bottom - 60.dp)
+    }
+
+    // Ruling 1 / Review Focus 1: the accented "Émile" rows are sectioned under E. Mutation: key the sections on
+    // artist.id.toString() → every key is '#' → no "Jump to E" → RED. Control: the rail exists.
+    @Test
+    fun `the rail jumps to an accented artist under its letter`() {
+        val artists = List(20) { artist(it.toLong(), "Abba $it") } + List(20) { artist(100L + it, "Émile $it") }
+        setContent(artists = artists)
+        jumpTo("E")
+        assertAtListTop(ARTIST_LIST_TEST_TAG, "Émile 0")
+    }
+
+    // 4b carry-over T6. Mutation: move the Scanning branch below the list branch → RED. Control (ruling P3): the
+    // scanning indicator shows.
+    @Test
+    fun `scanning wins over a non-empty list`() {
+        setContent(artists = List(3) { artist(it.toLong(), "Artist $it") }, scanState = ScanState.Scanning)
+        composeRule.onNodeWithContentDescription("Scanning library").assertExists()
+        composeRule.onNodeWithTag(ARTIST_LIST_TEST_TAG).assertDoesNotExist()
+    }
+
+    private fun jumpTo(label: String) {
+        val rail = composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).fetchSemanticsNode()
+        val actions = rail.config[SemanticsActions.CustomActions]
+        val matches = actions.filter { it.label == "Jump to $label" }
+        assertEquals("One \"Jump to $label\" action among ${actions.map { it.label }}", 1, matches.size)
+        composeRule.runOnIdle { matches.single().action() }
+        composeRule.waitForIdle()
+    }
+
+    private fun assertAtListTop(listTag: String, rowText: String) {
+        val listTop = composeRule.onNodeWithTag(listTag).getUnclippedBoundsInRoot().top
+        val rowTop = composeRule.onNodeWithText(rowText).getUnclippedBoundsInRoot().top
+        assertEquals(listTop.value, rowTop.value, 0.5f)
     }
 
     private fun setContent(

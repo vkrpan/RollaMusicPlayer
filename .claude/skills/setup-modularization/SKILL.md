@@ -58,6 +58,7 @@ build-logic/                  # Convention plugins (included build)
 :feature:*      → NEVER another :feature:*        (features are siblings, never depend on each other)
 :core:data      → :core:database, :core:datastore, :core:media, :core:model, :core:common
 :core:ui        → :core:designsystem, :core:model
+:core:designsystem → :core:common               (only for the library order's indexLetter; no Android/Compose code in :core:common)
 :core:database  → :core:model (+ :core:common)
 :core:datastore → :core:model (+ :core:common)
 :core:media     → :core:model (+ :core:common)

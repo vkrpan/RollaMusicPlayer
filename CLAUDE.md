@@ -182,7 +182,7 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 
 :core
 ├── :core:model         # Domain models + enums (Song, Album, Artist, Playlist, ...). Pure Kotlin.
-├── :core:common        # EMPTY placeholder (planned: shared dispatchers/Result types — today each feature declares its own dispatcher qualifier, e.g. TagEditorIoDispatcher/WidgetIoDispatcher)
+├── :core:common        # The library order (text/LibraryOrder.kt: indexLetter, sortedByLibraryName), shared by :core:data and :core:designsystem. Dispatcher qualifiers are still per module (e.g. CoreDataIoDispatcher, TagEditorIoDispatcher, WidgetIoDispatcher)
 ├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
 ├── :core:datastore     # DataStore: app settings (theme/dynamic color/speed/skip-silence), equalizer active-state, recent searches
 ├── :core:data          # Repositories + media scanner
@@ -315,9 +315,7 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 > - **Phase 4a:** Home has five tabs: Favourites · Playlists · Tracks · Albums · Artists. Favourites (`FavouritesTab`,
 >   `:feature:playlists`) plays the favourite tracks, with no multi-select. Albums is a 2-column `AlbumCard` grid and
 >   Artists is an `ArtistRow` list with round cover avatars (`Artist.artworkUri`). Both open AlbumDetail/ArtistDetail,
->   which are now also reached from Home, not only from Search. Every Home list sorts
->   case-insensitively, but SQLite NOCASE folds ASCII only, so accented initials still sort after Z. Choosing a
->   Unicode-aware order is a Phase 5 carry-over (the A–Z rail needs it). The per-track options sheet lives in
+>   which are now also reached from Home, not only from Search. The per-track options sheet lives in
 >   `:core:ui` (`SongOptionsHost`). `AlbumArtworkCache.peek` gives Coil a fast path that does
 >   not suspend, and cache files are published by an atomic rename. The Robolectric pixel-test helpers live in
 >   `:core:testing` (`PixelCapture.kt`). `:core:testing` is test-only and must stay `testImplementation`.
@@ -329,6 +327,16 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   and `folderDisplayPath`). The scanner reads RELATIVE_PATH (API 29+) or DATA (24–28) through `FolderPaths`, and
 >   `LibraryIndexer` re-upserts a row whenever its stored folder differs from the scanned one, which backfills an upgraded
 >   install on its first sync. Rows share `ListRowScaffold` (`AlbumRow`, `ArtistRow`, `FolderRow`).
+> - **Phase 5:** Tracks, Favourites, Playlists (user rows), Artists and Folders have the One UI **A–Z rail**.
+>   - **The rail:** tap or drag jumps the list, with a haptic tick; TalkBack sees one node, "Fast scroll, letter index",
+>     with a "Jump to X" action per populated letter.
+>   - **Components:** `FastScrollRail` and `FastScrollContainer` live in `:core:designsystem`, the pure index logic in
+>     `FastScrollIndex.kt`. The container shows the rail only while the list can scroll (hidden when it fits); on Playlists the rail starts below
+>     the feature cards.
+>   - **Library order:** every Home list is in one library order (spec §9.0): `#` first, then A–Z, ignoring case and
+>     accents, so "Émile" sorts and jumps under E. `:core:common`'s `LibraryOrder.kt` (`indexLetter`,
+>     `sortedByLibraryName`) defines it, and the repositories apply it on `@CoreDataDefaultDispatcher`, off the main
+>     thread. The DAOs keep NOCASE as a pre-order.
 > - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
 >   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
 >   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to
@@ -385,7 +393,7 @@ post-1.0 ask rather than building them under a "polish" mandate.
 | `:core:model` — domain models | foundation | `Song`, `Album`, `Artist`, `Playlist`, `EqualizerPreset`, `RepeatMode`, `ShuffleMode` |
 | `:core:database` — Room | foundation | Entities, DAOs, `MusicDatabase` |
 | `:core:datastore` — DataStore | foundation | Settings + equalizer active-state |
-| `:core:common` — utilities | foundation | Dispatchers, Result types, extensions |
+| `:core:common` — utilities | foundation; redesign Phase 5 | Empty at v1.0. The redesign's Phase 5 adds the library order (`LibraryOrder.kt`). Dispatcher qualifiers stay per module |
 | `:core:designsystem` — theme | foundation | Color, Typography, Shape tokens + semantic extensions (`songTitle`, `miniPlayerContainer`, `sliderInactiveTrack`, etc.) per ui-style-guide |
 | `:core:permissions` — permission gate | foundation | Version-aware READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE, rationale UI, Settings routing |
 | `:core:data` — repositories + scanner | foundation | MediaStore scanner, Song/Album/Artist repositories |
@@ -427,15 +435,15 @@ self-healing items were logged as backlog rather than fixed pre-merge:
 
 ### What remains (post-1.0 backlog)
 
-- The three deliberate cuts above (custom tag system, A–Z fast-scroll, tab bar/Folders) — revisit only on explicit ask
+- The custom tag system cut above — revisit only on explicit ask (the A–Z fast-scroll, tab bar and Folders are being built by the One UI redesign, Phases 2–5)
 - The two open review follow-ups above (#2 was closed in redesign Phase 4a)
-- Optional consolidation: build `:core:common` for real (shared dispatcher qualifiers replacing the per-feature ones) or drop the module — still an empty `Placeholder.kt`
+- Optional consolidation: move the per-module dispatcher qualifiers into `:core:common` (it now holds the library order, since redesign Phase 5)
 
 ## Next Steps (post-1.0)
 
 1. Triage the review follow-ups above (all low/medium severity, non-blocking)
-2. Decide `:core:common`'s fate — consolidate shared dispatchers/Result types for real, or delete the placeholder module
-3. If there's appetite for further scope: custom tag system, A–Z fast-scroll index, or the center-weighted tab bar/Folders browsing — each is a new feature, not a fix, so treat as a fresh ask
+2. Decide whether `:core:common` should also take the shared dispatcher qualifiers (it is no longer a placeholder: it holds the library order)
+3. If there's appetite for further scope: the custom tag system is a new feature, not a fix, so treat it as a fresh ask (the A–Z fast-scroll index and the tab bar/Folders browsing are built by the One UI redesign)
 
 ## Notes
 

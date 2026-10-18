@@ -19,7 +19,18 @@ import javax.inject.Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class CoreDataIoDispatcher
 
-/** Binds [CoreDataIoDispatcher] to the real [Dispatchers.IO] for production. */
+/**
+ * Qualifies the [CoroutineDispatcher] the library repositories sort on (Phase 5 ruling 3). Room's flows emit in the
+ * collector's context, the main thread, and a large library's collation sort costs about a frame.
+ */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class CoreDataDefaultDispatcher
+
+/**
+ * Binds [CoreDataIoDispatcher] to the real [Dispatchers.IO] and [CoreDataDefaultDispatcher] to the real
+ * [Dispatchers.Default] for production.
+ */
 @Module
 @InstallIn(SingletonComponent::class)
 object CoreDataDispatchersModule {
@@ -27,4 +38,8 @@ object CoreDataDispatchersModule {
     @Provides
     @CoreDataIoDispatcher
     fun provideCoreDataIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    @Provides
+    @CoreDataDefaultDispatcher
+    fun provideCoreDataDefaultDispatcher(): CoroutineDispatcher = Dispatchers.Default
 }

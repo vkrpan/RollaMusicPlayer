@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +26,9 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.CircleIconButton
+import com.rolla.musicplayer.core.designsystem.component.FastScrollContainer
 import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.buildFastScrollSections
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
@@ -165,12 +168,17 @@ private fun FavouritesList(
     modifier: Modifier = Modifier,
 ) {
     // The list scrolls under the floating mini-player and the navigation bar (spec §7.3), like the Tracks list.
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag(FAVOURITES_LIST_TEST_TAG),
-        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
-    ) {
-        items(items = songs, key = { song -> song.id }) { song ->
-            SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
+    val listState = rememberLazyListState()
+    val sections = remember(songs) { buildFastScrollSections(songs.map { it.title }) }
+    FastScrollContainer(listState = listState, sections = sections, modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().testTag(FAVOURITES_LIST_TEST_TAG),
+            contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+        ) {
+            items(items = songs, key = { song -> song.id }) { song ->
+                SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
+            }
         }
     }
 }

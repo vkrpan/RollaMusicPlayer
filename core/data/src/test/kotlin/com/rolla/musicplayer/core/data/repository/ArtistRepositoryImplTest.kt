@@ -7,18 +7,37 @@ import com.rolla.musicplayer.core.database.relation.ArtistSearchRow
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ArtistRepositoryImplTest {
 
     private val artistDao: ArtistDao = mockk()
-    private val repository = ArtistRepositoryImpl(artistDao)
+    private val repository = ArtistRepositoryImpl(artistDao, UnconfinedTestDispatcher())
+
+    private fun artistRow(name: String) = ArtistSearchRow(
+        name = name,
+        albumCount = 1,
+        songCount = 1,
+        artworkUri = "art/$name",
+    )
+
+    // Ruling 1. Mutation: drop the sort → ["Abba", "Zappa", "Émile"] → RED.
+    @Test
+    fun observeArtists_sortsInLibraryOrder() = runTest {
+        every { artistDao.observeArtists() } returns flowOf(
+            listOf(artistRow("Abba"), artistRow("Zappa"), artistRow("Émile")),
+        )
+        assertEquals(listOf("Abba", "Émile", "Zappa"), repository.observeArtists().first().map { it.name })
+    }
 
     private fun songEntity(id: String, title: String, trackNumber: Int? = 1) = SongEntity(
         id = id,

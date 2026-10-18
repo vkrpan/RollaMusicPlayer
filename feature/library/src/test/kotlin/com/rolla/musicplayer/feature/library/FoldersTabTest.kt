@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.feature.library
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.FAST_SCROLL_RAIL_TEST_TAG
 import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Folder
@@ -85,6 +87,43 @@ class FoldersTabTest {
         val last = composeRule.onNodeWithText("/Internal storage/Folder 19").getUnclippedBoundsInRoot()
         val root = composeRule.onRoot().getUnclippedBoundsInRoot()
         assertTrue(last.bottom <= root.bottom - 60.dp)
+    }
+
+    // The sections come from the display name, not the path: "Music/Mango n" shows as "Mango n". Mutation: key on
+    // folder.path → the rows sit under D ("Download/…") and M ("Music/…") → "Jump to A" missing → RED. Control:
+    // "Jump to M" lands on Mango 0.
+    @Test
+    fun `the rail sections folders by their displayed name`() {
+        val folders = List(20) { folder("Download/Alpha $it") } + List(20) { folder("Music/Mango $it") }
+        setContent(folders = folders)
+        jumpTo("A")
+        assertAtListTop(FOLDER_LIST_TEST_TAG, "Alpha 0")
+        jumpTo("M")
+        assertAtListTop(FOLDER_LIST_TEST_TAG, "Mango 0")
+    }
+
+    // 4b carry-over T6. Mutation: move the Scanning branch below the list branch → RED. Control (ruling P3): the
+    // scanning indicator shows.
+    @Test
+    fun `scanning wins over a non-empty list`() {
+        setContent(folders = List(3) { folder("Music/F$it") }, scanState = ScanState.Scanning)
+        composeRule.onNodeWithContentDescription("Scanning library").assertExists()
+        composeRule.onNodeWithTag(FOLDER_LIST_TEST_TAG).assertDoesNotExist()
+    }
+
+    private fun jumpTo(label: String) {
+        val rail = composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).fetchSemanticsNode()
+        val actions = rail.config[SemanticsActions.CustomActions]
+        val matches = actions.filter { it.label == "Jump to $label" }
+        assertEquals("One \"Jump to $label\" action among ${actions.map { it.label }}", 1, matches.size)
+        composeRule.runOnIdle { matches.single().action() }
+        composeRule.waitForIdle()
+    }
+
+    private fun assertAtListTop(listTag: String, rowText: String) {
+        val listTop = composeRule.onNodeWithTag(listTag).getUnclippedBoundsInRoot().top
+        val rowTop = composeRule.onNodeWithText(rowText).getUnclippedBoundsInRoot().top
+        assertEquals(listTop.value, rowTop.value, 0.5f)
     }
 
     private fun setContent(

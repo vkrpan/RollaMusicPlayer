@@ -216,7 +216,8 @@ never declare private `dp` literals for anything this table covers.
 | `listOverflowEnd` | 26 dp (end of the ⋮ 48 dp box; reaches 4 dp into the rail strip) | `listTrailingEnd` | 43 dp (trailing text end) |
 | `listDividerEnd` | = `fastScrollWidth` + `fastScrollEnd` (30 dp) | `featureCardLabelGap` | 8 dp (unmeasured; Phase 7) |
 | `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | `folderBadge` | 20 dp (icon box; measured glyph ~14 × 11 dp at 3.0 px/dp; Phase 4b ruling 5) |
-| `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | | |
+| `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | `fastScrollLetterSlot` | 16 dp (rail height one label needs, §10; Phase 5 ruling 10) |
+| `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | | |
 
 **Touch targets.** Glyphs keep their measured visual size, but every interactive element is at least 48 × 48 dp, through
 `minimumInteractiveComponentSize()` or padding. Examples: the 34 dp circle buttons, the 40 dp chips and the 35 dp switch (whose
@@ -232,7 +233,9 @@ reproduced by derived tokens in `RollaDimens`. Lay controls out with these; neve
 There are **two documented exceptions**, where the reference layout leaves less than 48 dp of horizontal room:
 
 1. EQ slider columns. The touch width equals `eqColumnPitch` (28.7 dp); the height is the full 237 dp track.
-2. The A–Z rail. The touch width is `fastScrollWidth + fastScrollEnd` (30 dp), so it doesn't overlap the rows' ⋮ targets.
+2. The A–Z rail. The touch width is `fastScrollWidth + fastScrollEnd` (30 dp). A row's 48 dp ⋮ box reaches 4 dp into that
+   strip (`listOverflowEnd` 26 dp). The rail is drawn above the list, so the rail wins those 4 dp and the ⋮ keeps 44 dp
+   (amended 2026-10-17, Phase 5 ruling 9).
 
 Both still exceed the WCAG 2.2 AA target minimum (24 dp), and both keep full semantic-action alternatives: per-band
 increase/decrease, and per-section "Jump to X". This regresses the v1.0 "≥48 dp everywhere" rule for these two controls only.
@@ -294,9 +297,17 @@ indicative; the plan may refine names, but not responsibilities.
 @Composable fun CircleIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit,
                                  modifier: Modifier = Modifier)
 
-// A–Z rail (§10). Pure index logic lives in FastScrollIndex.kt and is unit-tested.
+// A–Z rail (§10). Pure index logic lives in FastScrollIndex.kt and is unit-tested; the section letter comes from
+// :core:common's indexLetter, the same function the library order sorts by (§9.0).
 @Composable fun FastScrollRail(sections: List<FastScrollSection>, onSectionSelected: (FastScrollSection) -> Unit,
                                modifier: Modifier = Modifier)
+
+// Overlays a FastScrollRail on a LazyColumn (added 2026-10-17, Phase 5 ruling 7). Shows the rail only while the list can
+// scroll; a selection calls listState.scrollToItem(firstIndex + itemOffset). The rail runs from railTopPadding below the
+// top (capped so the rail keeps fastScrollMinRailHeight) to railBottomPadding above the bottom. A traversal group.
+@Composable fun FastScrollContainer(listState: LazyListState, sections: List<FastScrollSection>, modifier: Modifier = Modifier,
+                                    itemOffset: Int = 0, railBottomPadding: Dp = homeListBottomPadding(),
+                                    railTopPadding: Dp = 0.dp, content: @Composable BoxScope.() -> Unit)
 
 // Settings slider: 14 dp rounded track (primary active / sliderInactiveTrack), 20 dp thumb with background fill and a
 // 2 dp primary ring. Built on M3 Slider with custom track/thumb so semantics and keyboard support are kept.
@@ -508,6 +519,31 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
 
 ## 9. Data layer
 
+### 9.0 Library order (added 2026-10-17, Phase 5 rulings 1, 3 and 4)
+
+Every Home list (Tracks, Favourites, Playlists, Albums, Artists, Folders) is ordered by its display name, in this order:
+
+1. **Section first.** The section comes from `:core:common`'s `indexLetter(name)`: the first character after leading
+   whitespace, diacritics stripped (NFD) and uppercased; `A`–`Z` give their letter and anything else gives `#`. `#` sorts
+   first, then A–Z, so each rail section (§10) is one contiguous run.
+2. **Then collation.** `Collator.getInstance(Locale.ROOT)` at `PRIMARY` strength: base letters only, so case and accents
+   neither split nor reorder a section ("Émile" sorts between "Emil" and "Emma").
+3. **Then an exact tie-break per list:**
+   - songs: the title, then the id;
+   - playlists: the name, then the id;
+   - albums: the title, then the id;
+   - artists: the name;
+   - folders: the path in library order, then the exact path.
+
+**Where the sort runs.** The repositories re-sort in Kotlin (`sortedByLibraryName`), after `distinctUntilChanged()` and on
+`@CoreDataDefaultDispatcher` (`Dispatchers.Default`), because Room's flows emit on the collector's main thread. The DAOs'
+`COLLATE NOCASE` orders below remain a deterministic pre-order. Android's SQLite `UNICODE`/`LOCALIZED` collations were
+rejected: Room's verifier doesn't know them, and their order doesn't group by the rail's letters.
+
+**Costs.**
+- Names in `#` (digits, punctuation, non-Latin scripts, letters with no decomposition such as "Ø") sit before A.
+- Locale-specific alphabets are not followed.
+
 ### 9.1 Albums
 
 - Add `AlbumDao.observeAlbums(): Flow<List<AlbumRow>>`. It groups `songs` by `album_id` and orders by `album COLLATE NOCASE`. Artwork comes from the
@@ -556,23 +592,36 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
 - **Model:** add `data class Folder(val path: String, val name: String, val songCount: Int, val artworkUri: String)` to `:core:model`. `name` is the last
   path segment, or "Internal storage" for `''`.
 - **Repository:** add `FolderRepository` (`observeFolders`, `observeFolderSongs`) in `:core:data`, bound in `DataModule`.
-  `observeFolders` sorts by the display name case-insensitively, then by the path case-insensitively, then exactly, because the
-  header reads "Name" and §10's rail sections come from the displayed names (amended 2026-10-12, Phase 4b ruling 2). Like NOCASE, this
-  does not fold accents: the Phase 5 Unicode-collation choice applies here too.
+  `observeFolders` sorts by the display name, then by the path, in the library order of §9.0, then by the exact path. It sorts by
+  name because the header reads "Name" and §10's rail sections come from the displayed names (amended 2026-10-12, Phase 4b ruling 2;
+  the order itself amended 2026-10-17, Phase 5 ruling 4).
 - **Display path:** `"/Internal storage" + (if (path.isEmpty()) "" else "/$path")`.
 - **Known limitation:** the same relative path on two volumes merges into one folder. This is documented, not fixed.
 
 ## 10. A–Z fast-scroll rail
 
 - **Sections:**
-  - `FastScrollSection(label: String, firstIndex: Int)`, built by a pure `buildFastScrollSections(keys: List<String>)`.
-  - **Keys:** each item's display name, uppercased, with the first character run through `Normalizer` to strip diacritics. `A`–`Z` maps to its letter; anything else maps to `#`.
+  - `FastScrollSection(label: String, firstIndex: Int, populated: Boolean)`, built by a pure `buildFastScrollSections(keys: List<String>)`
+    (`populated` added 2026-10-17, Phase 5 ruling 6).
+  - **Keys:** each item's display name through `:core:common`'s `indexLetter` (leading whitespace skipped, the first character's
+    diacritics stripped, uppercased). `A`–`Z` maps to its letter; anything else maps to `#`. The list must be in §9.0's library
+    order, `#` first, so every section is one run. `buildFastScrollSections` binary-searches each label's first row and relies on
+    that order (Phase 5 final review, performance audit F1).
   - **Labels:** "#" plus A–Z. Every letter is shown, even with no items. A letter with no items targets the next populated section, or the previous one at the end.
-- **Fitting:** a letter needs 16 dp of rail height (`fastScrollLetter` at 11 sp plus spacing). When `railHeight / 16dp` < 27, the rail shows every
-  k-th label, where k is the smallest value that fits. Dropped letters are still reachable by drag, since drag maps the y position over the full list.
+- **Fitting:** a letter needs `fastScrollLetterSlot` (16 dp) of rail height, or the `fastScrollLetter` line height at the current
+  font scale if that is taller (Phase 5 ruling 10). When fewer than 27 slots fit, the rail shows every k-th label, where k is the
+  smallest value that fits. Every label keeps an equal slot of the rail's height, so a shown letter sits where a tap selects it, and
+  dropped letters are still reachable by drag. A shown letter is measured at its natural height and is never clipped to its slot.
   This matches the condensed Playlists rail in the reference.
+- **Extent:** the rail runs from the top of the list (below the sort header) to `homeListBottomPadding()` above the bottom, ending
+  at the pill (Phase 5 ruling 8; Phase 7 calibrates against the reference's ≈15 dp gap). On Playlists it starts below the
+  feature-card row (its measured height, saved across restores), so it does not cover the cards. A top inset is capped so the rail
+  keeps `fastScrollMinRailHeight`. In a container too short for both (Playlists in landscape) the rail therefore overlaps the card
+  row's end. The cap never goes below 0 dp, so a container shorter than `railBottomPadding + fastScrollMinRailHeight` keeps a shorter rail
+  instead of failing (amended 2026-10-17, Phase 5).
 - **Interaction:** tap or vertical drag on the rail calls `listState.scrollToItem(section.firstIndex)` (plus the header offset). A
-  `HapticFeedbackType.TextHandleMove` tick fires on each section change. No bubble.
+  `HapticFeedbackType.TextHandleMove` tick fires on each section change. No bubble. Tap and drag are separate detectors, so a
+  horizontal swipe that starts on the rail still pages the Home pager (Phase 5 ruling 11). Each new tap or drag counts as a change.
 - **Accessibility:** the rail is one semantics node, "Fast scroll, letter index", with custom actions per populated section (for example "Jump to M")
   and `traversalIndex` after the list. TalkBack users can ignore it.
 - **Where it appears:** Tracks, Favourites, Playlists (user rows only), Artists and Folders. It is hidden when the list fits on one screen.
