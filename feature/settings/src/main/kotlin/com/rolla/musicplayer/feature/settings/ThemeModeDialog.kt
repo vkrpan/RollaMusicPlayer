@@ -5,21 +5,17 @@ package com.rolla.musicplayer.feature.settings
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.model.ThemeMode
 
 /**
  * The Appearance section Theme row opens this: three radio options (System / Light / Dark),
- * ui-style-guide.md section 6 "Theme picker: AlertDialog with three radio options". Picking an
+ * the ui-style-guide.md section 6 theme picker, now a OneUiDialog with three radio options (Phase 6a). Picking an
  * option both persists it (via [onSelect]) and closes the dialog (via [onDismiss]) immediately --
  * there is no separate confirm step, so the lone dialog button is a plain "Cancel" for closing
  * without changing anything.
@@ -28,7 +24,6 @@ import com.rolla.musicplayer.core.model.ThemeMode
  * a rememberSaveable boolean), not ViewModel state -- it never needs to survive process death on
  * its own and has nothing to persist beyond the eventual [onSelect] call.
  */
-@Suppress("LongMethod")
 @Composable
 fun ThemeModeDialog(
     selected: ThemeMode,
@@ -36,15 +31,9 @@ fun ThemeModeDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AlertDialog(
+    OneUiDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Theme",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
+        title = "Theme",
         text = {
             Column(modifier = Modifier.selectableGroup()) {
                 ThemeMode.entries.forEach { mode ->
@@ -59,16 +48,8 @@ fun ThemeModeDialog(
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText),
-            ) {
-                Text("Cancel")
-            }
-        },
+        confirmButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         modifier = modifier,
-        shape = MaterialTheme.shapes.large, // spec §8.7
     )
 }
 

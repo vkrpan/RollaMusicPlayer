@@ -3,13 +3,7 @@
 package com.rolla.musicplayer.core.ui
 
 import android.content.res.Configuration
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,20 +11,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextField
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.accentText
 
 /**
- * Presentational M3 dialog for capturing a playlist name — reused for both "create playlist"
- * and "rename playlist" flows (and, in a follow-up round, the "New playlist…" option inside the
- * add-to-playlist sheet). Carries no ViewModel/repository knowledge: the caller supplies the
- * dialog copy and decides what happens with the trimmed name.
+ * The One UI dialog for capturing a playlist name (spec §8.7), reused by the "create playlist" and "rename playlist"
+ * flows and by the add-to-playlist sheet's "New playlist" entry. Carries no ViewModel/repository knowledge: the caller
+ * supplies the dialog copy and decides what happens with the trimmed name. Both buttons are accentText
+ * [OneUiTextButton]s, and the field sits one container step above the dialog's surfaceContainerHigh.
  *
  * The caller is responsible for dismissing the dialog after [onConfirm] fires (e.g. by flipping
  * a `showDialog` flag to false) — this composable does not call [onDismiss] on confirm itself,
  * since some callers (e.g. an add-to-playlist sheet) may want to keep other UI open afterward.
  */
-@Suppress("LongParameterList", "LongMethod")
+@Suppress("LongParameterList")
 @Composable
 fun PlaylistNameDialog(
     title: String,
@@ -41,41 +37,20 @@ fun PlaylistNameDialog(
     initialName: String = "",
 ) {
     var name by remember { mutableStateOf(initialName) }
-    val isNameBlank = name.trim().isEmpty()
-    // Blue text is accentText, never primary (spec §5.1): both buttons and the focused field label.
-    val buttonColors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText)
-
-    AlertDialog(
+    OneUiDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
+        title = title,
+        confirmButton = {
+            OneUiTextButton(text = confirmLabel, onClick = { onConfirm(name.trim()) }, enabled = name.isNotBlank())
         },
+        dismissButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         text = {
-            OutlinedTextField(
+            OneUiTextField(
                 value = name,
                 onValueChange = { name = it },
-                singleLine = true,
-                label = { Text("Playlist name") },
-                colors = OutlinedTextFieldDefaults.colors(focusedLabelColor = MaterialTheme.colorScheme.accentText),
+                label = "Playlist name",
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name.trim()) },
-                enabled = !isNameBlank,
-                colors = buttonColors,
-            ) {
-                Text(confirmLabel)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, colors = buttonColors) {
-                Text("Cancel")
-            }
         },
         modifier = modifier,
     )

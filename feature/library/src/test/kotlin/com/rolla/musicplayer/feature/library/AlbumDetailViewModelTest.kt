@@ -4,12 +4,15 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Album
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeAlbumRepository
+import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -23,6 +26,9 @@ import kotlin.random.Random
 
 // Seeds the VM's Random test seam; the shuffle test verifies that exact instance is forwarded to the controller.
 private const val SHUFFLE_SEED = 7L
+
+// An existing playlist id distinct from the fake's first created id (1), so a hardcoded id can't pass by accident.
+private const val CHOSEN_PLAYLIST_ID = 9L
 
 /**
  * Unit tests for [AlbumDetailViewModel].
@@ -64,10 +70,13 @@ class AlbumDetailViewModelTest {
         )
     }
 
+    private val playlistRepository = FakePlaylistRepository()
+
     private fun viewModel(albumId: Long = 1L): AlbumDetailViewModel = AlbumDetailViewModel(
         savedStateHandle = SavedStateHandle(mapOf("albumId" to albumId)),
         albumRepository = fakeAlbumRepository,
         playbackController = playbackController,
+        playlistRepository = playlistRepository,
     )
 
     // WhileSubscribed(5_000) means [AlbumDetailViewModel.uiState] only holds its declared
@@ -230,5 +239,78 @@ class AlbumDetailViewModelTest {
         viewModel()
 
         verify { playbackController.connect() }
+    }
+
+    // The playlist tests below mirror FolderDetailViewModelTest's one to one (the Phase 4b precedent).
+
+    // The options sheet's playlist picker reads this. Control: the stateIn seed is empty, the collected value is not.
+    // Mutation: flowOf(emptyList()) upstream of stateIn → RED.
+    @Test
+    fun userPlaylists_mirrorTheRepository() = runTest {
+        val playlists = listOf(
+            Playlist(id = CHOSEN_PLAYLIST_ID, name = "Road trip", songCount = 2, createdAt = 1L, updatedAt = 1L),
+        )
+        playlistRepository.emitPlaylists(playlists)
+        val vm = viewModel()
+        assertEquals("the seed is empty before collection", emptyList<Playlist>(), vm.userPlaylists.value)
+        val job = launch { vm.userPlaylists.collect {} }
+        advanceUntilIdle()
+
+        assertEquals("userPlaylists mirrors the repository", playlists, vm.userPlaylists.value)
+        job.cancel()
+    }
+
+    // Mutation: swap the arguments (addSongs(songId.toLong(), …)) or drop the call → RED.
+    @Test
+    fun addSongToPlaylist_addsToTheChosenPlaylist() = runTest {
+        val vm = viewModel()
+
+        vm.addSongToPlaylist(songId = "song-1", playlistId = CHOSEN_PLAYLIST_ID)
+        advanceUntilIdle()
+
+        assertEquals(
+            "the track is added to the chosen playlist",
+            listOf(CHOSEN_PLAYLIST_ID to listOf("song-1")),
+            playlistRepository.addSongsCalls,
+        )
+    }
+
+    // Ruling 7: a blank name writes nothing. Control (ruling P5 rule 2): a named create first writes one playlist and
+    // one add, so a no-op body fails here; the blank call that follows leaves both counts unchanged.
+    // Mutation: bypass createPlaylistWithSong's guard (createPlaylist(name.trim()) then addSongs) → a playlist named ""
+    // is created → RED.
+    @Test
+    fun createPlaylistAndAddSong_givenBlankName_writesNothing() = runTest {
+        val vm = viewModel()
+        vm.createPlaylistAndAddSong(name = "Keep", songId = "song-1")
+        advanceUntilIdle()
+        assertEquals("a named create writes one playlist", 1, playlistRepository.observePlaylists().first().size)
+        assertEquals("a named create adds the track once", 1, playlistRepository.addSongsCalls.size)
+
+        vm.createPlaylistAndAddSong(name = "   ", songId = "song-2")
+        advanceUntilIdle()
+
+        assertEquals(
+            "a blank name creates no playlist",
+            listOf("Keep"),
+            playlistRepository.observePlaylists().first().map { it.name },
+        )
+        assertEquals("a blank name adds no track", 1, playlistRepository.addSongsCalls.size)
+    }
+
+    // Mutation: add to playlist 0 instead of the created id → RED.
+    @Test
+    fun createPlaylistAndAddSong_addsTheSongToTheNewPlaylist() = runTest {
+        val vm = viewModel()
+
+        vm.createPlaylistAndAddSong(name = " My Mix ", songId = "song-1")
+        advanceUntilIdle()
+
+        val created = playlistRepository.observePlaylists().first().single { it.name == "My Mix" }
+        assertEquals(
+            "the track is added to the new playlist",
+            listOf(created.id to listOf("song-1")),
+            playlistRepository.addSongsCalls,
+        )
     }
 }

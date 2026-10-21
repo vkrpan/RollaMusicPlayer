@@ -14,7 +14,7 @@ interface ArtistRepository {
     /** Every artist in the library, case-insensitively by name, each with its representative artwork (Artists tab). */
     fun observeArtists(): Flow<List<Artist>>
 
-    /** The albums [artistName] appears on, alphabetical by title. */
+    /** The albums [artistName] appears on, in the library order by title (spec §9.0), ties broken by album id. */
     fun observeArtistAlbums(artistName: String): Flow<List<Album>>
 
     /** [artistName]'s songs, grouped by album then disc/track order (nulls last, then title). */

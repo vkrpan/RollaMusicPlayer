@@ -3,59 +3,29 @@
 package com.rolla.musicplayer.core.ui
 
 import android.content.res.Configuration
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.InsetDivider
+import com.rolla.musicplayer.core.designsystem.component.OneUiBottomSheet
+import com.rolla.musicplayer.core.designsystem.component.SheetActionRow
+import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
 import kotlinx.coroutines.flow.StateFlow
 
-private val ThumbnailSize = 56.dp
-private val ThumbnailIconSize = 24.dp
-private val RowVerticalPadding = 12.dp
-private val RowHorizontalPadding = 16.dp
-private val ArtworkToTextGap = 12.dp
-
-// Inset to start after the leading icon (RowHorizontalPadding + ThumbnailSize + ArtworkToTextGap),
-// matching PlaylistRow/SongListItem's hairline divider so the "New playlist…" row reads as its own
-// row instead of fusing into the first playlist below it.
-private val DividerStartPadding = RowHorizontalPadding + ThumbnailSize + ArtworkToTextGap
-private val DividerThickness = 0.5.dp
-
 /**
- * Shared bottom sheet listing the user's existing playlists plus a "New playlist…" entry point,
- * used from Library, Playlist Detail (smart playlists), and Now Playing to add a song to a
- * playlist. Presentational only — the caller decides what [onPlaylistSelected] and
- * [onCreateNewPlaylist] actually do (persist the add, show a follow-up [PlaylistNameDialog], etc).
+ * Shared One UI sheet titled "Add to playlist" (Phase 6a ruling 11): a "New playlist" action row, then the user's
+ * playlists as [PlaylistRow]s with no rail space (there is no rail here). Used from the track options sheet, Playlist
+ * Detail (smart playlists) and Now Playing. Presentational only: the caller decides what [onPlaylistSelected] and
+ * [onCreateNewPlaylist] do (persist the add, show a follow-up [PlaylistNameDialog], etc).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddToPlaylistSheet(
     playlists: List<Playlist>,
@@ -64,19 +34,17 @@ fun AddToPlaylistSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier,
-    ) {
+    OneUiBottomSheet(onDismissRequest = onDismissRequest, modifier = modifier, title = "Add to playlist") {
         LazyColumn {
             item {
-                NewPlaylistRow(onClick = onCreateNewPlaylist)
+                NewPlaylistEntry(onClick = onCreateNewPlaylist)
             }
             items(items = playlists, key = { playlist -> playlist.id }) { playlist ->
-                PlaylistRow(playlist = playlist, onClick = { onPlaylistSelected(playlist.id) })
+                PlaylistRow(
+                    playlist = playlist,
+                    onClick = { onPlaylistSelected(playlist.id) },
+                    reserveRailSpace = false,
+                )
             }
         }
     }
@@ -106,50 +74,19 @@ fun AddToPlaylistSheetHost(
     )
 }
 
+/**
+ * The sheet's "New playlist" entry: a single-line action row (no ellipsis: One UI sheets don't flag the follow-up
+ * dialog), then a hairline from the text start so it reads apart from the first playlist below it.
+ */
 @Composable
-private fun NewPlaylistRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun NewPlaylistEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = RowHorizontalPadding, vertical = RowVerticalPadding),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            NewPlaylistIcon()
-            Spacer(modifier = Modifier.width(ArtworkToTextGap))
-            Text(
-                text = "New playlist…",
-                style = MaterialTheme.typography.songTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = DividerStartPadding),
-            color = MaterialTheme.colorScheme.outlineVariant,
-            thickness = DividerThickness,
-        )
+        SheetActionRow(icon = RollaIcons.Add, label = "New playlist", onClick = onClick)
+        InsetDivider(startInset = RollaDimens.listTextStart)
     }
 }
 
-@Composable
-private fun NewPlaylistIcon(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(ThumbnailSize)
-            .clip(MaterialTheme.shapes.small)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.Add,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(ThumbnailIconSize),
-        )
-    }
-}
-
+// The sheet's content without the ModalBottomSheet window, which previews cannot show.
 @Suppress("UnusedPrivateMember")
 @Preview(name = "Add To Playlist Sheet - Light")
 @Preview(name = "Add To Playlist Sheet - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
@@ -157,7 +94,7 @@ private fun NewPlaylistIcon(modifier: Modifier = Modifier) {
 private fun PreviewAddToPlaylistSheet() {
     RollaMusicPlayerTheme {
         Column {
-            NewPlaylistRow(onClick = {})
+            NewPlaylistEntry(onClick = {})
             PlaylistRow(
                 playlist = Playlist(
                     id = 1L,
@@ -167,6 +104,7 @@ private fun PreviewAddToPlaylistSheet() {
                     updatedAt = 0L,
                 ),
                 onClick = {},
+                reserveRailSpace = false,
             )
             PlaylistRow(
                 playlist = Playlist(
@@ -177,6 +115,7 @@ private fun PreviewAddToPlaylistSheet() {
                     updatedAt = 0L,
                 ),
                 onClick = {},
+                reserveRailSpace = false,
             )
         }
     }

@@ -174,6 +174,20 @@ class TracksTabTest {
         composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
     }
 
+    // Ruling 10 / controller ruling P6: the sheet closes when its track leaves the list the rows render (a rescan
+    // removed it). One setContent, then the library flips (ruling P5 rule 1). Control: the sheet is open on song 1
+    // first. Mutation: drop currentSongs from the SongOptionsHost call → the sheet stays → RED.
+    @Test
+    fun optionsSheetClosesWhenItsTrackLeavesTheList() {
+        var hosted by mutableStateOf(songs)
+        setTab(songsProvider = { hosted })
+        composeRule.onNodeWithContentDescription("More options for ${songs[1].title}").performClick()
+        composeRule.onNodeWithText("Edit tags").assertIsDisplayed()
+        composeRule.runOnIdle { hosted = songs.filterNot { it.id == songs[1].id } }
+        composeRule.onNodeWithText(songs[2].title).assertExists("the list still renders the remaining tracks")
+        composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
+    }
+
     @Test
     fun addToPlaylistFromTheOptionsSheetAddsTheTrackToThePickedPlaylist() {
         var added: Pair<String, Long>? = null

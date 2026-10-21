@@ -124,6 +124,12 @@ Rule: containers and cards are **24dp+**; thumbnails **12dp**; anything button-l
 
 ## 6. Core Components (anatomy → Compose)
 
+> **Sheets, dialogs and menus (redesign Phase 6a):** never call `ModalBottomSheet`, `AlertDialog`, `TextButton`,
+> `TextField` or `DropdownMenu` directly. Use the kit in `:core:designsystem/component/`: `OneUiBottomSheet`,
+> `OneUiDialog` with `OneUiTextButton` (pass `destructive = true` for Delete/Remove: it draws `destructiveText`, never
+> `error`), `OneUiTextField`, `OneUiDropdownMenu`/`OneUiMenuItem`, and `SheetActionRow` for sheet actions. Spec §6 has
+> the signatures, §8.7 the anatomy.
+
 ### TopAppBar
 Large bold title left; trailing actions right (`Search`, optional `Add (+)`, `Overflow (⋮)`); a small accent
 dot may sit on overflow for "new". Transparent over `background`. Use M3 `TopAppBar`/`LargeTopAppBar` with

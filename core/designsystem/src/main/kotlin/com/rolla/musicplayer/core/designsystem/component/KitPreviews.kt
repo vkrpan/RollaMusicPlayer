@@ -89,6 +89,104 @@ private fun PreviewFastScrollRailShort() {
     PreviewRail(height = 200.dp)
 }
 
+// The in-surface parts of the sheet/dialog kit, on the sheet's own surfaceContainerHigh.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Sheet kit - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Sheet kit - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Sheet kit - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewSheetKit() {
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Column {
+                SheetActionRow(icon = RollaIcons.PlaylistAdd, label = "Add to playlist", onClick = {})
+                SheetActionRow(icon = RollaIcons.Edit, label = "Edit tags", onClick = {})
+                SheetActionRow(
+                    icon = RollaIcons.Delete,
+                    label = "Remove from playlist",
+                    onClick = {},
+                    destructive = true,
+                )
+                OneUiMenuItem(text = "Go to album", onClick = {})
+                SheetKitDialogControls()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SheetKitDialogControls() {
+    var name by remember { mutableStateOf("Road trip") }
+    OneUiTextField(
+        value = name,
+        onValueChange = { name = it },
+        label = "Playlist name",
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+        modifier = Modifier.padding(horizontal = RollaDimens.listThumbStart),
+    )
+    Row(Modifier.padding(16.dp)) {
+        OneUiTextButton(text = "Cancel", onClick = {})
+        OneUiTextButton(text = "Delete", onClick = {}, destructive = true)
+        OneUiTextButton(text = "Save", onClick = {}, enabled = false)
+    }
+}
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Dialog - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Dialog - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Dialog - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewOneUiDialog() {
+    RollaMusicPlayerTheme {
+        OneUiDialog(
+            onDismissRequest = {},
+            title = "Delete playlist?",
+            confirmButton = { OneUiTextButton(text = "Delete", onClick = {}, destructive = true) },
+            dismissButton = { OneUiTextButton(text = "Cancel", onClick = {}) },
+            text = { Text("\"Road trip\" will be deleted. Its tracks stay in your library.") },
+        )
+    }
+}
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Bottom sheet - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Bottom sheet - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Bottom sheet - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewOneUiBottomSheet() {
+    RollaMusicPlayerTheme {
+        OneUiBottomSheet(onDismissRequest = {}, title = "Add to playlist") {
+            SheetActionRow(icon = RollaIcons.Add, label = "New playlist", onClick = {})
+            InsetDivider(startInset = RollaDimens.listTextStart)
+            PreviewTextRow("Road trip")
+        }
+    }
+}
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Dropdown menu - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, heightDp = 240)
+@Preview(name = "Dropdown menu - Light", uiMode = Configuration.UI_MODE_NIGHT_NO, heightDp = 240)
+@Preview(
+    name = "Dropdown menu - Large font",
+    uiMode = Configuration.UI_MODE_NIGHT_YES,
+    fontScale = 1.5f,
+    heightDp = 300,
+)
+@Composable
+private fun PreviewOneUiDropdownMenu() {
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
+            Box {
+                OneUiDropdownMenu(expanded = true, onDismissRequest = {}) {
+                    OneUiMenuItem(text = "Edit tags", onClick = {})
+                    OneUiMenuItem(text = "Go to album", onClick = {})
+                    OneUiMenuItem(text = "Settings", onClick = {})
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PreviewRail(height: Dp) {
     RollaMusicPlayerTheme {

@@ -13,9 +13,8 @@ import androidx.compose.ui.platform.LocalContext
  * True when the user turned animations off (ANIMATOR_DURATION_SCALE == 0; Accessibility > Remove animations).
  * Components snap instead of animating when this is true (ui-style-guide §9). The value is read once per call site.
  *
- * This replaces the module-local isReducedMotion() copies in :feature:equalizer, :feature:player and
- * :feature:playlists. Each is migrated in the phase that rewrites its module; internal copies may have callers in
- * other files, so sweep the whole module (roadmap).
+ * This replaced the module-local isReducedMotion() copies in :feature:equalizer, :feature:player and
+ * :feature:playlists (the last one went in Phase 6a). Do not add another.
  */
 @Composable
 fun rememberReducedMotion(): Boolean {

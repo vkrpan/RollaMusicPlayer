@@ -1,6 +1,9 @@
 package com.rolla.musicplayer.feature.library
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -109,10 +112,26 @@ class FolderDetailScreenTest {
         assertTrue(last.bottom <= root.bottom - 60.dp)
     }
 
+    // Ruling 10 / controller ruling P6: the sheet closes when its track leaves the list the rows render. One
+    // setContent, then the list flips (ruling P5 rule 1). Control: the sheet is open on "Two" first. Mutation: drop
+    // currentSongs from the SongOptionsHost call → the sheet stays → RED.
+    @Test
+    fun `the options sheet closes when its track leaves the list`() {
+        var hosted by mutableStateOf(listOf(song("1", "One"), song("2", "Two"), song("3", "Three")))
+        setContent(songs = null, songsProvider = { hosted })
+        composeRule.onNodeWithContentDescription("More options for Two").performClick()
+        composeRule.onNodeWithText("Edit tags").assertIsDisplayed()
+        composeRule.runOnIdle { hosted = hosted.filterNot { it.id == "2" } }
+        composeRule.onNodeWithText("Three").assertExists("the list still renders the remaining tracks")
+        composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
+    }
+
     // Defaulted test-host knobs: each test overrides only the inputs it probes.
     @Suppress("LongParameterList")
     private fun setContent(
         songs: List<Song>?,
+        // Read inside the composition, so a test can swap the list (a rescan) after setContent.
+        songsProvider: () -> List<Song>? = { songs },
         title: String = "Music",
         onNavigateUp: () -> Unit = {},
         onSongClick: (Song) -> Unit = {},
@@ -126,7 +145,7 @@ class FolderDetailScreenTest {
                 CompositionLocalProvider(LocalMiniPlayerInset provides miniPlayerInset) {
                     FolderDetailContent(
                         title = title,
-                        songs = songs,
+                        songs = songsProvider(),
                         userPlaylists = emptyList(),
                         onNavigateUp = onNavigateUp,
                         onSongClick = onSongClick,

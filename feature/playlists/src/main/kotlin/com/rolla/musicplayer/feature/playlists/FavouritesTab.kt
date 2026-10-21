@@ -111,6 +111,8 @@ internal fun FavouritesTabContent(
         onAddSongToPlaylist = onAddSongToPlaylist,
         onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
         onEditTagsClick = onEditTagsClick,
+        // Ruling 10: the sheet closes when its track leaves the favourites (unfavourited, or removed by a rescan).
+        currentSongs = songs,
     )
 }
 

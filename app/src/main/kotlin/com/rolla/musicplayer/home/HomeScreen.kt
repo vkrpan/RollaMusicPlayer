@@ -15,12 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,13 +29,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.ContentPanel
 import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.component.OneUiDropdownMenu
 import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiMenuItem
 import com.rolla.musicplayer.core.designsystem.component.OneUiTabRow
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
 import com.rolla.musicplayer.core.designsystem.component.OneUiTopBar
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
-import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.permissions.MediaPermissionGate
 import com.rolla.musicplayer.core.ui.SongSelectionState
@@ -174,12 +171,7 @@ private fun SelectionBar(selection: SongSelectionState, onEditTagsClick: () -> U
         navigationContentDescription = "Close selection",
         modifier = modifier,
     ) {
-        TextButton(
-            onClick = onEditTagsClick,
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText),
-        ) {
-            Text("Edit tags")
-        }
+        OneUiTextButton(text = "Edit tags", onClick = onEditTagsClick)
     }
 }
 
@@ -215,9 +207,9 @@ private fun OverflowMenu(onSettingsClick: () -> Unit, modifier: Modifier = Modif
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         OneUiIconButton(icon = RollaIcons.More, contentDescription = "More options", onClick = { expanded = true })
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text("Settings") },
+        OneUiDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            OneUiMenuItem(
+                text = "Settings",
                 onClick = {
                     expanded = false
                     onSettingsClick()

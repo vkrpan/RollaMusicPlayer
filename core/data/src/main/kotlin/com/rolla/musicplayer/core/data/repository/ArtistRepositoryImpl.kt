@@ -16,7 +16,8 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 // The Artists tab sorts in the library order on [sortDispatcher] (Phase 5 rulings 1, 3 and 4). The artist name is the
-// GROUP BY key, so it is unique and is its own exact tie-break.
+// GROUP BY key, so it is unique and is its own exact tie-break. ArtistDetail's albums strip uses the same order, by
+// title with the album id as tie-break (Phase 6a ruling 8).
 class ArtistRepositoryImpl @Inject constructor(
     private val artistDao: ArtistDao,
     @CoreDataDefaultDispatcher private val sortDispatcher: CoroutineDispatcher,
@@ -38,6 +39,8 @@ class ArtistRepositoryImpl @Inject constructor(
         artistDao.observeArtistAlbums(artistName)
             .map { rows -> rows.map { it.toDomain() } }
             .distinctUntilChanged()
+            .map { albums -> albums.sortedByLibraryName(compareBy<Album> { it.title }.thenBy { it.id }) { it.title } }
+            .flowOn(sortDispatcher)
 
     override fun observeArtistSongs(artistName: String): Flow<List<Song>> =
         artistDao.observeArtistSongs(artistName)

@@ -49,7 +49,7 @@ import com.rolla.musicplayer.core.model.Song
  *
  * [trackNumber] swaps the leading artwork thumbnail for a fixed-width numeric label -- intended for
  * album detail, where every row already shares the same album art, so the disc track number is the
- * more useful leading affordance (see AlbumDetailScreen in `:feature:library`). Defaults to null.
+ * more useful leading affordance (see AlbumDetailContent in `:feature:library`). Defaults to null.
  *
  * Geometry comes from [RollaDimens]: a [RollaDimens.listRowHeight] pitch, the thumbnail at
  * [RollaDimens.listThumbStart], text at [RollaDimens.listTextStart], and the trailing 48 dp target ending
@@ -63,10 +63,6 @@ fun SongListItem(
     modifier: Modifier = Modifier,
     trackNumber: Int? = null,
     onMoreClick: () -> Unit = {},
-    // Overrides the trailing button's announced purpose. The default says "More options", which is
-    // a lie at call sites whose onMoreClick performs a direct action (e.g. playlist detail's
-    // remove-from-playlist) -- those MUST pass the honest action label (TalkBack audit HIGH).
-    moreContentDescription: String? = null,
     selected: Boolean = false,
     selectionModeActive: Boolean = false,
     onLongClick: (() -> Unit)? = null,
@@ -78,7 +74,6 @@ fun SongListItem(
             onClick = onClick,
             trackNumber = trackNumber,
             onMoreClick = onMoreClick,
-            moreContentDescription = moreContentDescription,
             selected = selected,
             selectionModeActive = selectionModeActive,
             onLongClick = onLongClick,
@@ -99,7 +94,6 @@ private fun SongListItemContent(
     onClick: () -> Unit,
     trackNumber: Int?,
     onMoreClick: () -> Unit,
-    moreContentDescription: String?,
     selected: Boolean,
     selectionModeActive: Boolean,
     onLongClick: (() -> Unit)?,
@@ -125,7 +119,6 @@ private fun SongListItemContent(
             selected = selected,
             song = song,
             onMoreClick = onMoreClick,
-            moreContentDescription = moreContentDescription,
         )
     }
 }
@@ -152,14 +145,13 @@ private fun SongItemTrailing(
     selected: Boolean,
     song: Song,
     onMoreClick: () -> Unit,
-    moreContentDescription: String?,
 ) {
     if (selectionModeActive) {
         SelectionCheckbox(selected = selected)
     } else {
         OneUiIconButton(
             icon = RollaIcons.More,
-            contentDescription = moreContentDescription ?: "More options for ${song.title}",
+            contentDescription = "More options for ${song.title}",
             onClick = onMoreClick,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             iconSize = RollaDimens.overflowGlyph,

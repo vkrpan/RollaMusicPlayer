@@ -14,9 +14,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -24,6 +26,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -34,9 +37,11 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 import org.junit.Assert.assertEquals
@@ -47,6 +52,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
 
 // NATIVE graphics: the swipe test relies on real layout (the gesture spans the page's measured width), and LEGACY mode
 // measures text lines at ~36 dp / ~1 px per char. Nothing here captures pixels. The plain Application keeps
@@ -69,6 +75,11 @@ class HomeScreenTest {
     private var editTagsClicks = 0
     private var rowTaps = 0
     private var rowLongClicks = 0
+
+    // Captured inside the theme by setHome: songTitle's line height, and labelLarge's, which is M3's default menu-item
+    // text style (MenuTokens.ListItemLabelTextFont). The Home menu test tells the two apart by rendered text height.
+    private var songTitleLineHeight = Dp.Unspecified
+    private var menuDefaultLineHeight = Dp.Unspecified
 
     @Test
     fun startsOnTracksAndTitleIsRollaMusic() {
@@ -220,6 +231,36 @@ class HomeScreenTest {
         assertEquals("Settings must fire once", 1, settingsClicks)
     }
 
+    // Ruling 2: the Home ⋮ menu is the One UI menu: its item is drawn in songTitle and opens Settings. Control: the
+    // menu is closed before the tap. Mutation: OneUiMenuItem → stock DropdownMenuItem with default text style → the
+    // item's text height differs from songTitle's line height → RED.
+    @Test
+    fun `the overflow menu is the one ui menu and opens settings`() {
+        setHome()
+        // The fixture must separate what the probe distinguishes: songTitle (22 sp) vs the default labelLarge (20 sp).
+        assertTrue(
+            "songTitle ($songTitleLineHeight) and the default menu style ($menuDefaultLineHeight) must differ",
+            abs(songTitleLineHeight.value - menuDefaultLineHeight.value) > TEXT_HEIGHT_TOLERANCE_DP,
+        )
+        composeRule.onNodeWithText("Settings").assertDoesNotExist()
+
+        composeRule.onNodeWithContentDescription("More options").performClick()
+
+        // The item's clickable merges its Text; the unmerged tree finds the Text node itself.
+        val text = composeRule.onNodeWithText("Settings", useUnmergedTree = true)
+            .assertExists("The open menu must show Settings")
+            .getUnclippedBoundsInRoot()
+        assertEquals(
+            "The menu item's text must be one songTitle line tall",
+            songTitleLineHeight.value,
+            (text.bottom - text.top).value,
+            TEXT_HEIGHT_TOLERANCE_DP,
+        )
+        assertEquals("Settings must not fire before its tap", 0, settingsClicks)
+        composeRule.onNodeWithText("Settings").performClick()
+        assertEquals("Settings must fire once", 1, settingsClicks)
+    }
+
     @Test
     fun searchOpensSearch() {
         setHome()
@@ -278,6 +319,10 @@ class HomeScreenTest {
     private fun setHome() {
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
+                with(LocalDensity.current) {
+                    songTitleLineHeight = MaterialTheme.typography.songTitle.lineHeight.toDp()
+                    menuDefaultLineHeight = MaterialTheme.typography.labelLarge.lineHeight.toDp()
+                }
                 pagerState = rememberHomePagerState()
                 selection = rememberSongSelectionState()
                 HomeScreen(
@@ -302,5 +347,6 @@ class HomeScreenTest {
     private companion object {
         const val LIST_TAG = "rows"
         const val ROW_COUNT = 40
+        const val TEXT_HEIGHT_TOLERANCE_DP = 0.75f
     }
 }

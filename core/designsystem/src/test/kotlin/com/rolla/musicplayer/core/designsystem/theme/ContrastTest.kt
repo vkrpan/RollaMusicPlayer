@@ -59,6 +59,8 @@ private fun pairingsOf(p: RollaPalette): List<Pairing> = listOf(
     Pairing("accentText on background", p.accentText, p.background, TEXT),
     Pairing("accentText on surfaceContainer", p.accentText, p.surfaceContainer, TEXT),
     Pairing("accentText on surfaceContainerHigh", p.accentText, p.surfaceContainerHigh, TEXT),
+    Pairing("destructiveText on surfaceContainerHigh", p.destructiveText, p.surfaceContainerHigh, TEXT),
+    Pairing("destructiveText on surfaceContainer", p.destructiveText, p.surfaceContainer, TEXT),
     Pairing("onPrimary on primary", p.onPrimary, p.primary, TEXT),
     Pairing("onSurface on miniPlayerContainer", p.onSurface, p.miniPlayerContainer, TEXT),
     Pairing("fastScrollIndex on fastScrollTrack", p.onSurfaceVariant, p.fastScrollTrack, TEXT),

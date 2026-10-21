@@ -40,7 +40,7 @@ class AddToPlaylistSheetSmokeTest {
 
         composeTestRule.onNodeWithText("Workout Mix").assertIsDisplayed()
         composeTestRule.onNodeWithText("Chill Evenings").assertIsDisplayed()
-        composeTestRule.onNodeWithText("New playlist…").assertIsDisplayed()
+        composeTestRule.onNodeWithText("New playlist").assertIsDisplayed()
     }
 
     @Test
@@ -58,7 +58,7 @@ class AddToPlaylistSheetSmokeTest {
         var createClicked = false
         setContent(playlists = fakePlaylists, onCreateNewPlaylist = { createClicked = true })
 
-        composeTestRule.onNodeWithText("New playlist…").performClick()
+        composeTestRule.onNodeWithText("New playlist").performClick()
 
         assertTrue(createClicked)
     }

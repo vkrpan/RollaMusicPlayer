@@ -13,6 +13,8 @@ android {
 
 dependencies {
     implementation(project(":core:common"))
+    // WindowCompat for OneUiBottomSheet's window (fix F1); already on the runtime classpath through material3.
+    implementation(libs.androidx.core.ktx)
 
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)

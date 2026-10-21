@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.component.ArtworkPlaceholder
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
@@ -33,19 +35,27 @@ import com.rolla.musicplayer.core.model.Playlist
  * placeholder thumbnail at [RollaDimens.listThumbStart], the name at [RollaDimens.listTextStart], and a trailing
  * "N tracks" count ending [RollaDimens.listTrailingEnd] before the row's end (the A–Z rail space, ruling 5). No
  * per-row overflow action; the whole row is one merged clickable node.
+ *
+ * [reserveRailSpace] = false is for surfaces with no rail (the add-to-playlist sheet, Phase 6a ruling 11): the divider
+ * runs to the row's end and the count ends [RollaDimens.listThumbStart] before it, mirroring the thumbnail's inset.
  */
 @Composable
 fun PlaylistRow(
     playlist: Playlist,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    reserveRailSpace: Boolean = true,
 ) {
     // The hairline overlays the row's bottom edge so the row pitch stays exactly singleLineRowHeight.
     Box(modifier = modifier) {
-        PlaylistRowContent(playlist = playlist, onClick = onClick)
+        PlaylistRowContent(
+            playlist = playlist,
+            onClick = onClick,
+            trailingEnd = if (reserveRailSpace) RollaDimens.listTrailingEnd else RollaDimens.listThumbStart,
+        )
         InsetDivider(
             startInset = RollaDimens.listTextStart,
-            endInset = RollaDimens.listDividerEnd,
+            endInset = if (reserveRailSpace) RollaDimens.listDividerEnd else 0.dp,
             modifier = Modifier.align(Alignment.BottomStart),
         )
     }
@@ -55,13 +65,14 @@ fun PlaylistRow(
 private fun PlaylistRowContent(
     playlist: Playlist,
     onClick: () -> Unit,
+    trailingEnd: Dp,
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = RollaDimens.singleLineRowHeight)
             .clickable(onClick = onClick)
-            .padding(end = RollaDimens.listTrailingEnd),
+            .padding(end = trailingEnd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.width(RollaDimens.listThumbStart))

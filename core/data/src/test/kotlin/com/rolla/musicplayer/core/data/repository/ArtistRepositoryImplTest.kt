@@ -39,6 +39,26 @@ class ArtistRepositoryImplTest {
         assertEquals(listOf("Abba", "Émile", "Zappa"), repository.observeArtists().first().map { it.name })
     }
 
+    private fun albumRow(id: Long, title: String) = AlbumSearchRow(
+        albumId = id,
+        title = title,
+        artist = "Queen",
+        songCount = 1,
+        artworkUri = "art/$id",
+    )
+
+    // Ruling 8: the albums strip uses the library order (the DAO gives binary title order). Control: three albums come
+    // back. Mutation: drop the sort → ["Zed", "abba", "Éclair"] binary order → RED.
+    @Test
+    fun observeArtistAlbums_sortsInLibraryOrder() = runTest {
+        every { artistDao.observeArtistAlbums("Queen") } returns flowOf(
+            listOf(albumRow(1L, "Zed"), albumRow(2L, "abba"), albumRow(3L, "Éclair")),
+        )
+        val titles = repository.observeArtistAlbums("Queen").first().map { it.title }
+        assertEquals("all three albums come back", 3, titles.size)
+        assertEquals("albums are in the library order", listOf("abba", "Éclair", "Zed"), titles)
+    }
+
     private fun songEntity(id: String, title: String, trackNumber: Int? = 1) = SongEntity(
         id = id,
         mediaStoreId = id.toLong(),
@@ -82,7 +102,7 @@ class ArtistRepositoryImplTest {
     }
 
     @Test
-    fun observeArtistAlbums_mapsRowsToDomainInDaoOrder() = runTest {
+    fun observeArtistAlbums_mapsRowsToDomain() = runTest {
         every { artistDao.observeArtistAlbums("Artist A") } returns flowOf(
             listOf(
                 AlbumSearchRow(

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
+import com.rolla.musicplayer.core.data.repository.createPlaylistWithSong
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.RepeatMode
@@ -119,11 +120,6 @@ class PlayerViewModel @Inject constructor(
     /** Creates a new playlist with [name] and adds the currently playing song to it. */
     fun createPlaylistAndAddCurrentSong(name: String) {
         val song = currentSong.value ?: return
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            val id = playlistRepository.createPlaylist(trimmed)
-            playlistRepository.addSongs(id, listOf(song.id))
-        }
+        viewModelScope.launch { playlistRepository.createPlaylistWithSong(name, song.id) }
     }
 }

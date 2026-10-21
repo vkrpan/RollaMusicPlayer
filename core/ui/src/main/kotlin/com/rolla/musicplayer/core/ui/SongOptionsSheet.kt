@@ -2,33 +2,15 @@
 
 package com.rolla.musicplayer.core.ui
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import com.rolla.musicplayer.core.designsystem.component.OneUiBottomSheet
+import com.rolla.musicplayer.core.designsystem.component.SheetActionRow
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
-import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
-import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 
@@ -36,7 +18,10 @@ import com.rolla.musicplayer.core.model.Song
  * The per-track options flow: the options sheet for [song] (null when closed), then the shared "Add to playlist"
  * sheet and its "New playlist" dialog. [onDismiss] closes the options sheet.
  *
- * Hardcoded paddings are moved verbatim; Phase 6 restyles every sheet (spec §8.7).
+ * [onRemoveFromPlaylist], when given (user playlists only, Phase 6a ruling 6), adds a destructive "Remove from
+ * playlist" row; the sheet is the deliberate step, so there is no extra confirm. [currentSongs], when given, is the
+ * list the sheet was opened from: once it no longer holds the open track (a rescan or tag edit removed it), the
+ * options sheet and the add-to-playlist flow that follows it close instead of acting on a ghost (ruling 10).
  */
 // Each parameter is a distinct event or piece of state the flow forwards.
 @Suppress("LongParameterList")
@@ -48,20 +33,22 @@ fun SongOptionsHost(
     onAddSongToPlaylist: (String, Long) -> Unit,
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
     onEditTagsClick: (Song) -> Unit,
+    onRemoveFromPlaylist: ((Song) -> Unit)? = null,
+    currentSongs: List<Song>? = null,
 ) {
     var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
+    // Ruling 10: a rescan or tag edit that removes the track closes its sheet instead of leaving it acting on a ghost.
+    LaunchedEffect(song?.id, addToPlaylistSong?.id, currentSongs) {
+        if (currentSongs.lacks(song)) onDismiss()
+        if (currentSongs.lacks(addToPlaylistSong)) addToPlaylistSong = null
+    }
     if (song != null) {
-        SongOptionsSheet(
+        SongOptionsSheetFor(
             song = song,
-            onAddToPlaylistClick = {
-                onDismiss()
-                addToPlaylistSong = song
-            },
-            onEditTagsClick = {
-                onDismiss()
-                onEditTagsClick(song)
-            },
-            onDismissRequest = onDismiss,
+            onDismiss = onDismiss,
+            onAddToPlaylistClick = { addToPlaylistSong = it },
+            onEditTagsClick = onEditTagsClick,
+            onRemoveFromPlaylist = onRemoveFromPlaylist,
         )
     }
     val songPendingPlaylistPick = addToPlaylistSong
@@ -76,7 +63,39 @@ fun SongOptionsHost(
     }
 }
 
-/** The playlist picker for [song]; "New playlist…" swaps it for the name dialog, whose dismiss returns to it. */
+/** True when this list is known and [song] is open but no longer in it (ruling 10). */
+private fun List<Song>?.lacks(song: Song?): Boolean = this != null && song != null && none { it.id == song.id }
+
+/** Wires [SongOptionsSheet]'s rows for [song]: every action closes the sheet first, then acts on the track. */
+@Composable
+private fun SongOptionsSheetFor(
+    song: Song,
+    onDismiss: () -> Unit,
+    onAddToPlaylistClick: (Song) -> Unit,
+    onEditTagsClick: (Song) -> Unit,
+    onRemoveFromPlaylist: ((Song) -> Unit)?,
+) {
+    SongOptionsSheet(
+        song = song,
+        onAddToPlaylistClick = {
+            onDismiss()
+            onAddToPlaylistClick(song)
+        },
+        onEditTagsClick = {
+            onDismiss()
+            onEditTagsClick(song)
+        },
+        onRemoveClick = onRemoveFromPlaylist?.let { remove ->
+            {
+                onDismiss()
+                remove(song)
+            }
+        },
+        onDismissRequest = onDismiss,
+    )
+}
+
+/** The playlist picker for [song]; "New playlist" swaps it for the name dialog, whose dismiss returns to it. */
 @Composable
 private fun AddToPlaylistFlow(
     song: Song,
@@ -111,70 +130,28 @@ private fun AddToPlaylistFlow(
 }
 
 /**
- * The per-track options sheet, shown from [SongListItem]'s trailing "more options" button: a
- * [ModalBottomSheet] holding a Column of two rows (Add to playlist, Edit tags) under the track
- * title. It is private to [SongOptionsHost], through which the Tracks and Favourites tabs share it.
- * Its hardcoded paddings are moved verbatim; Phase 6 restyles every sheet (spec §8.7).
+ * The per-track options sheet, shown from a track row's trailing "more options" button: a [OneUiBottomSheet] titled
+ * with the track (one ellipsized heading line) holding Add to playlist, Edit tags and, when [onRemoveClick] is given,
+ * the destructive Remove from playlist. It is private to [SongOptionsHost], through which every list shares it.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SongOptionsSheet(
     song: Song,
     onAddToPlaylistClick: () -> Unit,
     onEditTagsClick: () -> Unit,
+    onRemoveClick: (() -> Unit)?,
     onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
-    val sheetState = rememberModalBottomSheetState()
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        modifier = modifier,
-    ) {
-        Column {
-            SongOptionsTitle(title = song.title)
-            SongOptionRow(
-                icon = RollaIcons.PlaylistAdd,
-                label = "Add to playlist",
-                onClick = onAddToPlaylistClick,
-            )
-            SongOptionRow(
-                icon = RollaIcons.Edit,
-                label = "Edit tags",
-                onClick = onEditTagsClick,
+    OneUiBottomSheet(onDismissRequest = onDismissRequest, title = song.title) {
+        SheetActionRow(icon = RollaIcons.PlaylistAdd, label = "Add to playlist", onClick = onAddToPlaylistClick)
+        SheetActionRow(icon = RollaIcons.Edit, label = "Edit tags", onClick = onEditTagsClick)
+        if (onRemoveClick != null) {
+            SheetActionRow(
+                icon = RollaIcons.Delete,
+                label = "Remove from playlist",
+                onClick = onRemoveClick,
+                destructive = true,
             )
         }
-    }
-}
-
-/** The options sheet's heading: the track title, one line, ellipsized. */
-@Composable
-private fun SongOptionsTitle(title: String, modifier: Modifier = Modifier) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.songTitle,
-        color = MaterialTheme.colorScheme.onSurface,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    )
-}
-
-@Composable
-private fun SongOptionRow(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = RollaDimens.minTouchTarget)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(imageVector = icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
     }
 }

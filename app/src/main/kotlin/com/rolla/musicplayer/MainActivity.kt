@@ -32,16 +32,20 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.model.ThemeMode
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.AlbumDetailRoute
+import com.rolla.musicplayer.feature.library.AlbumDetailViewModel
 import com.rolla.musicplayer.feature.library.ArtistDetailRoute
+import com.rolla.musicplayer.feature.library.ArtistDetailViewModel
 import com.rolla.musicplayer.feature.library.FolderDetailRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerRoute
 import com.rolla.musicplayer.feature.player.MiniPlayerViewModel
 import com.rolla.musicplayer.feature.player.NowPlayingRoute
 import com.rolla.musicplayer.feature.player.QueueSheetRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
+import com.rolla.musicplayer.feature.playlists.PlaylistDetailViewModel
 import com.rolla.musicplayer.feature.search.SearchRoute
 import com.rolla.musicplayer.feature.settings.AboutRoute
 import com.rolla.musicplayer.feature.settings.AppBuildInfo
@@ -199,12 +203,14 @@ private fun RollaNavHost() {
  * Every destination of the app graph. Building the graph composes nothing, so tests can build it without Hilt
  * (RouteClassTest checks routeClass() against each destination).
  *
- * Every pushed destination below is a Scaffold that owns its navigation-bar inset (default contentWindowInsets; Search
- * excludes only the IME), so PushedScreen adds only the mini-player inset. Home, FolderDetail and Now Playing are not
- * wrapped: Home and FolderDetail pad their lists themselves, and Now Playing owns contentWindowInsets =
+ * The destinations wrapped in PushedScreen (Equaliser, Search, the tag editors, Settings, About, Licenses and Privacy)
+ * are Scaffolds that own their navigation-bar inset (default contentWindowInsets; Search excludes only the IME), so
+ * PushedScreen adds only the mini-player inset. Home, the detail screens (PlaylistDetail, SmartPlaylist, AlbumDetail,
+ * ArtistDetail and FolderDetail) and Now Playing are not wrapped: Home and the detail screens pad their lists
+ * themselves (homeListBottomPadding) and scroll under the pill, and Now Playing owns contentWindowInsets =
  * WindowInsets.navigationBars with the pill hidden.
  */
-@Suppress("LongMethod") // one flat entry per route (15); splitting it would scatter the graph across files
+@Suppress("LongMethod") // one flat entry per route; the detail destinations are NavGraphBuilder extensions below
 @OptIn(ExperimentalSharedTransitionApi::class)
 internal fun NavGraphBuilder.appDestinations(
     navController: NavHostController,
@@ -268,42 +274,9 @@ internal fun NavGraphBuilder.appDestinations(
             EqualizerRoute(onNavigateUp = { navController.navigateUp() })
         }
     }
-    composable<PlaylistDetail> {
-        PushedScreen {
-            PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
-        }
-    }
-    composable<SmartPlaylist> {
-        PushedScreen {
-            PlaylistDetailRoute(onNavigateUp = { navController.navigateUp() })
-        }
-    }
-    // AlbumDetail is a leaf reachable from Home's Albums tab, Search, Now Playing's ⋮ "Go to
-    // album" and an album card inside ArtistDetail (all wired in this graph). Back = navigateUp()
-    // only -- no popUpTo here, same shape as TagEditor below -- so it always pops back to
-    // whichever screen opened it rather than a hard-coded destination (from Home, the same tab:
-    // the pager state is saveable). launchSingleTop at every call site guards double-taps.
-    composable<AlbumDetail> {
-        PushedScreen {
-            AlbumDetailRoute(onNavigateUp = { navController.navigateUp() })
-        }
-    }
-    // ArtistDetail is reachable from Home's Artists tab, Search and Now Playing's ⋮ "Go to
-    // artist" (all wired in this graph). Back = navigateUp() only -- no popUpTo here, same
-    // shape as AlbumDetail above -- so it always pops back to whichever screen opened it
-    // rather than a hard-coded destination (from Home, the same tab). Album taps inside
-    // ArtistDetail push AlbumDetail (a normal forward push, not a back-stack replacement) with
-    // its own launchSingleTop guard against double-taps of an album row.
-    composable<ArtistDetail> {
-        PushedScreen {
-            ArtistDetailRoute(
-                onNavigateUp = { navController.navigateUp() },
-                onAlbumClick = { albumId ->
-                    navController.navigate(AlbumDetail(albumId = albumId)) { launchSingleTop = true }
-                },
-            )
-        }
-    }
+    playlistDetailDestinations(navController)
+    albumDetailDestination(navController)
+    artistDetailDestination(navController)
     // FolderDetail is reached from Home's Folders tab only. Back = navigateUp(), so it pops back to Home on the same
     // tab (the pager state is saveable). It is not wrapped in PushedScreen: its list pads by the pill itself and
     // scrolls under it (Phase 4b ruling 7). "Edit tags" pushes TagEditor like Home's options sheet does.
@@ -345,7 +318,8 @@ internal fun NavGraphBuilder.appDestinations(
         }
     }
     // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Home's
-    // Tracks and Favourites tabs, and Now Playing's ⋮). Back arrow / Cancel / system back and a
+    // Tracks and Favourites tabs, the options sheet on FolderDetail, AlbumDetail, ArtistDetail and
+    // PlaylistDetail/SmartPlaylist, and Now Playing's ⋮). Back arrow / Cancel / system back and a
     // successful save all resolve through the same onNavigateUp() -- navigateUp() only, no
     // popUpTo here, so it always pops back to its actual caller rather than a hard-coded
     // destination. launchSingleTop above guards double-taps of the "Edit tags" option.
@@ -428,5 +402,92 @@ internal fun NavGraphBuilder.appDestinations(
         PushedScreen {
             PrivacyRoute(onNavigateUp = { navController.navigateUp() })
         }
+    }
+}
+
+/**
+ * PlaylistDetail and SmartPlaylist: one screen for a user playlist and for a smart one (Favourites, Recently played,
+ * Most played, Recently added), reached from Home's Playlists tab. Back = navigateUp() only, no popUpTo, so it pops
+ * back to Home on the same tab. Not wrapped in PushedScreen: the list pads by the pill itself and scrolls under it
+ * (Phase 6a ruling 5, the FolderDetail precedent). "Edit tags" pushes TagEditor like Home's options sheet does.
+ *
+ * [provideViewModel] is the JVM tests' seam (DetailRoutesInsetTest, DetailRoutesEditTagsTest): hiltViewModel() needs a
+ * Hilt activity, so the tests pass a ViewModel built from fakes. The graph keeps the default.
+ */
+internal fun NavGraphBuilder.playlistDetailDestinations(
+    navController: NavHostController,
+    provideViewModel: @Composable () -> PlaylistDetailViewModel = { hiltViewModel() },
+) {
+    val onEditTagsClick: (Song) -> Unit = { song ->
+        song.id.toLongOrNull()?.let { id ->
+            navController.navigate(TagEditor(id)) { launchSingleTop = true }
+        }
+    }
+    composable<PlaylistDetail> {
+        PlaylistDetailRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onEditTagsClick = onEditTagsClick,
+            viewModel = provideViewModel(),
+        )
+    }
+    composable<SmartPlaylist> {
+        PlaylistDetailRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onEditTagsClick = onEditTagsClick,
+            viewModel = provideViewModel(),
+        )
+    }
+}
+
+/**
+ * AlbumDetail is a leaf reachable from Home's Albums tab, Search, Now Playing's ⋮ "Go to album" and an album card
+ * inside ArtistDetail (all wired in this graph). Back = navigateUp() only, with no popUpTo (the TagEditor shape), so it
+ * always pops back to whichever screen opened it rather than a hard-coded destination (from Home, the same tab: the
+ * pager state is saveable). launchSingleTop at every call site guards double-taps. Not wrapped in PushedScreen: the
+ * list pads by the pill itself and scrolls under it (Phase 6a ruling 5). "Edit tags" pushes TagEditor.
+ * [provideViewModel] is the JVM tests' seam, as on [playlistDetailDestinations].
+ */
+internal fun NavGraphBuilder.albumDetailDestination(
+    navController: NavHostController,
+    provideViewModel: @Composable () -> AlbumDetailViewModel = { hiltViewModel() },
+) {
+    composable<AlbumDetail> {
+        AlbumDetailRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onEditTagsClick = { song ->
+                song.id.toLongOrNull()?.let { id ->
+                    navController.navigate(TagEditor(id)) { launchSingleTop = true }
+                }
+            },
+            viewModel = provideViewModel(),
+        )
+    }
+}
+
+/**
+ * ArtistDetail is reachable from Home's Artists tab, Search and Now Playing's ⋮ "Go to artist" (all wired in this
+ * graph). Back = navigateUp() only, with no popUpTo (the AlbumDetail shape), so it always pops back to whichever screen
+ * opened it (from Home, the same tab). Album taps inside ArtistDetail push AlbumDetail (a normal forward push, not a
+ * back-stack replacement) with their own launchSingleTop guard against double-taps of an album card. Not wrapped in
+ * PushedScreen: the list pads by the pill itself and scrolls under it (Phase 6a ruling 5). "Edit tags" pushes
+ * TagEditor. [provideViewModel] is the JVM tests' seam, as on [playlistDetailDestinations].
+ */
+internal fun NavGraphBuilder.artistDetailDestination(
+    navController: NavHostController,
+    provideViewModel: @Composable () -> ArtistDetailViewModel = { hiltViewModel() },
+) {
+    composable<ArtistDetail> {
+        ArtistDetailRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onAlbumClick = { albumId ->
+                navController.navigate(AlbumDetail(albumId = albumId)) { launchSingleTop = true }
+            },
+            onEditTagsClick = { song ->
+                song.id.toLongOrNull()?.let { id ->
+                    navController.navigate(TagEditor(id)) { launchSingleTop = true }
+                }
+            },
+            viewModel = provideViewModel(),
+        )
     }
 }

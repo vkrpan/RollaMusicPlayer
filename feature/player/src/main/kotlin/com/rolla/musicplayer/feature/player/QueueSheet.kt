@@ -8,16 +8,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.ZeroCornerSize
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,18 +23,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.OneUiBottomSheet
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.emptyState
-import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.media.QueueItem
 import com.rolla.musicplayer.core.media.QueueState
@@ -58,7 +53,6 @@ fun QueueSheetRoute(
 }
 
 /** The queue (spec §11, §8.7): view plus tap-to-jump. Tapping a row plays it and keeps the sheet open. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QueueSheet(
     queue: QueueState,
@@ -66,23 +60,7 @@ fun QueueSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val largeTop = MaterialTheme.shapes.large.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize)
-    ModalBottomSheet(
-        onDismissRequest = onDismissRequest,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        shape = largeTop,
-        // The sheet's dialog window is edge to edge (M3 1.3.0). This modifier lands outside the sheet's anchor
-        // measurement, so status-bar padding here caps the expanded sheet below the status bar. The scrim is a sibling
-        // and stays full screen; the content's bottom (nav-bar) insets are untouched. statusBarsPadding() is composed,
-        // so it reads the dialog window's insets; WindowInsets.statusBars here would read the activity's.
-        modifier = modifier.statusBarsPadding(),
-    ) {
-        Text(
-            text = "Queue",
-            style = MaterialTheme.typography.sectionHeader,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = RollaDimens.listThumbStart).semantics { heading() },
-        )
+    OneUiBottomSheet(onDismissRequest = onDismissRequest, modifier = modifier, title = "Queue") {
         if (queue.items.isEmpty()) {
             Text(
                 text = "Queue is empty",

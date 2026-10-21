@@ -10,7 +10,8 @@ import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 /**
  * Ruling 4: a destination pushed on top of Home. The host pads it at the bottom by [LocalMiniPlayerInset] only, so
  * nothing sits under the floating pill. The wrapped screen owns the navigation-bar inset itself (its own Scaffold's
- * contentWindowInsets). Phase 6 replaces this padding with list contentPadding.
+ * contentWindowInsets). Home and the detail screens no longer use it: their lists pad by the pill themselves (Phase
+ * 6a). Phase 6b moves the remaining wrapped screens the same way.
  */
 @Composable
 internal fun PushedScreen(content: @Composable () -> Unit) {

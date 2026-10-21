@@ -1,6 +1,9 @@
 package com.rolla.musicplayer.feature.playlists
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -35,6 +38,9 @@ class FavouritesTabTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    // The hosted list. setContent runs once per test (ruling P5 rule 1); a test that needs a second list flips this.
+    private var hostedSongs by mutableStateOf<List<Song>?>(null)
 
     // Review Focus 4. Mutations: render the empty state for null too (songs.isNullOrEmpty()) → the text exists → RED;
     // enabled = songs?.isEmpty() != true → Play and Shuffle are enabled while loading → RED.
@@ -101,6 +107,19 @@ class FavouritesTabTest {
         assertEquals(songA, edited)
     }
 
+    // Ruling 10 / controller ruling P6: the sheet closes when its track leaves the favourites (it was unfavourited or
+    // removed by a rescan). One setContent, then the list flips (ruling P5 rule 1). Control: the sheet is open on
+    // Bravo first. Mutation: drop currentSongs from the SongOptionsHost call → the sheet stays → RED.
+    @Test
+    fun `the options sheet closes when its track leaves the favourites`() {
+        setContent(songs = listOf(songA, songB))
+        composeRule.onNodeWithContentDescription("More options for ${songB.title}").performClick()
+        composeRule.onNodeWithText("Edit tags").assertIsDisplayed()
+        composeRule.runOnIdle { hostedSongs = listOf(songA) }
+        composeRule.onNodeWithText(songA.title).assertExists("the list still renders the remaining favourite")
+        composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
+    }
+
     // Mutation: reuse SONG_LIST_TEST_TAG on this list → the favourites tag is missing → RED
     // (baseline-profile contract).
     @Test
@@ -142,11 +161,12 @@ class FavouritesTabTest {
         onEditTagsClick: (Song) -> Unit = {},
         miniPlayerInset: Dp = 0.dp,
     ) {
+        hostedSongs = songs
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
                 CompositionLocalProvider(LocalMiniPlayerInset provides miniPlayerInset) {
                     FavouritesTabContent(
-                        songs = songs,
+                        songs = hostedSongs,
                         userPlaylists = emptyList(),
                         onSongClick = onSongClick,
                         onShuffleClick = onShuffleClick,

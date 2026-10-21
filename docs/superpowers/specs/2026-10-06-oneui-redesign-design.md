@@ -107,6 +107,7 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 | Token | Dark | Light | Use |
 |---|---|---|---|
 | `accentText` | `#6094FF` | `#1F5FE0` | Blue value and link text (settings values, the slider value, active queue item). The measured `#5B8FFD` is nudged to `#6094FF`, because the measured value only reaches 4.45:1 on `#2D2D2F` sheets. Dark is 6.12:1 on `#171719` and 4.70:1 on `#2D2D2F`. Light is 5.57:1 on white and 4.55:1 on `#E8E8EA`. **Never use `primary` for text.** |
+| `destructiveText` | `#FF6060` | `#BA1A1A` | Destructive text and icons: "Delete" in dialogs, "Remove from playlist" in the options sheet. Dark `error` (`#FF5A5A`) only reaches 4.49:1 on `#2D2D2F` sheets and dialogs, so it is nudged like `accentText`. Dark is 4.64:1 on `#2D2D2F`, light 5.28:1. `error` stays the non-text colour. **Never use `error` for text** (amended 2026-10-18, Phase 6a ruling P2). |
 | `tabUnselected` | `#7E7E80` | `#646467` | Unselected tab labels. 5.18:1 on black, 5.37:1 on `#F4F4F6`. |
 | `artworkPlaceholder` | `#454547` | `#E6E6E8` | List thumbnails, feature cards, folder thumbs |
 | `artworkPlaceholderLarge` | `#3B3B3B` | `#E9E9EB` | Now Playing artwork placeholder |
@@ -217,7 +218,8 @@ never declare private `dp` literals for anything this table covers.
 | `listDividerEnd` | = `fastScrollWidth` + `fastScrollEnd` (30 dp) | `featureCardLabelGap` | 8 dp (unmeasured; Phase 7) |
 | `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | `folderBadge` | 20 dp (icon box; measured glyph ~14 × 11 dp at 3.0 px/dp; Phase 4b ruling 5) |
 | `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | `fastScrollLetterSlot` | 16 dp (rail height one label needs, §10; Phase 5 ruling 10) |
-| `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | | |
+| `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | `detailArtworkSize` | = `npArtSize` (168 dp): the AlbumDetail/ArtistDetail hero artwork (amended 2026-10-18, Phase 6a ruling 5) |
+| `dragLiftElevation` | 6 dp: the shadow a PlaylistDetail row lifts to while dragged (moved from a private constant; amended 2026-10-18, Phase 6a Task 7) | | |
 
 **Touch targets.** Glyphs keep their measured visual size, but every interactive element is at least 48 × 48 dp, through
 `minimumInteractiveComponentSize()` or padding. Examples: the 34 dp circle buttons, the 40 dp chips and the 35 dp switch (whose
@@ -264,6 +266,7 @@ A new `:core:designsystem/icon/RollaIcons.kt` holds hand-authored `ImageVector`s
 | `SkipPrevious` / `SkipNext` (bar + two triangles, ⏮ ⏭) | solid | `Replay15` / `Forward15` (widget, Now Playing ±15 if used) | line |
 | `MusicNote` (placeholder glyph) | line, 2.0 stroke | `FolderBadge` (small folder outline) | line |
 | `Close`, `Edit`, `Check`, `PlaylistAdd`, `Album`, `Person` | line | `FolderBadgeFill` (the `FolderBadge` outline as one filled shape, drawn under it; Phase 4b ruling 5) | solid |
+| `Delete` (bin; symmetric, never mirrors; amended 2026-10-18, Phase 6a) | line | | |
 
 Material icons stay only where no visible One UI equivalent exists, such as the tag-editor form affordances. Each one is listed in the
 plan as an explicit exception.
@@ -295,7 +298,7 @@ indicative; the plan may refine names, but not responsibilities.
 
 // 34 dp surfaceContainerHigh circle, onSurface glyph, 48 dp touch target
 @Composable fun CircleIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit,
-                                 modifier: Modifier = Modifier)
+                                 modifier: Modifier = Modifier, enabled: Boolean = true)
 
 // A–Z rail (§10). Pure index logic lives in FastScrollIndex.kt and is unit-tested; the section letter comes from
 // :core:common's indexLetter, the same function the library order sorts by (§9.0).
@@ -331,7 +334,8 @@ indicative; the plan may refine names, but not responsibilities.
 
 // Gray rounded box with a centered note glyph (artworkPlaceholder + artworkPlaceholderGlyph)
 @Composable fun ArtworkPlaceholder(modifier: Modifier = Modifier, shape: Shape = MaterialTheme.shapes.small,
-                                   large: Boolean = false, glyphSize: Dp = 24.dp)
+                                   large: Boolean = false, glyphSize: Dp = RollaDimens.placeholderGlyph,
+                                   glyph: ImageVector = RollaIcons.MusicNote)
 
 // The folder mark for FolderRow thumbnails: FolderBadgeFill (folderBadgeFill) under FolderBadge (folderBadgeStroke),
 // sized folderBadge. The caller places it, inset folderBadgeInset from the bottom-end corner (added 2026-10-12, Phase 4b)
@@ -342,6 +346,36 @@ indicative; the plan may refine names, but not responsibilities.
 
 // Now Playing background: vertical base + bottom left→right wash, drawn with drawBehind (no recomposition)
 fun Modifier.nowPlayingBackground(gradient: NowPlayingGradient): Modifier
+
+// Sheets, dialogs and menus (added 2026-10-18, Phase 6a ruling 2). Every sheet, dialog and menu in the app uses these.
+// Sheet: surfaceContainerHigh, `large` top corners with square bottom corners, statusBarsPadding(), optional
+// sectionHeader title (one line, ellipsized)
+@Composable fun OneUiBottomSheet(onDismissRequest: () -> Unit, modifier: Modifier = Modifier, title: String? = null,
+                                 content: @Composable ColumnScope.() -> Unit)
+
+// Dialog: surfaceContainerHigh, `large` shape, titleLarge title in onSurface, text in onSurfaceVariant
+@Composable fun OneUiDialog(onDismissRequest: () -> Unit, title: String, confirmButton: @Composable () -> Unit,
+                            modifier: Modifier = Modifier, dismissButton: (@Composable () -> Unit)? = null,
+                            text: (@Composable () -> Unit)? = null)
+
+// Text button: accentText, or destructiveText when destructive (ruling P2)
+@Composable fun OneUiTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
+                                destructive: Boolean = false)
+
+// Filled field, no indicator line, `medium` (16 dp) shape, accentText focused label and cursor
+@Composable fun OneUiTextField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
+                               containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                               singleLine: Boolean = true, enabled: Boolean = true)
+
+// Menu: surfaceContainerHigh, `medium` shape; items in songTitle
+@Composable fun OneUiDropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, modifier: Modifier = Modifier,
+                                  content: @Composable ColumnScope.() -> Unit)
+@Composable fun OneUiMenuItem(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true)
+
+// Sheet action row: singleLineRowHeight; 24 dp icon centred in a listThumb box at listThumbStart, songTitle label at
+// listTextStart; destructive tints icon and label destructiveText
+@Composable fun SheetActionRow(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+                               destructive: Boolean = false)
 ```
 
 The settings rows in `:feature:settings` (`SettingsSectionHeader`, `SettingsSectionCard`, `SettingsToggleRow`,
@@ -507,15 +541,21 @@ Scanning and empty states render inside the panel in `emptyState` style.
 All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, the new rows, and `RollaIcons`:
 
 - **Search:** the field sits in a `surfaceContainerHigh` pill with a `Search` glyph and `ChevronBack`. Results use section headers and the new rows inside a panel. Recent searches become rows with a `Close` glyph.
-- **AlbumDetail / ArtistDetail / PlaylistDetail / SmartPlaylist / FolderDetail:**
-  - Header: artwork or title block, then `SortHeader` with Shuffle and Play `CircleIconButton`s.
-  - Body: rows in a panel.
-  - ArtistDetail keeps its horizontal `AlbumCard` strip.
+- **AlbumDetail / ArtistDetail / PlaylistDetail / SmartPlaylist / FolderDetail** (anatomy amended 2026-10-18, Phase 6a rulings 5, 6 and 10):
+  - **Top bar:** `OneUiDetailTopBar(title)`. PlaylistDetail adds a ⋮ with Rename and "Delete playlist" on user playlists only; Delete asks first, in a `OneUiDialog` whose "Delete" is destructive.
+  - **Panel:** `ContentPanel` holding a `LazyColumn` whose bottom `contentPadding` is `homeListBottomPadding()`. These routes pad their own lists for the mini-player and are not wrapped in `PushedScreen`.
+  - **Hero:** AlbumDetail and ArtistDetail start the list with `DetailArtworkHeader` (`detailArtworkSize` artwork, the large placeholder when there is none, circular with a `Person` glyph for an artist, and one subtitle line), then `SortHeader`, then the tracks; all scroll together. PlaylistDetail has no artwork, and its `SortHeader` stays fixed above the list because drag-reorder indexes list items directly.
+  - **Sort labels** are static and describe the real order: Album "Track number"; Artist "Album"; user playlist "Custom order"; smart playlists Recently added "Date added", Most played "Play count", Recently played "Last played", Favourite tracks "Name".
+  - **Controls:** Shuffle and Play `CircleIconButton`s in the `SortHeader`, disabled while the list is empty.
+  - **Loading:** the panel body renders nothing while loading (no spinner flash). AlbumDetail, ArtistDetail and PlaylistDetail also hide the sort header; FolderDetail keeps it, disabled (Phase 7 aligns them). A missing album or artist says "Album not available" / "Artist not available".
+  - **Rows:** every row's ⋮ opens the shared options sheet (`SongOptionsHost`): Add to playlist, Edit tags, and, for user playlists only, the destructive "Remove from playlist". The sheet is the deliberate step, so Remove has no extra confirm.
+  - ArtistDetail keeps its horizontal `AlbumCard` strip under an "Albums" heading, each card subtitled with its track count.
   - PlaylistDetail keeps drag-reorder and the accessibility move actions.
+  - **The options sheet closes when its track leaves the list** (for example a removal, or the album disappearing after a rescan): every caller passes `currentSongs`, the list its rows render.
 - **TagEditor / BatchTagEditor:** fields sit on `surfaceContainer` cards. M3 `OutlinedTextField`s are restyled with token colors (container `surfaceContainerHigh`, no outline, `large`-ish 16 dp radius). Buttons are `primary` pills, and the per-field apply toggles use `OneUiSwitch`.
-- **Sheets** (song options, add-to-playlist, queue): `ModalBottomSheet` with `surfaceContainerHigh`, `large` top corners, a `sectionHeader` title and the new rows.
-- **Dialogs** (new playlist, save preset, theme picker): `AlertDialog` with `surfaceContainerHigh`, `large` shape, and `accentText` text buttons.
-- **Menus:** `DropdownMenu` with `surfaceContainerHigh`, `medium` shape, and `songTitle`-sized items.
+- **Sheets** (song options, add-to-playlist, queue): `OneUiBottomSheet` (§6), with `SheetActionRow`s for actions. The add-to-playlist sheet is titled "Add to playlist" and starts with a "New playlist" `SheetActionRow` (`Add` glyph, no ellipsis) and an `InsetDivider`, then `PlaylistRow`s that reserve no rail space (amended 2026-10-18, Phase 6a ruling 11). The sheet's window turns off navigation-bar contrast enforcement and sets both bars' icon colours from the app's resolved theme, so on 3-button navigation the sheet and its scrim run behind the nav buttons instead of a white strip (amended 2026-10-21, Phase 6a device fix F1).
+- **Dialogs** (new playlist, rename, delete playlist, save preset, theme picker): `OneUiDialog` with `OneUiTextButton`s and, for names, `OneUiTextField`. Destructive confirms use `destructiveText` (amended 2026-10-18, Phase 6a rulings 2 and P2).
+- **Menus** (Home ⋮, Now Playing ⋮, playlist ⋮): `OneUiDropdownMenu` with `OneUiMenuItem`s.
 
 ## 9. Data layer
 
@@ -559,6 +599,7 @@ rejected: Room's verifier doesn't know them, and their order doesn't group by th
 - **Model:** add `val artworkUri: String = ""` to `Artist` (and update `model-vocabulary.md`). Artist identity stays the **name** (routing uses
   `ArtistDetail(artistName)`). The synthetic FNV id is display-only, and lists key artists by name, because a hash
   collision would crash a list (amended 2026-10-12, Phase 4a ruling 12).
+- **The artist's albums** (`ArtistRepository.observeArtistAlbums`, the ArtistDetail strip) are in library order (§9.0) by title, ties broken by album id, sorted on `@CoreDataDefaultDispatcher` like the Home lists (amended 2026-10-18, Phase 6a ruling 8).
 
 ### 9.3 Favourites
 

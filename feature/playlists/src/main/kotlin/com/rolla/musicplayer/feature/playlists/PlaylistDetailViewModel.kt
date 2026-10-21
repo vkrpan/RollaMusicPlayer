@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
+import com.rolla.musicplayer.core.data.repository.createPlaylistWithSong
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
@@ -30,10 +31,21 @@ data class PlaylistDetailUiState(
     // true = user playlist (removable, backed by a real playlistId); false = smart/read-only.
     val isUserPlaylist: Boolean = false,
     val isLoading: Boolean = true,
+    // The sort header's static label: it names the order the list is really in (ruling 5, spec §3: no sort menu).
+    val sortLabel: String = "",
 )
 
+/** The sort header label for a user playlist (null) or a smart playlist [kind]: the order its songs arrive in. */
+internal fun sortLabelFor(kind: SmartPlaylistKind?): String = when (kind) {
+    null -> "Custom order"
+    SmartPlaylistKind.RECENTLY_ADDED -> "Date added"
+    SmartPlaylistKind.MOST_PLAYED -> "Play count"
+    SmartPlaylistKind.RECENTLY_PLAYED -> "Last played"
+    SmartPlaylistKind.FAVOURITES -> "Name"
+}
+
 /**
- * ViewModel backing `PlaylistDetailScreen`, which is shared by two distinct nav destinations —
+ * ViewModel backing `PlaylistDetailRoute`, which is shared by two distinct nav destinations —
  * a user playlist (`PlaylistDetail(playlistId: Long)`) and a smart playlist
  * (`SmartPlaylist(kind: String)`). Both routes live in `:app` and are intentionally never
  * imported here (`:feature:*` may only depend on `:core:*`); instead the relevant argument is
@@ -86,6 +98,7 @@ class PlaylistDetailViewModel @Inject constructor(
                     songs = songs,
                     isUserPlaylist = true,
                     isLoading = false,
+                    sortLabel = sortLabelFor(null),
                 )
             }
             kind != null -> smartPlaylistSongs(kind).map { songs ->
@@ -94,6 +107,7 @@ class PlaylistDetailViewModel @Inject constructor(
                     songs = songs,
                     isUserPlaylist = false,
                     isLoading = false,
+                    sortLabel = sortLabelFor(kind),
                 )
             }
             // Neither argument present — shouldn't happen given the two nav destinations, but
@@ -169,11 +183,6 @@ class PlaylistDetailViewModel @Inject constructor(
 
     /** Creates a new playlist with [name] and immediately adds [songId] to it. */
     fun createPlaylistAndAddSong(name: String, songId: String) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            val id = playlistRepository.createPlaylist(trimmed)
-            playlistRepository.addSongs(id, listOf(songId))
-        }
+        viewModelScope.launch { playlistRepository.createPlaylistWithSong(name, songId) }
     }
 }

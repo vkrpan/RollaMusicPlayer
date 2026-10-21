@@ -31,8 +31,6 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -63,7 +61,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.rolla.musicplayer.core.designsystem.component.ArtworkPlaceholder
+import com.rolla.musicplayer.core.designsystem.component.OneUiDropdownMenu
 import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiMenuItem
 import com.rolla.musicplayer.core.designsystem.component.OneUiSeekBar
 import com.rolla.musicplayer.core.designsystem.component.nowPlayingBackground
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
@@ -74,7 +74,6 @@ import com.rolla.musicplayer.core.designsystem.theme.metadata
 import com.rolla.musicplayer.core.designsystem.theme.nowPlayingArtist
 import com.rolla.musicplayer.core.designsystem.theme.nowPlayingGradient
 import com.rolla.musicplayer.core.designsystem.theme.nowPlayingTitle
-import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
@@ -422,12 +421,7 @@ private fun NowPlayingOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     Box {
         OneUiIconButton(icon = RollaIcons.More, contentDescription = "More options", onClick = { expanded = true })
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            shape = MaterialTheme.shapes.medium,
-        ) {
+        OneUiDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             // A null target disables its item rather than navigating to a bogus id. A song that left the library has
             // no song id or album id (both come from the library row), so only Go to artist and Settings stay enabled.
             OverflowMenuItem("Edit tags", targets.songId) { id ->
@@ -452,11 +446,7 @@ private fun NowPlayingOverflowMenu(
 
 @Composable
 private fun <T : Any> OverflowMenuItem(label: String, target: T?, onClick: (T) -> Unit) {
-    DropdownMenuItem(
-        text = { Text(text = label, style = MaterialTheme.typography.songTitle) },
-        onClick = { if (target != null) onClick(target) },
-        enabled = target != null,
-    )
+    OneUiMenuItem(text = label, onClick = { if (target != null) onClick(target) }, enabled = target != null)
 }
 
 @Composable

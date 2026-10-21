@@ -29,15 +29,10 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,12 +54,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.EqVerticalSlider
 import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
 import com.rolla.musicplayer.core.designsystem.component.OneUiSwitch
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextField
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
 import com.rolla.musicplayer.core.designsystem.motion.rollaSpringOrSnap
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.designsystem.theme.caption
 import com.rolla.musicplayer.core.designsystem.theme.eqFrequency
 import com.rolla.musicplayer.core.designsystem.theme.eqGridLine
@@ -507,59 +504,35 @@ private fun gainLabel(gainMillibel: Short): String {
 
 @Composable
 private fun SaveAsPresetButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    TextButton(
+    OneUiTextButton(
+        text = "Save as preset",
         onClick = onClick,
         modifier = modifier.heightIn(min = RollaDimens.minTouchTarget),
-        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.accentText),
-    ) {
-        Text(text = "Save as preset", style = MaterialTheme.typography.bodyMedium)
-    }
+    )
 }
 
 // Internal for SavePresetDialogTest: the dialog opens only from EqualizerRoute, which needs a Hilt ViewModel.
-@Suppress("LongMethod")
 @Composable
 internal fun SavePresetDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     var name by rememberSaveable { mutableStateOf("") }
     val isNameBlank = name.trim().isEmpty()
-    // Blue text is accentText, never primary (spec §5); M3's TextButton and OutlinedTextField default to primary.
-    val accent = MaterialTheme.colorScheme.accentText
-    val buttonColors = ButtonDefaults.textButtonColors(contentColor = accent)
 
-    AlertDialog(
+    OneUiDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Save as preset",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
+        title = "Save as preset",
         text = {
-            OutlinedTextField(
+            OneUiTextField(
                 value = name,
                 onValueChange = { name = it },
-                singleLine = true,
-                label = { Text("Preset name") },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedLabelColor = accent,
-                    cursorColor = accent,
-                    focusedBorderColor = accent,
-                ),
+                label = "Preset name",
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
             )
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(name.trim()) }, enabled = !isNameBlank, colors = buttonColors) {
-                Text("Save")
-            }
+            OneUiTextButton(text = "Save", onClick = { onConfirm(name.trim()) }, enabled = !isNameBlank)
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss, colors = buttonColors) {
-                Text("Cancel")
-            }
-        },
+        dismissButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         modifier = modifier,
-        shape = MaterialTheme.shapes.large, // spec §8.7
     )
 }
 

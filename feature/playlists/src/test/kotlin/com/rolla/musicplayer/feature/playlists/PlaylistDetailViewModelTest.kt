@@ -14,6 +14,7 @@ import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -29,7 +30,7 @@ private const val SHUFFLE_SEED = 7L
 /**
  * Unit tests for [PlaylistDetailViewModel].
  *
- * Covers both nav destinations that back the single `PlaylistDetailScreen`: a user playlist
+ * Covers both nav destinations that back the single `PlaylistDetailRoute`: a user playlist
  * (`SavedStateHandle["playlistId"]`) and a smart playlist (`SavedStateHandle["kind"]`). Since
  * `:feature:playlists` must never depend on `:app`'s route classes, these tests construct
  * [SavedStateHandle] directly from a raw `Map<String, Any?>`, exactly mirroring how Navigation
@@ -284,6 +285,41 @@ class PlaylistDetailViewModelTest {
         viewModel.uiState.test {
             val state = expectMostRecentItem()
             assertEquals(2, state.songs.size)
+        }
+    }
+
+    // ── sortLabel (ruling 5) ─────────────────────────────────────────────────
+
+    // Ruling 5: the sort header names the order the list is really in, for the user playlist and each smart kind.
+    // Control: the title is set too, so the state really loaded. Trivial stub: sortLabel = "" → RED on the first
+    // label. Mutation: swap the Most played and Recently played labels → RED.
+    @Test
+    fun sortLabel_describesTheOrderOfTheUserPlaylistAndEachSmartKind() = runTest {
+        fakePlaylistRepository.emitPlaylists(
+            listOf(Playlist(id = 1L, name = "Road trip", songCount = 0, createdAt = 1L, updatedAt = 1L)),
+        )
+        every { songRepository.observeRecentlyPlayed() } returns flowOf(emptyList())
+        every { songRepository.observeMostPlayed() } returns flowOf(emptyList())
+        every { songRepository.observeRecentlyAdded() } returns flowOf(emptyList())
+
+        userPlaylistViewModel(playlistId = 1L).uiState.test {
+            val state = expectMostRecentItem()
+            assertEquals("the user playlist's title loads", "Road trip", state.title)
+            assertEquals("a user playlist is in its custom order", "Custom order", state.sortLabel)
+        }
+        val expected = mapOf(
+            SmartPlaylistKind.RECENTLY_ADDED to "Date added",
+            SmartPlaylistKind.MOST_PLAYED to "Play count",
+            SmartPlaylistKind.RECENTLY_PLAYED to "Last played",
+            SmartPlaylistKind.FAVOURITES to "Name",
+        )
+        assertEquals("every smart kind is covered", SmartPlaylistKind.entries.toSet(), expected.keys)
+        expected.forEach { (kind, label) ->
+            smartPlaylistViewModel(kind).uiState.test {
+                val state = expectMostRecentItem()
+                assertEquals("$kind's title loads", smartPlaylistLabel(kind), state.title)
+                assertEquals("$kind's sort label", label, state.sortLabel)
+            }
         }
     }
 

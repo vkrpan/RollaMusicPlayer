@@ -309,8 +309,8 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   (`QueuePublisher`). Tapping a track plays the whole list from it, via the `PlaybackController` helpers `playFrom`,
 >   `playAllInOrder` and `shuffleAll`. Now Playing's Volume opens the system panel (`SystemVolumePanel`), and ⋮ offers
 >   Edit tags, Go to album, Go to artist and Settings. UI copy says "Equaliser"; code names stay `Equalizer*`. Reduced
->   motion uses `rememberReducedMotion()`; `isReducedMotion` is gone from `:feature:player` and `:feature:equalizer`
->   (`:feature:playlists` still has a module-local copy). Settings values sit in blue below their labels,
+>   motion uses `rememberReducedMotion()`; no module-local `isReducedMotion` copy is left (`:feature:playlists`
+>   lost the last one in Phase 6a). Settings values sit in blue below their labels,
 >   with no chevrons.
 > - **Phase 4a:** Home has five tabs: Favourites · Playlists · Tracks · Albums · Artists. Favourites (`FavouritesTab`,
 >   `:feature:playlists`) plays the favourite tracks, with no multi-select. Albums is a 2-column `AlbumCard` grid and
@@ -337,6 +337,17 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >     accents, so "Émile" sorts and jumps under E. `:core:common`'s `LibraryOrder.kt` (`indexLetter`,
 >     `sortedByLibraryName`) defines it, and the repositories apply it on `@CoreDataDefaultDispatcher`, off the main
 >     thread. The DAOs keep NOCASE as a pre-order.
+> - **Phase 6a:** the detail screens, sheets, dialogs and menus are on the One UI kit.
+>   - **Kit:** `OneUiBottomSheet`, `OneUiDialog`, `OneUiTextButton`, `OneUiTextField`, `OneUiDropdownMenu`/`OneUiMenuItem`
+>     and `SheetActionRow` (`:core:designsystem`) back every sheet, dialog and menu (queue, options, add-to-playlist,
+>     theme, save preset, Home ⋮, Now Playing ⋮). Destructive text uses the `destructiveText` token, never `error`.
+>   - **Detail screens:** AlbumDetail, ArtistDetail, PlaylistDetail and SmartPlaylist have a `DetailArtworkHeader` hero
+>     (album/artist), a static sort label, and a ⋮ on every row that opens `SongOptionsHost` (Add to playlist, Edit tags,
+>     and Remove on user playlists). Like FolderDetail, they pad their own lists for the pill instead of being wrapped
+>     in `PushedScreen`; `:app` registers them through `NavGraphBuilder` extensions in `MainActivity.kt`.
+>     `PushedScreen` still wraps Search, the tag editors, Equaliser, Settings, About, Licenses and Privacy (6b).
+>   - **Options sheet:** every caller passes `currentSongs`, so the sheet closes when its track leaves the list.
+>     "Create a playlist with this track" is one `PlaylistRepository.createPlaylistWithSong` extension.
 > - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
 >   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
 >   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to

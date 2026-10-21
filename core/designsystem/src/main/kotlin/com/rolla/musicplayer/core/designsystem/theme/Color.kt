@@ -56,6 +56,7 @@ internal data class RollaPalette(
     val error: Color,
     val onError: Color,
     val accentText: Color,
+    val destructiveText: Color,
     val tabUnselected: Color,
     val artworkPlaceholder: Color,
     val artworkPlaceholderLarge: Color,
@@ -94,6 +95,7 @@ internal val DarkPalette = RollaPalette(
     error = Color(0xFFFF5A5A),
     onError = Color(0xFF000000),
     accentText = Color(0xFF6094FF),
+    destructiveText = Color(0xFFFF6060), // error #FF5A5A is only 4.49:1 on surfaceContainerHigh; this is 4.64:1
     tabUnselected = Color(0xFF7E7E80),
     artworkPlaceholder = Color(0xFF454547),
     artworkPlaceholderLarge = Color(0xFF3B3B3B),
@@ -139,6 +141,7 @@ internal val LightPalette = RollaPalette(
     error = Color(0xFFBA1A1A),
     onError = Color(0xFFFFFFFF),
     accentText = Color(0xFF1F5FE0),
+    destructiveText = Color(0xFFBA1A1A), // the same as light error (5.28:1 on surfaceContainerHigh)
     tabUnselected = Color(0xFF646467),
     artworkPlaceholder = Color(0xFFE6E6E8),
     artworkPlaceholderLarge = Color(0xFFE9E9EB),
@@ -211,6 +214,14 @@ private val currentPalette: RollaPalette
 val ColorScheme.accentText: Color
     @Composable @ReadOnlyComposable
     get() = currentPalette.accentText
+
+/**
+ * Destructive action text (Delete, Remove from playlist). Never `error` as text: dark `error` is 4.49:1 on
+ * `surfaceContainerHigh`.
+ */
+val ColorScheme.destructiveText: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.destructiveText
 
 val ColorScheme.tabUnselected: Color
     @Composable @ReadOnlyComposable

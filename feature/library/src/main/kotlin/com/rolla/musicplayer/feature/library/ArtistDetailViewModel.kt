@@ -6,15 +6,19 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.ArtistRepository
+import com.rolla.musicplayer.core.data.repository.PlaylistRepository
+import com.rolla.musicplayer.core.data.repository.createPlaylistWithSong
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Artist
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import kotlin.random.Random
 
@@ -46,6 +50,7 @@ class ArtistDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val artistRepository: ArtistRepository,
     private val playbackController: PlaybackController,
+    private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
     private val artistName: String = checkNotNull(savedStateHandle["artistName"]) {
@@ -63,6 +68,14 @@ class ArtistDetailViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
         initialValue = ArtistDetailUiState(),
     )
+
+    /** User-created playlists, for the shared "Add to playlist" sheet. */
+    val userPlaylists: StateFlow<List<Playlist>> = playlistRepository.observePlaylists()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
+            initialValue = emptyList(),
+        )
 
     /** Picks Shuffle's start track. Tests swap in a seeded [Random]; Hilt's constructor stays unchanged. */
     @VisibleForTesting
@@ -89,5 +102,14 @@ class ArtistDetailViewModel @Inject constructor(
      */
     fun onSongClick(song: Song) {
         playbackController.playFrom(uiState.value.songs, song)
+    }
+
+    fun addSongToPlaylist(songId: String, playlistId: Long) {
+        viewModelScope.launch { playlistRepository.addSongs(playlistId, listOf(songId)) }
+    }
+
+    /** "New playlist" from the options sheet; a blank name writes nothing (Phase 6a ruling 7). */
+    fun createPlaylistAndAddSong(name: String, songId: String) {
+        viewModelScope.launch { playlistRepository.createPlaylistWithSong(name, songId) }
     }
 }

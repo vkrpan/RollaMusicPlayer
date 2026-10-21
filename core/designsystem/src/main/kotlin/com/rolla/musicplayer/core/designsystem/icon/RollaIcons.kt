@@ -387,6 +387,28 @@ object RollaIcons {
         }
     }
 
+    /** A line trash can: lid, handle, a tapered body and two inner ribs. Symmetric, so it never mirrors. */
+    val Delete: ImageVector by lazy {
+        icon("Delete") {
+            line {
+                moveTo(4f, 7f)
+                lineTo(20f, 7f)
+                moveTo(9f, 7f)
+                lineTo(9f, 4f)
+                lineTo(15f, 4f)
+                lineTo(15f, 7f)
+                moveTo(6f, 7f)
+                lineTo(7f, 20f)
+                lineTo(17f, 20f)
+                lineTo(18f, 7f)
+                moveTo(10f, 11f)
+                lineTo(10f, 16f)
+                moveTo(14f, 11f)
+                lineTo(14f, 16f)
+            }
+        }
+    }
+
     val Edit: ImageVector by lazy {
         icon("Edit") {
             line {
@@ -456,6 +478,6 @@ object RollaIcons {
         get() = listOf(
             Search, More, Add, Sort, Shuffle, Queue, ChevronBack, ChevronDown, Volume, EqualizerBars, Heart,
             HeartFilled, PlayOrder, Repeat, RepeatOne, Play, Pause, SkipPrevious, SkipNext, MusicNote, FolderBadge,
-            FolderBadgeFill, Close, Edit, Check, PlaylistAdd, Album, Person,
+            FolderBadgeFill, Close, Delete, Edit, Check, PlaylistAdd, Album, Person,
         )
 }

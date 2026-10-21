@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
+import com.rolla.musicplayer.core.data.repository.createPlaylistWithSong
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
@@ -71,11 +72,6 @@ class FavouritesTabViewModel @Inject constructor(
     }
 
     fun createPlaylistAndAddSong(name: String, songId: String) {
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            val id = playlistRepository.createPlaylist(trimmed)
-            playlistRepository.addSongs(id, listOf(songId))
-        }
+        viewModelScope.launch { playlistRepository.createPlaylistWithSong(name, songId) }
     }
 }

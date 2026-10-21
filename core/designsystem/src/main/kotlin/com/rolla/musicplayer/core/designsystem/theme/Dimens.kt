@@ -55,6 +55,9 @@ object RollaDimens {
     // Minimum gap between a row's title and its trailing text; not measured on the reference, Phase 7 calibrates.
     val listTrailingGap = 16.dp
 
+    /** Shadow under a playlist row lifted for drag-reorder; pre-restyle value, Phase 7 calibrates. */
+    val dragLiftElevation = 6.dp
+
     val dividerThickness = 1.dp
     val placeholderGlyph = 24.dp
     val overflowGlyph = 20.dp // the gray ⋮ glyph on list rows
@@ -95,6 +98,11 @@ object RollaDimens {
 
     // Now Playing
     val npArtSize = 168.dp
+
+    /**
+     * Hero artwork on AlbumDetail/ArtistDetail (spec §8.7). No reference screenshot: borrows npArtSize until Phase 7.
+     */
+    val detailArtworkSize: Dp get() = npArtSize
     val npArtTop = 130.dp
     val npSeekThickness = 3.dp
     val npSeekThumb = 16.dp

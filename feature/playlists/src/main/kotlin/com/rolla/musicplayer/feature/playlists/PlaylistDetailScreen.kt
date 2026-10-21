@@ -3,49 +3,26 @@
 package com.rolla.musicplayer.feature.playlists
 
 import android.content.res.Configuration
-import android.provider.Settings
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -60,36 +37,44 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.CircleIconButton
+import com.rolla.musicplayer.core.designsystem.component.ContentPanel
+import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
+import com.rolla.musicplayer.core.designsystem.component.OneUiDropdownMenu
+import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiMenuItem
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
+import com.rolla.musicplayer.core.designsystem.component.SortHeader
+import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
+import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
+import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
+import com.rolla.musicplayer.core.designsystem.motion.rollaSpringOrSnap
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
-import com.rolla.musicplayer.core.designsystem.theme.screenTitle
+import com.rolla.musicplayer.core.designsystem.theme.emptyState
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
-import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import com.rolla.musicplayer.core.ui.SongListItem
-import com.rolla.musicplayer.core.ui.tracksCountLabel
+import com.rolla.musicplayer.core.ui.SongOptionsHost
 
-private val SurfaceHorizontalMargin = 8.dp
-private val SurfaceVerticalMargin = 8.dp
-private val ControlButtonSize = 48.dp
-private val ControlIconSize = 24.dp
-private val HeaderHorizontalPadding = 16.dp
-private val HeaderVerticalPadding = 12.dp
-private val EmptyStateHorizontalPadding = 32.dp
+/**
+ * Test handle for PlaylistDetail's track list. Not `song_list`, which only the Tracks tab may carry (baseline profile).
+ */
+internal const val PLAYLIST_SONG_LIST_TEST_TAG = "playlist_song_list"
 
 // Reorder motion specs (see ui-style-guide.md §9: 200-300ms, spring for interactive elements).
 // Non-bouncy + medium-low stiffness settles quickly without overshoot — a reorder needs to read
@@ -100,35 +85,26 @@ private val ReorderPlacementSpring: FiniteAnimationSpec<IntOffset> = spring(
 )
 
 // Subtle "picked up" feedback for the actively dragged row. Kept restrained per the One
-// UI-inspired, content-forward design system — this is a lift, not a bounce.
+// UI-inspired, content-forward design system — this is a lift, not a bounce. The lift animates
+// with rollaSpring (non-bouncy, medium stiffness), or snaps under reduced motion.
 private const val DRAG_LIFT_SCALE = 1.04f
-private val DragLiftElevation = 6.dp
-private val DragLiftSpringScale: FiniteAnimationSpec<Float> = spring(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMedium,
-)
-private val DragLiftSpringElevation: FiniteAnimationSpec<Dp> = spring(
-    dampingRatio = Spring.DampingRatioNoBouncy,
-    stiffness = Spring.StiffnessMedium,
-)
 
 /**
- * Stateful entry point for a single playlist detail screen: a user-created playlist or one of
- * the built-in smart playlists (Favourites, Recently played, Most played, Recently added). Same
- * Route/Screen split as every other screen in the codebase (see TagEditorRoute in feature:tageditor).
+ * Stateful entry point for a single playlist detail screen (spec §8.7): a user-created playlist or one of the built-in
+ * smart playlists (Favourites, Recently played, Most played, Recently added). Both routes live in `:app` and are owned
+ * by navigation-agent. Back is [onNavigateUp]; "Edit tags" in the options sheet leaves through [onEditTagsClick].
  */
-@Suppress("LongMethod")
 @Composable
 fun PlaylistDetailRoute(
     onNavigateUp: () -> Unit,
+    onEditTagsClick: (Song) -> Unit,
     viewModel: PlaylistDetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var addToPlaylistSong by remember { mutableStateOf<Song?>(null) }
-    var showCreatePlaylistDialog by remember { mutableStateOf(false) }
-
-    PlaylistDetailScreen(
+    val userPlaylists by viewModel.userPlaylists.collectAsStateWithLifecycle()
+    PlaylistDetailContent(
         uiState = uiState,
+        userPlaylists = userPlaylists,
         onNavigateUp = onNavigateUp,
         onPlayAll = remember(viewModel) { viewModel::playAll },
         onShuffleAll = remember(viewModel) { viewModel::shuffleAll },
@@ -137,40 +113,29 @@ fun PlaylistDetailRoute(
         onReorder = remember(viewModel) { viewModel::reorder },
         onRenamePlaylist = remember(viewModel) { viewModel::renamePlaylist },
         onDeletePlaylist = remember(viewModel) { viewModel::deletePlaylist },
-        onAddToPlaylist = { song -> addToPlaylistSong = song },
+        onAddSongToPlaylist = remember(viewModel) { viewModel::addSongToPlaylist },
+        onCreatePlaylistAndAddSong = remember(viewModel) { viewModel::createPlaylistAndAddSong },
+        onEditTagsClick = onEditTagsClick,
     )
-
-    val songPendingPlaylistPick = addToPlaylistSong
-    if (songPendingPlaylistPick != null && !showCreatePlaylistDialog) {
-        AddToPlaylistSheetHost(
-            userPlaylists = viewModel.userPlaylists,
-            onPlaylistSelected = { playlistId ->
-                viewModel.addSongToPlaylist(songPendingPlaylistPick.id, playlistId)
-                addToPlaylistSong = null
-            },
-            onCreateNewPlaylist = { showCreatePlaylistDialog = true },
-            onDismissRequest = { addToPlaylistSong = null },
-        )
-    }
-
-    if (showCreatePlaylistDialog && songPendingPlaylistPick != null) {
-        PlaylistNameDialog(
-            title = "New playlist",
-            confirmLabel = "Create",
-            onConfirm = { name ->
-                viewModel.createPlaylistAndAddSong(name, songPendingPlaylistPick.id)
-                showCreatePlaylistDialog = false
-                addToPlaylistSong = null
-            },
-            onDismiss = { showCreatePlaylistDialog = false },
-        )
-    }
 }
 
-@Suppress("LongParameterList")
+/**
+ * Stateless PlaylistDetail (spec §8.7); tests and previews host this.
+ * - The bar owns the status-bar inset. Its ⋮ (Rename, Delete playlist) is offered on user playlists only: smart
+ *   playlists cannot be renamed or deleted.
+ * - The sort header stays fixed above the list, because the drag-reorder logic indexes list items directly (ruling 5).
+ *   The panel runs to the bottom edge, and the list pads by the pill and the navigation bar (no PushedScreen).
+ * - Nothing renders while loading (ruling 5), so there is no spinner flash.
+ * - A row's ⋮ opens the shared options sheet. Remove from playlist is offered on user playlists only (Review Focus 2).
+ *   The sheet gets the same list the rows render, so it closes when its track leaves (ruling 10). The open track is
+ *   plain `remember` state: a saved one could outlive the list it came from.
+ */
+// The stateless half of PlaylistDetailRoute: every input is a distinct piece of state or a distinct event.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
-fun PlaylistDetailScreen(
+internal fun PlaylistDetailContent(
     uiState: PlaylistDetailUiState,
+    userPlaylists: List<Playlist>,
     onNavigateUp: () -> Unit,
     onPlayAll: () -> Unit,
     onShuffleAll: () -> Unit,
@@ -179,119 +144,118 @@ fun PlaylistDetailScreen(
     onReorder: (List<String>) -> Unit,
     onRenamePlaylist: (String) -> Unit,
     onDeletePlaylist: () -> Unit,
-    onAddToPlaylist: (Song) -> Unit,
+    onAddSongToPlaylist: (String, Long) -> Unit,
+    onCreatePlaylistAndAddSong: (String, String) -> Unit,
+    onEditTagsClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(
-        topBar = {
-            PlaylistDetailTopBar(
-                title = uiState.title,
-                isUserPlaylist = uiState.isUserPlaylist,
-                onNavigateUp = onNavigateUp,
-                onRenamePlaylist = onRenamePlaylist,
-                onDeletePlaylist = {
-                    onDeletePlaylist()
-                    onNavigateUp()
-                },
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background,
-        modifier = modifier,
-    ) { innerPadding ->
-        PlaylistDetailContent(
-            uiState = uiState,
-            onPlayAll = onPlayAll,
-            onShuffleAll = onShuffleAll,
-            onSongClick = onSongClick,
-            onRemoveSong = onRemoveSong,
-            onReorder = onReorder,
-            onAddToPlaylist = onAddToPlaylist,
-            modifier = Modifier.padding(innerPadding),
-        )
-    }
-}
-
-@Suppress("LongParameterList", "LongMethod")
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun PlaylistDetailTopBar(
-    title: String,
-    isUserPlaylist: Boolean,
-    onNavigateUp: () -> Unit,
-    onRenamePlaylist: (String) -> Unit,
-    onDeletePlaylist: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    TopAppBar(
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.screenTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        actions = {
-            if (isUserPlaylist) {
-                PlaylistDetailOverflowMenu(
-                    title = title,
+    var optionsSong by remember { mutableStateOf<Song?>(null) }
+    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        OneUiDetailTopBar(title = uiState.title, onNavigateUp = onNavigateUp) {
+            if (uiState.isUserPlaylist) {
+                PlaylistOverflowMenu(
+                    title = uiState.title,
                     onRenamePlaylist = onRenamePlaylist,
-                    onDeletePlaylist = onDeletePlaylist,
+                    onDeletePlaylist = {
+                        onDeletePlaylist()
+                        onNavigateUp()
+                    },
                 )
             }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
+        }
+        ContentPanel {
+            if (!uiState.isLoading) {
+                PlaylistSortHeader(
+                    label = uiState.sortLabel,
+                    enabled = uiState.songs.isNotEmpty(),
+                    onShuffleAll = onShuffleAll,
+                    onPlayAll = onPlayAll,
+                )
+                if (uiState.songs.isEmpty()) {
+                    EmptyPlaylistContent(title = uiState.title)
+                } else {
+                    PlaylistSongList(
+                        songs = uiState.songs,
+                        isUserPlaylist = uiState.isUserPlaylist,
+                        onSongClick = onSongClick,
+                        onReorder = onReorder,
+                        onMoreClick = { song -> optionsSong = song },
+                    )
+                }
+            }
+        }
+    }
+    SongOptionsHost(
+        song = optionsSong,
+        userPlaylists = userPlaylists,
+        onDismiss = { optionsSong = null },
+        onAddSongToPlaylist = onAddSongToPlaylist,
+        onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
+        onEditTagsClick = onEditTagsClick,
+        onRemoveFromPlaylist = if (uiState.isUserPlaylist) onRemoveSong else null,
+        currentSongs = uiState.songs,
     )
 }
 
+/** The static sort label (ruling 5) with Shuffle and Play, disabled while the playlist is empty (spec §12). */
+@Composable
+private fun PlaylistSortHeader(
+    label: String,
+    enabled: Boolean,
+    onShuffleAll: () -> Unit,
+    onPlayAll: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SortHeader(label = label, modifier = modifier) {
+        CircleIconButton(
+            icon = RollaIcons.Shuffle,
+            contentDescription = "Shuffle all tracks",
+            onClick = onShuffleAll,
+            enabled = enabled,
+        )
+        CircleIconButton(
+            icon = RollaIcons.Play,
+            contentDescription = "Play all tracks",
+            onClick = onPlayAll,
+            enabled = enabled,
+        )
+    }
+}
+
 /**
- * Overflow menu for a user-created playlist: rename and delete. Never rendered for smart
- * playlists (Favourites, Recently played, etc.) — those can't be renamed or deleted.
+ * The bar ⋮ for a user-created playlist: Rename and Delete playlist. Never rendered for smart playlists (Favourites,
+ * Recently played, etc.): those can't be renamed or deleted.
  */
 @Suppress("LongMethod")
 @Composable
-private fun PlaylistDetailOverflowMenu(
+private fun PlaylistOverflowMenu(
     title: String,
     onRenamePlaylist: (String) -> Unit,
     onDeletePlaylist: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    IconButton(onClick = { showMenu = true }, modifier = modifier) {
-        Icon(
-            imageVector = Icons.Default.MoreVert,
-            contentDescription = "More options",
-            tint = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-        DropdownMenuItem(
-            text = { Text("Rename") },
-            onClick = {
-                showMenu = false
-                showRenameDialog = true
-            },
-        )
-        DropdownMenuItem(
-            text = { Text("Delete") },
-            onClick = {
-                showMenu = false
-                showDeleteDialog = true
-            },
-        )
+    Box(modifier = modifier) {
+        OneUiIconButton(icon = RollaIcons.More, contentDescription = "More options", onClick = { expanded = true })
+        OneUiDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            OneUiMenuItem(
+                text = "Rename",
+                onClick = {
+                    expanded = false
+                    showRenameDialog = true
+                },
+            )
+            OneUiMenuItem(
+                text = "Delete playlist",
+                onClick = {
+                    expanded = false
+                    showDeleteDialog = true
+                },
+            )
+        }
     }
 
     if (showRenameDialog) {
@@ -319,7 +283,7 @@ private fun PlaylistDetailOverflowMenu(
     }
 }
 
-@Suppress("LongMethod")
+/** The delete confirmation: Delete in destructiveText, Cancel in accentText (Review Focus 3, ruling P2). */
 @Composable
 private fun DeletePlaylistDialog(
     title: String,
@@ -327,152 +291,14 @@ private fun DeletePlaylistDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    AlertDialog(
+    OneUiDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Delete \"$title\"?",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        text = {
-            Text(
-                text = "This playlist will be permanently deleted. This can't be undone.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(text = "Delete", color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
+        title = "Delete \"$title\"?",
+        text = { Text("This playlist will be permanently deleted. This can't be undone.") },
+        confirmButton = { OneUiTextButton(text = "Delete", onClick = onConfirm, destructive = true) },
+        dismissButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         modifier = modifier,
     )
-}
-
-@Suppress("LongParameterList")
-@Composable
-private fun PlaylistDetailContent(
-    uiState: PlaylistDetailUiState,
-    onPlayAll: () -> Unit,
-    onShuffleAll: () -> Unit,
-    onSongClick: (Song) -> Unit,
-    onRemoveSong: (Song) -> Unit,
-    onReorder: (List<String>) -> Unit,
-    onAddToPlaylist: (Song) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = SurfaceHorizontalMargin, vertical = SurfaceVerticalMargin),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column {
-            SortControlHeader(
-                songCount = uiState.songs.size,
-                onShuffleAll = onShuffleAll,
-                onPlayAll = onPlayAll,
-            )
-            when {
-                uiState.isLoading -> LoadingContent()
-                uiState.songs.isEmpty() -> EmptyPlaylistContent(title = uiState.title)
-                else -> PlaylistSongList(
-                    songs = uiState.songs,
-                    isUserPlaylist = uiState.isUserPlaylist,
-                    onSongClick = onSongClick,
-                    onRemoveSong = onRemoveSong,
-                    onReorder = onReorder,
-                    onAddToPlaylist = onAddToPlaylist,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SortControlHeader(
-    songCount: Int,
-    onShuffleAll: () -> Unit,
-    onPlayAll: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = HeaderHorizontalPadding, vertical = HeaderVerticalPadding),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = tracksCountLabel(songCount),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        PlaybackControls(onShuffleAll = onShuffleAll, onPlayAll = onPlayAll)
-    }
-}
-
-@Composable
-private fun PlaybackControls(
-    onShuffleAll: () -> Unit,
-    onPlayAll: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(modifier = modifier) {
-        ControlButton(
-            icon = Icons.Default.Shuffle,
-            contentDescription = "Shuffle all tracks",
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            iconTint = MaterialTheme.colorScheme.onSurface,
-            onClick = onShuffleAll,
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        ControlButton(
-            icon = Icons.Default.PlayArrow,
-            contentDescription = "Play all tracks",
-            containerColor = MaterialTheme.colorScheme.primary,
-            iconTint = MaterialTheme.colorScheme.onPrimary,
-            onClick = onPlayAll,
-        )
-    }
-}
-
-@Composable
-private fun ControlButton(
-    icon: ImageVector,
-    contentDescription: String,
-    containerColor: Color,
-    iconTint: Color,
-    onClick: () -> Unit,
-) {
-    FilledIconButton(
-        onClick = onClick,
-        modifier = Modifier.size(ControlButtonSize),
-        colors = IconButtonDefaults.filledIconButtonColors(containerColor = containerColor),
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            modifier = Modifier.size(ControlIconSize),
-            tint = iconTint,
-        )
-    }
-}
-
-@Composable
-private fun LoadingContent(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-    }
 }
 
 @Composable
@@ -480,10 +306,10 @@ private fun EmptyPlaylistContent(title: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(
             text = "No tracks in \"$title\" yet.",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.emptyState,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = EmptyStateHorizontalPadding),
+            modifier = Modifier.padding(horizontal = RollaDimens.screenEdge),
         )
     }
 }
@@ -546,18 +372,6 @@ private class DragDropState(
     }
 }
 
-@Composable
-private fun isReducedMotion(): Boolean {
-    val context = LocalContext.current
-    return remember {
-        Settings.Global.getFloat(
-            context.contentResolver,
-            Settings.Global.ANIMATOR_DURATION_SCALE,
-            1f,
-        ) == 0f
-    }
-}
-
 /**
  * TalkBack-reachable equivalent of the long-press drag reorder ([DragDropState] /
  * `detectDragGesturesAfterLongPress` above) -- a raw pointer-drag gesture has no accessibility
@@ -567,7 +381,7 @@ private fun isReducedMotion(): Boolean {
  * single atomic step instead of a per-frame stream. Never attached to smart playlists (see the
  * isUserPlaylist gate at the call site); "Move up" is omitted for the first row and "Move down" for
  * the last, since [orderedSongs]'s own bounds make both directions self-evidently correct without
- * re-deriving them from [isUserPlaylist].
+ * re-deriving them from isUserPlaylist.
  */
 private fun reorderCustomActions(
     orderedSongs: SnapshotStateList<Song>,
@@ -600,13 +414,12 @@ private fun PlaylistSongList(
     songs: List<Song>,
     isUserPlaylist: Boolean,
     onSongClick: (Song) -> Unit,
-    onRemoveSong: (Song) -> Unit,
     onReorder: (List<String>) -> Unit,
-    onAddToPlaylist: (Song) -> Unit,
+    onMoreClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
-    val reducedMotion = isReducedMotion()
+    val reducedMotion = rememberReducedMotion()
 
     // Live drag-preview snapshot. Resets whenever the upstream `songs` list changes — since a
     // persisted reorder round-trips back through `uiState.songs` in the same order that was
@@ -652,7 +465,13 @@ private fun PlaylistSongList(
     // omitting the modifier — keeps the reflow logic uniform regardless of the motion setting.
     val placementSpec = if (reducedMotion) snap() else ReorderPlacementSpring
 
-    LazyColumn(state = listState, modifier = modifier.then(dragModifier)) {
+    // The list scrolls under the floating mini-player and the navigation bar, so its last row can scroll fully
+    // above the pill (Review Focus 5).
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize().testTag(PLAYLIST_SONG_LIST_TEST_TAG).then(dragModifier),
+        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+    ) {
         itemsIndexed(items = orderedSongs, key = { _, song -> song.id }) { index, song ->
             // derivedStateOf so a draggingItemKey write only invalidates the (at most two) rows
             // whose boolean actually flips, not every visible row. draggingItemKey stays null for
@@ -668,27 +487,20 @@ private fun PlaylistSongList(
             // used for draggingItemOffset.
             val liftScale = animateFloatAsState(
                 targetValue = if (isDragging) DRAG_LIFT_SCALE else 1f,
-                animationSpec = if (reducedMotion) snap() else DragLiftSpringScale,
+                animationSpec = rollaSpringOrSnap(reducedMotion),
                 label = "dragLiftScale",
             )
             val liftElevation = animateDpAsState(
-                targetValue = if (isDragging) DragLiftElevation else 0.dp,
-                animationSpec = if (reducedMotion) snap() else DragLiftSpringElevation,
+                targetValue = if (isDragging) RollaDimens.dragLiftElevation else 0.dp,
+                animationSpec = rollaSpringOrSnap(reducedMotion),
                 label = "dragLiftElevation",
             )
 
+            // The ⋮ opens the options sheet, a real menu, so the default "More options for X" is honest.
             SongListItem(
                 song = song,
                 onClick = { onSongClick(song) },
-                onMoreClick = { if (isUserPlaylist) onRemoveSong(song) else onAddToPlaylist(song) },
-                // The default "More options for X" is a lie here -- this button performs a direct
-                // action (remove, or open the add-to-playlist sheet), never a menu (TalkBack audit
-                // HIGH).
-                moreContentDescription = if (isUserPlaylist) {
-                    "Remove ${song.title} from playlist"
-                } else {
-                    "Add ${song.title} to a playlist"
-                },
+                onMoreClick = { onMoreClick(song) },
                 modifier = Modifier
                     .graphicsLayer {
                         scaleX = liftScale.value
@@ -740,19 +552,12 @@ private fun previewSongs(): List<Song> = listOf(
     ),
 )
 
-@Suppress("UnusedPrivateMember")
-@Preview(name = "Playlist Detail - Light")
-@Preview(name = "Playlist Detail - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun PreviewPlaylistDetailScreen() {
+private fun PreviewPlaylistDetail(uiState: PlaylistDetailUiState) {
     RollaMusicPlayerTheme {
-        PlaylistDetailScreen(
-            uiState = PlaylistDetailUiState(
-                title = "Workout Mix",
-                songs = previewSongs(),
-                isUserPlaylist = true,
-                isLoading = false,
-            ),
+        PlaylistDetailContent(
+            uiState = uiState,
+            userPlaylists = emptyList(),
             onNavigateUp = {},
             onPlayAll = {},
             onShuffleAll = {},
@@ -761,33 +566,41 @@ private fun PreviewPlaylistDetailScreen() {
             onReorder = {},
             onRenamePlaylist = {},
             onDeletePlaylist = {},
-            onAddToPlaylist = {},
+            onAddSongToPlaylist = { _, _ -> },
+            onCreatePlaylistAndAddSong = { _, _ -> },
+            onEditTagsClick = {},
         )
     }
 }
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Playlist Detail Empty - Light")
-@Preview(name = "Playlist Detail Empty - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Playlist Detail - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, widthDp = 360, heightDp = 640)
+@Preview(name = "Playlist Detail - Light", widthDp = 360, heightDp = 640)
 @Composable
-private fun PreviewPlaylistDetailScreenEmpty() {
-    RollaMusicPlayerTheme {
-        PlaylistDetailScreen(
-            uiState = PlaylistDetailUiState(
-                title = "Favourite tracks",
-                songs = emptyList(),
-                isUserPlaylist = false,
-                isLoading = false,
-            ),
-            onNavigateUp = {},
-            onPlayAll = {},
-            onShuffleAll = {},
-            onSongClick = {},
-            onRemoveSong = {},
-            onReorder = {},
-            onRenamePlaylist = {},
-            onDeletePlaylist = {},
-            onAddToPlaylist = {},
-        )
-    }
+private fun PreviewPlaylistDetailContent() {
+    PreviewPlaylistDetail(
+        PlaylistDetailUiState(
+            title = "Workout Mix",
+            songs = previewSongs(),
+            isUserPlaylist = true,
+            isLoading = false,
+            sortLabel = sortLabelFor(null),
+        ),
+    )
+}
+
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Playlist Detail Empty - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, widthDp = 360, heightDp = 640)
+@Preview(name = "Playlist Detail Empty - Light", widthDp = 360, heightDp = 640)
+@Composable
+private fun PreviewPlaylistDetailContentEmpty() {
+    PreviewPlaylistDetail(
+        PlaylistDetailUiState(
+            title = "Favourite tracks",
+            songs = emptyList(),
+            isUserPlaylist = false,
+            isLoading = false,
+            sortLabel = sortLabelFor(SmartPlaylistKind.FAVOURITES),
+        ),
+    )
 }

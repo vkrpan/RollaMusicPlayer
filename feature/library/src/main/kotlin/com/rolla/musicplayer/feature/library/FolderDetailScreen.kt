@@ -137,6 +137,8 @@ internal fun FolderDetailContent(
         onAddSongToPlaylist = onAddSongToPlaylist,
         onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
         onEditTagsClick = onEditTagsClick,
+        // The list the rows render, so the sheet closes when its track leaves it (ruling 10, controller ruling P6).
+        currentSongs = songs,
     )
 }
 
