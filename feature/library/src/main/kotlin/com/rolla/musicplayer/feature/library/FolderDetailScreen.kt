@@ -73,7 +73,7 @@ fun FolderDetailRoute(
 /**
  * Stateless FolderDetail content; tests and previews host this.
  * - The bar owns the status-bar inset. The panel runs to the bottom edge, and the list pads by the pill and the
- *   navigation bar, so it scrolls under the pill (spec §7.3; ruling 7: no PushedScreen).
+ *   navigation bar, so it scrolls under the pill (spec §7.3; ruling 7: no outer pill padding).
  * - [songs] is null until Room answers, and the body renders nothing then.
  * - An empty list means a rescan emptied the folder while it was open.
  */

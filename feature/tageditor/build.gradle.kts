@@ -1,20 +1,13 @@
 plugins {
     id("rolla.android.feature")
     id("rolla.android.library.compose")
+    id("rolla.android.robolectric")
 }
 
 android {
     namespace = "com.rolla.musicplayer.feature.tageditor"
     buildFeatures {
         compose = true
-    }
-    testOptions {
-        // Robolectric (MediaWriteRequesterTest) needs the merged manifest/resources to resolve
-        // its per-SDK android-all environment; scoped to this module only, not the convention
-        // plugins, since no other module runs Robolectric tests.
-        unitTests {
-            isIncludeAndroidResources = true
-        }
     }
 }
 
@@ -34,7 +27,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.hilt.navigation.compose)
-    implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.compose.ui.tooling.preview)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
@@ -47,6 +39,5 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
-    testImplementation(libs.robolectric)
     testImplementation(project(":core:testing"))
 }

@@ -56,6 +56,11 @@ class FakeSearchRepository : SearchRepository {
         }
     }
 
+    /** Exact-match removal, like the real `RecentSearchesDataSource.remove`. */
+    override suspend fun removeRecentSearch(query: String) {
+        recentSearchesFlow.update { current -> current.filterNot { it == query } }
+    }
+
     override suspend fun clearRecentSearches() {
         recentSearchesFlow.value = emptyList()
     }

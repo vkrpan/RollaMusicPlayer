@@ -320,7 +320,7 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   not suspend, and cache files are published by an atomic rename. The Robolectric pixel-test helpers live in
 >   `:core:testing` (`PixelCapture.kt`). `:core:testing` is test-only and must stay `testImplementation`.
 > - **Phase 4b:** Home has six tabs; Folders (`FoldersTab`) lists every folder that directly holds songs, by display name,
->   and opens `FolderDetail(folderPath)`. That is a One UI pushed screen that pads its own list for the pill, not `PushedScreen`. The
+>   and opens `FolderDetail(folderPath)`. That is a One UI pushed screen that pads its own list for the pill. The
 >   database gained **Room v4**: `songs.folder_path` (NULL = not scanned yet, `''` = the volume root), `MIGRATION_3_4`, and one
 >   `ALL_MIGRATIONS` list that `DatabaseModule` installs and `MigrationTest` replays. Folder queries live in `FolderDao`
 >   (`SongDao` is at detekt's interface limit); `FolderRepository` maps them to `Folder` (`:core:model`, with `folderName`
@@ -344,10 +344,23 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >   - **Detail screens:** AlbumDetail, ArtistDetail, PlaylistDetail and SmartPlaylist have a `DetailArtworkHeader` hero
 >     (album/artist), a static sort label, and a ⋮ on every row that opens `SongOptionsHost` (Add to playlist, Edit tags,
 >     and Remove on user playlists). Like FolderDetail, they pad their own lists for the pill instead of being wrapped
->     in `PushedScreen`; `:app` registers them through `NavGraphBuilder` extensions in `MainActivity.kt`.
->     `PushedScreen` still wraps Search, the tag editors, Equaliser, Settings, About, Licenses and Privacy (6b).
+>     in a wrapper; `:app` registers them through `NavGraphBuilder` extensions in `MainActivity.kt`.
 >   - **Options sheet:** every caller passes `currentSongs`, so the sheet closes when its track leaves the list.
 >     "Create a playlist with this track" is one `PlaylistRepository.createPlaylistWithSong` extension.
+> - **Phase 6b:** Search, the tag editors, the permission prompt and the info screens' copy are on the One UI kit.
+>   - **Kit:** `OneUiSearchField`, `OneUiPillButton` (filled or tonal, with a loading state), `OneUiTextField` error and
+>     supporting text, and `OneUiBottomSheet(skipPartiallyExpanded)`; the queue sheet opens at full height.
+>   - **Search** has no Scaffold: a search bar, then a `ContentPanel` whose lists pad by `homeListBottomPadding()`.
+>     A track's ⋮ opens `SongOptionsHost`; each recent search has its own remove button
+>     (`SearchRepository.removeRecentSearch`).
+>   - **Tag editors** use `OneUiTextField`s, pill buttons and `OneUiSwitch` apply toggles; copy says "tracks".
+>   - **Permission:** `MediaPermissionState` (`rememberMediaPermissionState()`) is hoisted into `HomeRoute`, so Home
+>     hides + and the selection bar while access is denied. The prompt sits in a `ContentPanel` and says "Rolla Music".
+>   - **`:app`:** `PushedScreen` is gone. Every route that shows the pill pads its own list; the routes that hide it
+>     need nothing. Every single-track "Edit tags" goes through `NavController.openTagEditor` (`navigation/TagEditorNavigation.kt`),
+>     and Search registers through `searchDestination`.
+>   - **No Material icons:** the `material-icons-extended` dependency is gone and detekt's `ForbiddenImport` rejects any
+>     `androidx.compose.material.icons` import in main, test and androidTest sources (`RollaStaticAnalysisPlugin`).
 > - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
 >   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
 >   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to

@@ -77,7 +77,7 @@ private fun AboutScreen(
             SettingsSectionCard {
                 SettingsTextBlock {
                     Text(
-                        text = "RollaMusicPlayer",
+                        text = "Rolla Music",
                         style = MaterialTheme.typography.settingTitle,
                         color = MaterialTheme.colorScheme.onSurface,
                     )

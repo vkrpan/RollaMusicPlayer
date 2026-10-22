@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.navigation
 
+import android.os.Looper
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,20 +17,26 @@ import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Artist
 import com.rolla.musicplayer.core.model.Playlist
+import com.rolla.musicplayer.core.model.SearchResults
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.testing.FakeAlbumRepository
 import com.rolla.musicplayer.core.testing.FakeArtistRepository
 import com.rolla.musicplayer.core.testing.FakePlaylistRepository
+import com.rolla.musicplayer.core.testing.FakeSearchRepository
 import com.rolla.musicplayer.core.testing.FakeSongRepository
 import com.rolla.musicplayer.feature.library.AlbumDetailViewModel
 import com.rolla.musicplayer.feature.library.ArtistDetailViewModel
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailViewModel
+import com.rolla.musicplayer.feature.search.SearchViewModel
 import io.mockk.mockk
+import org.robolectric.Shadows.shadowOf
+import java.time.Duration
 
 /**
  * Fixtures for hosting MainActivity's detail destinations (albumDetailDestination, artistDetailDestination and
- * playlistDetailDestinations) on the JVM. hiltViewModel() needs a Hilt activity, so each destination takes a ViewModel
- * provider: these build the real ViewModels from :core:testing fakes and a relaxed PlaybackController mock.
+ * playlistDetailDestinations) and searchDestination on the JVM. hiltViewModel() needs a Hilt activity, so each
+ * destination takes a ViewModel provider: these build the real ViewModels from :core:testing fakes and a relaxed
+ * PlaybackController mock.
  */
 internal object DetailRouteFixtures {
     const val ALBUM_ID = 4L
@@ -121,6 +128,33 @@ internal object DetailRouteFixtures {
         songRepository = FakeSongRepository().apply { emit(songs) },
         playbackController = playbackController(),
     )
+
+    /**
+     * Search with [SEARCH_QUERY] already typed (seeded the way `Search(query)` seeds it), answering with [songs] as the
+     * Tracks section. The results land once the ViewModel's debounce has run on the main looper (see
+     * [settleSearchDebounce]).
+     */
+    fun searchViewModel(songs: List<Song>): SearchViewModel = SearchViewModel(
+        searchRepository = FakeSearchRepository().apply {
+            emit(SearchResults(songs = songs, albums = emptyList(), artists = emptyList()))
+        },
+        savedStateHandle = SavedStateHandle(mapOf("query" to SEARCH_QUERY)),
+        playbackController = playbackController(),
+        playlistRepository = FakePlaylistRepository(),
+    )
+
+    /**
+     * SearchViewModel debounces a typed query by 300 ms on Dispatchers.Main, which under Robolectric's paused looper
+     * only runs once the looper's clock is moved past it.
+     */
+    fun settleSearchDebounce() {
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(SEARCH_SETTLE_MS))
+    }
+
+    private const val SEARCH_QUERY = "queen"
+
+    // Past SearchViewModel's 300 ms debounce.
+    private const val SEARCH_SETTLE_MS = 1_000L
 
     private fun playbackController(): PlaybackController = mockk(relaxed = true)
 }

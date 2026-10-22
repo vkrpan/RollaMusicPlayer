@@ -349,9 +349,10 @@ fun Modifier.nowPlayingBackground(gradient: NowPlayingGradient): Modifier
 
 // Sheets, dialogs and menus (added 2026-10-18, Phase 6a ruling 2). Every sheet, dialog and menu in the app uses these.
 // Sheet: surfaceContainerHigh, `large` top corners with square bottom corners, statusBarsPadding(), optional
-// sectionHeader title (one line, ellipsized)
+// sectionHeader title (one line, ellipsized). skipPartiallyExpanded opens it at full height (the queue sheet only;
+// added 2026-10-21, Phase 6b ruling 1)
 @Composable fun OneUiBottomSheet(onDismissRequest: () -> Unit, modifier: Modifier = Modifier, title: String? = null,
-                                 content: @Composable ColumnScope.() -> Unit)
+                                 skipPartiallyExpanded: Boolean = false, content: @Composable ColumnScope.() -> Unit)
 
 // Dialog: surfaceContainerHigh, `large` shape, titleLarge title in onSurface, text in onSurfaceVariant
 @Composable fun OneUiDialog(onDismissRequest: () -> Unit, title: String, confirmButton: @Composable () -> Unit,
@@ -362,10 +363,25 @@ fun Modifier.nowPlayingBackground(gradient: NowPlayingGradient): Modifier
 @Composable fun OneUiTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
                                 destructive: Boolean = false)
 
-// Filled field, no indicator line, `medium` (16 dp) shape, accentText focused label and cursor
+// Filled field, no indicator line, `medium` (16 dp) shape, accentText focused label and cursor. Supporting text is
+// onSurfaceVariant, or destructiveText when isError (added 2026-10-21, Phase 6b ruling 1)
 @Composable fun OneUiTextField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
                                containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                               singleLine: Boolean = true, enabled: Boolean = true)
+                               singleLine: Boolean = true, enabled: Boolean = true,
+                               keyboardOptions: KeyboardOptions = KeyboardOptions.Default, isError: Boolean = false,
+                               supportingText: String? = null)
+
+// Search field (added 2026-10-21, Phase 6b ruling 1): a minTouchTarget-tall CircleShape pill on surfaceContainerHigh,
+// a leading Search glyph and placeholder in onSurfaceVariant, a trailing Close button ("Clear search") only while the
+// query is not empty, an accentText cursor, IME action Search calling onSearch
+@Composable fun OneUiSearchField(query: String, onQueryChange: (String) -> Unit, placeholder: String,
+                                 modifier: Modifier = Modifier, onSearch: () -> Unit = {})
+
+// Pill button (added 2026-10-21, Phase 6b ruling 1): CircleShape, at least minTouchTarget tall, labelLarge label.
+// Filled: primary / onPrimary (4.51:1). Tonal: surfaceContainerHigh / onSurface. loading swaps the label for a progress
+// ring, ignores taps and announces loadingDescription
+@Composable fun OneUiPillButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
+                                tonal: Boolean = false, loading: Boolean = false, loadingDescription: String? = null)
 
 // Menu: surfaceContainerHigh, `medium` shape; items in songTitle
 @Composable fun OneUiDropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, modifier: Modifier = Modifier,
@@ -421,6 +437,8 @@ The settings rows in `:feature:settings` (`SettingsSectionHeader`, `SettingsSect
   - A `SongSelectionState` (`:core:ui`, `rememberSaveable`-backed, the same derivedStateOf-per-row pattern as today) is created in `HomeScreen` and passed to `TracksTab`.
   - While a selection is active, the header becomes the existing selection bar ("N selected", close, Edit tags), back clears the selection, and `userScrollEnabled = false` on the pager.
 - **Permission gate.** `MediaPermissionGate` wraps the whole pager area. `onGranted` triggers the existing library sync, the same call `LibraryRoute` makes today.
+  - (Amended 2026-10-21, Phase 6b ruling 8.) The gate's status lives in a `MediaPermissionState` (`rememberMediaPermissionState()`), which `HomeRoute` creates and passes to `MediaPermissionGate(state, onGranted, …)`. `HomeScreen` takes `accessGranted`: while access is denied, the + is hidden, the selection bar and its back handling are off, and a selection is cleared, so no header control acts on rows the gate hides.
+  - The prompt sits in a `ContentPanel`: a large `ArtworkPlaceholder` (`featureCardSize`, `featureCard` shape), the message in `bodyLarge` `onSurface`, and a filled `OneUiPillButton` ("Allow access", "Grant access" or "Open Settings"). Its copy names the app "Rolla Music".
 
 ### 7.3 Mini-player as an overlay
 
@@ -430,6 +448,9 @@ The settings rows in `:feature:settings` (`SettingsSectionHeader`, `SettingsSect
   host through `onSizeChanged`, while the pill is visible, and 0 dp while it is hidden or the IME is visible. Measuring keeps it right when
   Phase 3 resizes the pill to `miniPlayerHeight`. Every scrollable list adds `LocalMiniPlayerInset.current` plus the navigation-bar inset as bottom
   `contentPadding`, so content scrolls *under* the pill and the last item can still scroll fully into view.
+  (Amended 2026-10-21, Phase 6b ruling 9.) This is the only mechanism: there is no destination wrapper that pads by the pill (the
+  former `PushedScreen` is deleted). Every screen that shows the pill pads its own scrollable content with `homeListBottomPadding()`,
+  including Search and Home's permission prompt; screens that hide the pill need no pill padding.
 - **Visibility.** The pill shows on Home, Search, AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist and FolderDetail. It is hidden on
   Now Playing, Equaliser, Settings, About, Licenses, Privacy, TagEditor and BatchTagEditor (the screenshots of EQ and Settings show no pill).
 - The shared-element artwork transition between the mini-player and Now Playing must keep working. Both stay inside the same `SharedTransitionLayout`.
@@ -540,10 +561,14 @@ Scanning and empty states render inside the panel in `emptyState` style.
 
 All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, the new rows, and `RollaIcons`:
 
-- **Search:** the field sits in a `surfaceContainerHigh` pill with a `Search` glyph and `ChevronBack`. Results use section headers and the new rows inside a panel. Recent searches become rows with a `Close` glyph.
+- **Search:** the field sits in a `surfaceContainerHigh` pill with a `Search` glyph and `ChevronBack`. Results use section headers and the new rows inside a panel. Recent searches become rows with a `Close` glyph. (Amended 2026-10-21, Phase 6b rulings 3–5.)
+  - **Layout:** no Scaffold. A search bar (`statusBarsPadding`, `headerHeight`: a `ChevronBack` "Navigate up" button, then `OneUiSearchField`), `panelTopGap`, then a `ContentPanel`. The screen pads by the keyboard minus the navigation bar (`WindowInsets.ime.exclude(navigationBars)`), and every list pads by `homeListBottomPadding()`, so the last row clears the pill with the keyboard closed and sits on the keyboard with it open. Search is not wrapped in anything that pads by the pill.
+  - **Results:** "Tracks", "Albums" and "Artists" headers (`sectionHeader`, `singleLineRowHeight`). A track tap plays the results list from that track. A track's ⋮ opens `SongOptionsHost` (Add to playlist, Edit tags). The sheet tracks the results only in the Results and Empty states, so a reload after returning from the background (Loading) never closes it.
+  - **Loading** renders nothing.
+  - **Recents:** a "Recent searches" header with a "Clear" text button, then one `singleLineRowHeight` row per query (a `Search` glyph, the query, and a `Close` button "Remove <query> from recent searches", which removes that exact query only).
 - **AlbumDetail / ArtistDetail / PlaylistDetail / SmartPlaylist / FolderDetail** (anatomy amended 2026-10-18, Phase 6a rulings 5, 6 and 10):
   - **Top bar:** `OneUiDetailTopBar(title)`. PlaylistDetail adds a ⋮ with Rename and "Delete playlist" on user playlists only; Delete asks first, in a `OneUiDialog` whose "Delete" is destructive.
-  - **Panel:** `ContentPanel` holding a `LazyColumn` whose bottom `contentPadding` is `homeListBottomPadding()`. These routes pad their own lists for the mini-player and are not wrapped in `PushedScreen`.
+  - **Panel:** `ContentPanel` holding a `LazyColumn` whose bottom `contentPadding` is `homeListBottomPadding()`. These routes pad their own lists for the mini-player. (Phase 6b deleted the old `PushedScreen` wrapper: every screen that shows the pill pads its own list, and the screens that hide it need no padding.)
   - **Hero:** AlbumDetail and ArtistDetail start the list with `DetailArtworkHeader` (`detailArtworkSize` artwork, the large placeholder when there is none, circular with a `Person` glyph for an artist, and one subtitle line), then `SortHeader`, then the tracks; all scroll together. PlaylistDetail has no artwork, and its `SortHeader` stays fixed above the list because drag-reorder indexes list items directly.
   - **Sort labels** are static and describe the real order: Album "Track number"; Artist "Album"; user playlist "Custom order"; smart playlists Recently added "Date added", Most played "Play count", Recently played "Last played", Favourite tracks "Name".
   - **Controls:** Shuffle and Play `CircleIconButton`s in the `SortHeader`, disabled while the list is empty.
@@ -552,8 +577,13 @@ All of these use `OneUiDetailTopBar`, `ContentPanel` or settings-style cards, th
   - ArtistDetail keeps its horizontal `AlbumCard` strip under an "Albums" heading, each card subtitled with its track count.
   - PlaylistDetail keeps drag-reorder and the accessibility move actions.
   - **The options sheet closes when its track leaves the list** (for example a removal, or the album disappearing after a rescan): every caller passes `currentSongs`, the list its rows render.
-- **TagEditor / BatchTagEditor:** fields sit on `surfaceContainer` cards. M3 `OutlinedTextField`s are restyled with token colors (container `surfaceContainerHigh`, no outline, `large`-ish 16 dp radius). Buttons are `primary` pills, and the per-field apply toggles use `OneUiSwitch`.
-- **Sheets** (song options, add-to-playlist, queue): `OneUiBottomSheet` (§6), with `SheetActionRow`s for actions. The add-to-playlist sheet is titled "Add to playlist" and starts with a "New playlist" `SheetActionRow` (`Add` glyph, no ellipsis) and an `InsetDivider`, then `PlaylistRow`s that reserve no rail space (amended 2026-10-18, Phase 6a ruling 11). The sheet's window turns off navigation-bar contrast enforcement and sets both bars' icon colours from the app's resolved theme, so on 3-button navigation the sheet and its scrim run behind the nav buttons instead of a white strip (amended 2026-10-21, Phase 6a device fix F1).
+- **TagEditor / BatchTagEditor:** fields sit on `surfaceContainer` cards, as `OneUiTextField`s (container `surfaceContainerHigh`, no outline, 16 dp radius; they replaced M3 `OutlinedTextField`). Buttons are `primary` pills, and the per-field apply toggles use `OneUiSwitch`. (Amended 2026-10-21, Phase 6b ruling 6.)
+  - Top bar `OneUiDetailTopBar("Edit tags")`, or "Edit N tracks" for a batch. Cards inset `settingsCardInset`, `settingsSectionGap` apart.
+  - The single editor's header card: the artwork at `detailArtworkSize` (`extraLarge`, the large placeholder), a tonal "Change artwork" pill, then title and artist.
+  - Fields are `OneUiTextField`s; Year and Track number errors show as `destructiveText` supporting text.
+  - Cancel is a tonal pill and Save a filled pill, both `weight(1f)`; Save shows a progress ring while saving ("Saving").
+  - Batch rows: the field, then an `OneUiSwitch` ("Apply <label> to every selected track"); a switched-off field is disabled and keeps its value.
+- **Sheets** (song options, add-to-playlist, queue): `OneUiBottomSheet` (§6), with `SheetActionRow`s for actions. The add-to-playlist sheet is titled "Add to playlist" and starts with a "New playlist" `SheetActionRow` (`Add` glyph, no ellipsis) and an `InsetDivider`, then `PlaylistRow`s that reserve no rail space (amended 2026-10-18, Phase 6a ruling 11). The sheet's window turns off navigation-bar contrast enforcement and sets both bars' icon colours from the app's resolved theme, so on 3-button navigation the sheet and its scrim run behind the nav buttons instead of a white strip (amended 2026-10-21, Phase 6a device fix F1). The queue sheet opens at full height (`skipPartiallyExpanded`, user decision 2026-10-21); the other sheets keep the half-height start.
 - **Dialogs** (new playlist, rename, delete playlist, save preset, theme picker): `OneUiDialog` with `OneUiTextButton`s and, for names, `OneUiTextField`. Destructive confirms use `destructiveText` (amended 2026-10-18, Phase 6a rulings 2 and P2).
 - **Menus** (Home ⋮, Now Playing ⋮, playlist ⋮): `OneUiDropdownMenu` with `OneUiMenuItem`s.
 

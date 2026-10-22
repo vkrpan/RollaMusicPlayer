@@ -124,7 +124,7 @@ fun PlaylistDetailRoute(
  * - The bar owns the status-bar inset. Its ⋮ (Rename, Delete playlist) is offered on user playlists only: smart
  *   playlists cannot be renamed or deleted.
  * - The sort header stays fixed above the list, because the drag-reorder logic indexes list items directly (ruling 5).
- *   The panel runs to the bottom edge, and the list pads by the pill and the navigation bar (no PushedScreen).
+ *   The panel runs to the bottom edge, and the list pads by the pill and the navigation bar (no outer pill padding).
  * - Nothing renders while loading (ruling 5), so there is no spinner flash.
  * - A row's ⋮ opens the shared options sheet. Remove from playlist is offered on user playlists only (Review Focus 2).
  *   The sheet gets the same list the rows render, so it closes when its track leaves (ruling 10). The open track is

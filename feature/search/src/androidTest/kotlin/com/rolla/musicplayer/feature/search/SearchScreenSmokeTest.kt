@@ -42,7 +42,7 @@ class SearchScreenSmokeTest {
     fun resultsState_rendersAllThreeSections() {
         setContent(uiState = SearchUiState.Results(fakeResults))
 
-        composeTestRule.onNodeWithText("Songs").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Tracks").assertIsDisplayed()
         composeTestRule.onNodeWithText("Albums").assertIsDisplayed()
         composeTestRule.onNodeWithText("Artists").assertIsDisplayed()
     }
@@ -90,6 +90,7 @@ class SearchScreenSmokeTest {
                     query = "",
                     uiState = uiState,
                     recentSearches = emptyList(),
+                    userPlaylists = emptyList(),
                     onQueryChanged = onQueryChanged,
                     onNavigateUp = {},
                     onSongClick = onSongClick,
@@ -97,6 +98,10 @@ class SearchScreenSmokeTest {
                     onArtistClick = {},
                     onRecentSearchClick = {},
                     onClearRecentSearches = {},
+                    onRemoveRecentSearch = {},
+                    onAddSongToPlaylist = { _, _ -> },
+                    onCreatePlaylistAndAddSong = { _, _ -> },
+                    onEditTagsClick = {},
                 )
             }
         }

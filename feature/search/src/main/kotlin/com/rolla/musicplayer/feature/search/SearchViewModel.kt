@@ -3,8 +3,11 @@ package com.rolla.musicplayer.feature.search
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.PlaylistRepository
 import com.rolla.musicplayer.core.data.repository.SearchRepository
+import com.rolla.musicplayer.core.data.repository.createPlaylistWithSong
 import com.rolla.musicplayer.core.media.PlaybackController
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -53,9 +56,11 @@ private const val SEARCH_DEBOUNCE_MS = 300L
  * [kotlinx.coroutines.flow.debounce] timeout) so clearing the field snaps back to
  * [SearchUiState.Idle] immediately instead of leaving stale results on screen for the debounce
  * window. [SearchUiState.Loading] is emitted via `onStart` the moment a non-blank query enters
- * flight, before [SearchRepository.search] has produced anything; a single `yield()` right after
- * that emission guarantees it is a real, observable state rather than a value StateFlow's
- * conflation could overwrite before any collector ever sees it (see [searchFlow]'s KDoc).
+ * flight, before [SearchRepository.search] has produced anything, unless results are already on
+ * screen: a refinement goes straight from one [SearchUiState.Results] to the next, so the results
+ * list stays composed. A single `yield()` right after a Loading emission guarantees it is a real,
+ * observable state rather than a value StateFlow's conflation could overwrite before any collector
+ * ever sees it (see [searchFlow]).
  *
  * [SearchRepository.search] already runs its DB query and domain mapping on `Dispatchers.IO` (see
  * its implementation's `flowOn`), so no dispatcher hop is added here -- everything in this
@@ -65,7 +70,7 @@ private const val SEARCH_DEBOUNCE_MS = 300L
  * [SearchUiState.Idle] to render. A query is only ever recorded from [searchFlow]'s non-blank
  * `onStart` block -- i.e. only once it has survived the debounce/distinctUntilChanged stage and
  * actually committed to a search -- never from [onQueryChanged] directly, so raw keystrokes never
- * pollute history.
+ * pollute history. The write is launched alongside the search, never awaited by it.
  */
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 @HiltViewModel
@@ -73,6 +78,7 @@ class SearchViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val savedStateHandle: SavedStateHandle,
     private val playbackController: PlaybackController,
+    private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow(savedStateHandle.get<String>(QUERY_KEY).orEmpty())
@@ -100,6 +106,14 @@ class SearchViewModel @Inject constructor(
             initialValue = emptyList(),
         )
 
+    /** User-created playlists, for the track options sheet's "Add to playlist" step. */
+    val userPlaylists: StateFlow<List<Playlist>> = playlistRepository.observePlaylists()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000L),
+            initialValue = emptyList(),
+        )
+
     /** Updates the in-flight query text and mirrors it into [savedStateHandle] for process death. */
     fun onQueryChanged(value: String) {
         _query.update { value }
@@ -119,6 +133,32 @@ class SearchViewModel @Inject constructor(
     /** Re-runs a query tapped from the recent-searches list in [SearchUiState.Idle]. */
     fun onRecentSearchClicked(query: String) {
         onQueryChanged(query)
+    }
+
+    /**
+     * Removes one recent search, matching [query] exactly (Phase 6b ruling 5). Best-effort, like
+     * [onClearRecentSearches]: a failed DataStore write is dropped.
+     */
+    fun onRemoveRecentSearch(query: String) {
+        viewModelScope.launch {
+            try {
+                searchRepository.removeRecentSearch(query)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                // History is cosmetic; see onClearRecentSearches.
+            }
+        }
+    }
+
+    /** The options sheet's "Add to playlist" pick: appends [songId] to [playlistId]. */
+    fun addSongToPlaylist(songId: String, playlistId: Long) {
+        viewModelScope.launch { playlistRepository.addSongs(playlistId, listOf(songId)) }
+    }
+
+    /** The options sheet's "New playlist": creates [name] holding [songId]. A blank name writes nothing. */
+    fun createPlaylistAndAddSong(name: String, songId: String) {
+        viewModelScope.launch { playlistRepository.createPlaylistWithSong(name, songId) }
     }
 
     /** Clears all recorded recent-search history. Best-effort: a failed DataStore write is dropped. */
@@ -141,29 +181,40 @@ class SearchViewModel @Inject constructor(
         searchRepository.search(text)
             .map { results -> results.toUiState() }
             .onStart {
-                // Recorded before the Loading emission, not after: by the time this query is in
-                // flight at all, it has already survived debounce/distinctUntilChanged and is
-                // committed to being searched, so history should reflect that immediately rather
-                // than depend on a collector observing Loading first. A pipeline restart
-                // re-recording the same query is harmless -- the repository dedupes to front.
-                // Best-effort: this onStart runs INSIDE the flow feeding uiState, so a failed
-                // DataStore write (disk full -> IOException) must never poison the search results
-                // pipeline -- the search itself proceeds without the history entry.
-                try {
-                    searchRepository.recordRecentSearch(text)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
-                    // Dropped deliberately; see above.
+                // By the time this query is in flight at all, it has survived debounce/distinctUntilChanged and is
+                // committed to being searched, so it goes into history now. A pipeline restart re-recording the same
+                // query is harmless: the repository dedupes to front.
+                recordRecentSearchInBackground(text)
+                // A refinement keeps the previous results on screen until the new ones arrive: going Results ->
+                // Loading -> Results would take the results list out of composition (its scroll state and row
+                // subcompositions disposed) and leave a blank panel frame on every committed query (6b perf audit).
+                if (uiState.value !is SearchUiState.Results) {
+                    emit(SearchUiState.Loading)
+                    // StateFlow never suspends its producer on a value write, so without ceding the
+                    // dispatcher here, a repository that resolves synchronously (as an in-memory fake
+                    // does; Room's real Flow always has a genuine Dispatchers.IO hop instead) would
+                    // overwrite Loading with the real result before any collector -- Compose included
+                    // -- gets a chance to observe it. One yield is enough to guarantee Loading is a
+                    // real, collectible state rather than an instantaneous, unobservable one.
+                    yield()
                 }
-                emit(SearchUiState.Loading)
-                // StateFlow never suspends its producer on a value write, so without ceding the
-                // dispatcher here, a repository that resolves synchronously (as an in-memory fake
-                // does; Room's real Flow always has a genuine Dispatchers.IO hop instead) would
-                // overwrite Loading with the real result before any collector -- Compose included
-                // -- gets a chance to observe it. One yield is enough to guarantee Loading is a
-                // real, collectible state rather than an instantaneous, unobservable one.
-                yield()
             }
+    }
+
+    /**
+     * Records [text] in the recent-search history without making the search wait for the DataStore write (write,
+     * fsync, rename: 6b perf audit). Best-effort: a failed write (disk full -> IOException) is dropped, so the search
+     * proceeds without the history entry and the failure never reaches viewModelScope's default handler.
+     */
+    private fun recordRecentSearchInBackground(text: String) {
+        viewModelScope.launch {
+            try {
+                searchRepository.recordRecentSearch(text)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+                // History is cosmetic; see above.
+            }
+        }
     }
 }

@@ -40,6 +40,13 @@ class RecentSearchesDataSourceImpl @Inject constructor(
         }
     }
 
+    override suspend fun remove(query: String) {
+        context.dataStore.edit { preferences ->
+            val current = decodeRecentSearches(preferences[RecentSearchesKeys.QUERIES])
+            preferences[RecentSearchesKeys.QUERIES] = encodeRecentSearches(withoutRecentSearch(current, query))
+        }
+    }
+
     override suspend fun clear() {
         context.dataStore.edit { preferences -> preferences.remove(RecentSearchesKeys.QUERIES) }
     }
@@ -55,6 +62,13 @@ class RecentSearchesDataSourceImpl @Inject constructor(
  */
 internal fun withRecordedSearch(current: List<String>, trimmedQuery: String): List<String> =
     (listOf(trimmedQuery) + current.filterNot { it == trimmedQuery }).take(MAX_RECENT_SEARCHES)
+
+/**
+ * Computes the most-recent-first list after removing [query] from [current] (Phase 6b ruling 5). The match is exact,
+ * like [withRecordedSearch]'s dedupe: an entry that differs only in case stays. The order of the rest is kept.
+ */
+internal fun withoutRecentSearch(current: List<String>, query: String): List<String> =
+    current.filterNot { it == query }
 
 /**
  * Encodes [queries] as a comma-separated string, most-recent-first, e.g. `"metal,rock"`.

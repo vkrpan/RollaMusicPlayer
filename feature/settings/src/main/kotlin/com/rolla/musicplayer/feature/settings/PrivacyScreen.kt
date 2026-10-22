@@ -23,7 +23,7 @@ import com.rolla.musicplayer.core.designsystem.theme.settingSubtitle
 import com.rolla.musicplayer.core.designsystem.theme.settingTitle
 
 private const val PRIVACY_STATEMENT =
-    "RollaMusicPlayer is fully offline. It has no internet permission, so it cannot connect to " +
+    "Rolla Music is fully offline. It has no internet permission, so it cannot connect to " +
         "the network at all — nothing you play, search, or edit ever leaves this device."
 
 private const val PRIVACY_NO_COLLECTION =

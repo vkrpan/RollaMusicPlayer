@@ -5,9 +5,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
-// The JVM suite runs the JDK collator. Android's java.text.Collator is ICU-backed, so the same rule is pinned here on the
-// device (Phase 5 ruling 14). The order fixture and its expectation are the JVM test's, verbatim; the section inputs
-// are a subset of the JVM test's.
+// The JVM suite runs the JDK collator. Android's java.text.Collator is ICU-backed, so the same rule is pinned here on
+// the device (Phase 5 ruling 14). The order fixture and its expectation are the JVM test's, verbatim; the section
+// inputs are a subset of the JVM test's.
 @RunWith(AndroidJUnit4::class)
 class LibraryOrderDeviceTest {
 

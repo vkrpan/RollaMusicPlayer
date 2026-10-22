@@ -32,15 +32,19 @@ class SearchRepositoryImpl @Inject constructor(
                 artists = artists.map { it.toDomain() },
             )
         }
-            // Room runs the queries on its own executor regardless; flowOn additionally keeps the
-            // three-way combine + domain mapping off the collector's (main) dispatcher.
-            .flowOn(Dispatchers.IO)
+            // Before flowOn, so the deep equals over three result lists also runs on IO, not on the
+            // collector's (main) dispatcher.
             .distinctUntilChanged()
+            // Room runs the queries on its own executor regardless; flowOn additionally keeps the
+            // three-way combine + domain mapping + equality check off the collector's (main) dispatcher.
+            .flowOn(Dispatchers.IO)
     }
 
     override fun observeRecentSearches(): Flow<List<String>> = recentSearchesDataSource.recentSearches
 
     override suspend fun recordRecentSearch(query: String) = recentSearchesDataSource.record(query)
+
+    override suspend fun removeRecentSearch(query: String) = recentSearchesDataSource.remove(query)
 
     override suspend fun clearRecentSearches() = recentSearchesDataSource.clear()
 }

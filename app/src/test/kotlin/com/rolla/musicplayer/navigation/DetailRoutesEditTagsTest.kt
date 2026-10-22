@@ -16,6 +16,7 @@ import com.rolla.musicplayer.albumDetailDestination
 import com.rolla.musicplayer.artistDetailDestination
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.playlistDetailDestinations
+import com.rolla.musicplayer.searchDestination
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -79,6 +80,85 @@ class DetailRoutesEditTagsTest {
         assertEditTagsPushesTheTagEditor<SmartPlaylist>(songs[1])
     }
 
+    /**
+     * Phase 6b ruling 10: Search's result ⋮ → "Edit tags" pushes TagEditor for that track, over Search. Trivial stub:
+     * onEditTagsClick = {} leaves Search current, failing "Edit tags pushes the tag editor". Mutation: pass
+     * onEditTagsClick = {} in searchDestination → RED.
+     */
+    @Test
+    fun searchsEditTagsOpensTheTagEditorForThatTrack() {
+        val songs = DetailRouteFixtures.songs(SONG_COUNT)
+        val viewModel = DetailRouteFixtures.searchViewModel(songs)
+        setGraph { searchDestination(navController) { viewModel } }
+        open(Search())
+        // The results arrive after SearchViewModel's debounce.
+        DetailRouteFixtures.settleSearchDebounce()
+        composeRule.waitForIdle()
+        assertEditTagsPushesTheTagEditor<Search>(songs[1])
+    }
+
+    /**
+     * 6a T8 M3: openTagEditor's launchSingleTop. A second call while the editor is on top (a double tap of "Edit tags")
+     * keeps one TagEditor entry. Trivial stub: openTagEditor as a no-op fails the control (TagEditor is current after
+     * the first call). Mutation: remove launchSingleTop = true → 2 entries → RED.
+     */
+    @Test
+    fun editTagsTwiceKeepsOneTagEditor() {
+        setGraph {}
+        composeRule.runOnIdle { navController.openTagEditor(TWICE_SONG_ID) }
+        composeRule.runOnIdle {
+            assertTrue(
+                "control: the first call opens the tag editor",
+                navController.currentBackStackEntry?.destination?.hasRoute<TagEditor>() == true,
+            )
+            assertEquals(
+                "control: the first call opens the tag editor for that track",
+                TWICE_SONG_ID,
+                navController.currentBackStackEntry?.toRoute<TagEditor>()?.songId,
+            )
+        }
+        composeRule.runOnIdle { navController.openTagEditor(TWICE_SONG_ID) }
+        composeRule.runOnIdle {
+            val tagEditors = navController.currentBackStack.value.count { entry ->
+                entry.destination.hasRoute<TagEditor>()
+            }
+            assertEquals("a second Edit tags keeps one tag editor on the back stack", 1, tagEditors)
+        }
+    }
+
+    /**
+     * T5 M2: openTagEditor(song) with a malformed (non-numeric) id is a no-op, never a crash and never a push. Control:
+     * a numeric id pushes TagEditor for it; back pops to Home. Trivial stub: openTagEditor(song) as a no-op fails the
+     * control. Mutation: `toLongOrNull() ?: 0L` (pushes TagEditor(0)) → RED on the last assertion.
+     */
+    @Test
+    fun aMalformedSongIdLeavesTheCurrentDestination() {
+        setGraph {}
+        composeRule.runOnIdle { navController.openTagEditor(songWithId(NUMERIC_SONG_ID.toString())) }
+        composeRule.runOnIdle {
+            assertEquals(
+                "control: a numeric id pushes the tag editor for that track",
+                NUMERIC_SONG_ID,
+                navController.currentBackStackEntry
+                    ?.takeIf { it.destination.hasRoute<TagEditor>() }
+                    ?.toRoute<TagEditor>()?.songId,
+            )
+            navController.popBackStack()
+        }
+        composeRule.runOnIdle {
+            assertTrue("back returns to Home", navController.currentDestination?.hasRoute<Home>() == true)
+            navController.openTagEditor(songWithId(MALFORMED_SONG_ID))
+        }
+        composeRule.runOnIdle {
+            assertTrue(
+                "a malformed song id leaves Home the current destination (no tag editor is pushed)",
+                navController.currentDestination?.hasRoute<Home>() == true,
+            )
+        }
+    }
+
+    private fun songWithId(id: String): Song = DetailRouteFixtures.songs(1).single().copy(id = id)
+
     private fun setGraph(destinations: NavGraphBuilder.() -> Unit) {
         composeRule.setContent {
             navController = rememberNavController()
@@ -114,5 +194,8 @@ class DetailRoutesEditTagsTest {
 
     private companion object {
         const val SONG_COUNT = 3
+        const val TWICE_SONG_ID = 5L
+        const val NUMERIC_SONG_ID = 7L
+        const val MALFORMED_SONG_ID = "x"
     }
 }

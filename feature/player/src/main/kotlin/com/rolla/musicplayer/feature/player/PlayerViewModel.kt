@@ -68,7 +68,7 @@ class PlayerViewModel @Inject constructor(
                 songRepository.observeSong(song.id).map { librarySong ->
                     NowPlayingOverflowTargets(
                         // Both ids come from the library row: a song that left the library would only open a tag
-                        // editor that closes at once with "Song not found".
+                        // editor that closes at once with "Track not found."
                         songId = librarySong?.id?.toLongOrNull(),
                         albumId = librarySong?.albumId,
                         artistName = song.artist.takeIf { it.isNotBlank() },

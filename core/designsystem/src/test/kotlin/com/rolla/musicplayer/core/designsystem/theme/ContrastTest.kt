@@ -54,12 +54,14 @@ private fun pairingsOf(p: RollaPalette): List<Pairing> = listOf(
     Pairing("onSurface on surfaceContainerHigh", p.onSurface, p.surfaceContainerHigh, TEXT),
     Pairing("onSurfaceVariant on background", p.onSurfaceVariant, p.background, TEXT),
     Pairing("onSurfaceVariant on surfaceContainer", p.onSurfaceVariant, p.surfaceContainer, TEXT),
+    // Also OneUiSearchField's placeholder and Search glyph (Phase 6b ruling 2).
     Pairing("onSurfaceVariant on surfaceContainerHigh", p.onSurfaceVariant, p.surfaceContainerHigh, TEXT),
     Pairing("tabUnselected on background", p.tabUnselected, p.background, TEXT),
     Pairing("accentText on background", p.accentText, p.background, TEXT),
     Pairing("accentText on surfaceContainer", p.accentText, p.surfaceContainer, TEXT),
     Pairing("accentText on surfaceContainerHigh", p.accentText, p.surfaceContainerHigh, TEXT),
     Pairing("destructiveText on surfaceContainerHigh", p.destructiveText, p.surfaceContainerHigh, TEXT),
+    // Also OneUiTextField's error supporting text on a tag-editor card (Phase 6b ruling 2).
     Pairing("destructiveText on surfaceContainer", p.destructiveText, p.surfaceContainer, TEXT),
     Pairing("onPrimary on primary", p.onPrimary, p.primary, TEXT),
     Pairing("onSurface on miniPlayerContainer", p.onSurface, p.miniPlayerContainer, TEXT),

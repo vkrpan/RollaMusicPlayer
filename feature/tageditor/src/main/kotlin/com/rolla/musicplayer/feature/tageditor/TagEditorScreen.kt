@@ -8,81 +8,56 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
+import com.rolla.musicplayer.core.designsystem.component.OneUiPillButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextField
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
-import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
+import com.rolla.musicplayer.core.ui.ArtworkThumbnail
 import com.rolla.musicplayer.feature.tageditor.io.rememberMediaWriteRequester
 
-private val ScreenHorizontalPadding = 16.dp
-private val CardPadding = 16.dp
-private val SectionSpacing = 24.dp
-private val CaptionSpacing = 8.dp
-private val BottomSpacing = 24.dp
-private val FieldSpacing = 12.dp
-private val ButtonSpacing = 12.dp
-private val MinTouchTarget = 48.dp
-private val ArtworkSize = 180.dp
-private val ArtworkPlaceholderIconSize = 64.dp
-private val SaveProgressSize = 20.dp
-private val SaveProgressStrokeWidth = 2.dp
-private val ErrorContentPadding = 32.dp
-
-private const val LOAD_FAILED_MESSAGE = "Couldn't load this song's tags."
+private const val LOAD_FAILED_MESSAGE = "Couldn't load this track's tags."
 
 /**
  * Stateful entry point for the single-song tag editor (`TagEditor(songId: Long)`). Same
@@ -189,7 +164,7 @@ fun TagEditorScreen(
     Scaffold(
         modifier = modifier,
         containerColor = MaterialTheme.colorScheme.background,
-        topBar = { TagEditorTopBar(onNavigateUp = onNavigateUp) },
+        topBar = { OneUiDetailTopBar(title = "Edit tags", onNavigateUp = onNavigateUp) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { innerPadding ->
         when {
@@ -207,31 +182,7 @@ fun TagEditorScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun TagEditorTopBar(onNavigateUp: () -> Unit, modifier: Modifier = Modifier) {
-    TopAppBar(
-        title = {
-            Text(
-                text = "Edit tags",
-                style = MaterialTheme.typography.screenTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
-    )
-}
-
+/** Reading a file's tags is IO, not a list flash, so loading keeps its spinner (Phase 6b ruling 6). */
 @Composable
 private fun LoadingContent(modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -244,7 +195,7 @@ private fun ErrorContent(onNavigateUp: () -> Unit, modifier: Modifier = Modifier
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(ErrorContentPadding),
+            .padding(RollaDimens.screenEdge),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -254,14 +205,13 @@ private fun ErrorContent(onNavigateUp: () -> Unit, modifier: Modifier = Modifier
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(SectionSpacing))
-        OutlinedButton(onClick = onNavigateUp, modifier = Modifier.heightIn(min = MinTouchTarget)) {
-            Text("Back")
-        }
+        Spacer(Modifier.height(RollaDimens.settingsSectionGap))
+        OneUiPillButton(text = "Back", onClick = onNavigateUp, tonal = true)
     }
 }
 
-@Suppress("LongMethod", "LongParameterList")
+// One flat column of the three blocks; splitting it would only move the uiState fan-out elsewhere.
+@Suppress("LongParameterList")
 @Composable
 private fun TagEditorContent(
     uiState: TagEditorUiState,
@@ -271,13 +221,7 @@ private fun TagEditorContent(
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = ScreenHorizontalPadding)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        Spacer(Modifier.height(CaptionSpacing))
+    TagEditorScrollColumn(modifier = modifier) {
         TagEditorHeaderCard(
             // A validated pending pick previews immediately; it is only written to the file on Save.
             artworkUri = uiState.pendingArtworkUri ?: uiState.artworkUri,
@@ -285,35 +229,75 @@ private fun TagEditorContent(
             artistName = uiState.artistName,
             onChangeArtworkClick = onChangeArtworkClick,
             changeArtworkEnabled = !uiState.isSaving,
-            modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(SectionSpacing))
         TagEditorFieldsCard(
             tags = uiState.tags,
             yearError = uiState.yearError,
             trackNumberError = uiState.trackNumberError,
             onFieldChanged = onFieldChanged,
-            modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(SectionSpacing))
-        SaveCancelRow(
+        TagEditorSaveCancelRow(
             canSave = uiState.canSave,
             isSaving = uiState.isSaving,
             onSaveClick = onSaveClick,
             onCancelClick = onNavigateUp,
-            modifier = Modifier.fillMaxWidth(),
         )
-        Spacer(Modifier.height(BottomSpacing))
     }
 }
 
 /**
- * Context at the top of the form: the song's artwork (current, or the pending replacement pick),
+ * The editors' one vertical scroll (Phase 6b ruling 6): its blocks inset settingsCardInset from the screen edges and
+ * settingsSectionGap apart, with settingsSectionGap above the first and below the last.
+ *
+ * It owns the keyboard inset (spec §7.4): [modifier] carries the Scaffold's inner padding, which already holds the
+ * navigation bar, so the column adds only the keyboard's height above the navigation bar. With the keyboard open the
+ * two add up to exactly the keyboard, and the focused field can be scrolled into view above it.
+ */
+@Composable
+internal fun TagEditorScrollColumn(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = modifier
+            .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars))
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = RollaDimens.settingsCardInset, vertical = RollaDimens.settingsSectionGap),
+        verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsSectionGap),
+        content = content,
+    )
+}
+
+/**
+ * An editor card (spec §8.7, Phase 6b ruling 6): surfaceContainer in the large shape, settingsRowPadding inside, its
+ * items settingsHeaderGap apart.
+ */
+@Composable
+internal fun TagEditorCard(
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = MaterialTheme.shapes.large,
+    ) {
+        Column(
+            modifier = Modifier.padding(RollaDimens.settingsRowPadding),
+            verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+            horizontalAlignment = horizontalAlignment,
+            content = content,
+        )
+    }
+}
+
+/**
+ * Context at the top of the form: the track's artwork (current, or the pending replacement pick),
  * title, and artist. Title/artist are never editable here; artwork IS -- "Change artwork" opens
  * the system PhotoPicker for a LOCAL image, which is embedded into the file on Save (see
  * [SongTags]'s KDoc on why artwork lives outside the text-field model).
  */
-@Suppress("LongMethod", "LongParameterList")
+// The artwork, the tonal Change artwork pill and the two text lines: one flat card.
+@Suppress("LongParameterList")
 @Composable
 private fun TagEditorHeaderCard(
     artworkUri: String?,
@@ -323,82 +307,51 @@ private fun TagEditorHeaderCard(
     changeArtworkEnabled: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(CardPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            TagEditorArtwork(
-                artworkUri = artworkUri.orEmpty(),
-                // Decorative: the song title Text is announced two stops later; describing the
-                // artwork made TalkBack read the title twice (a11y audit).
-                contentDescription = null,
-                modifier = Modifier
-                    .size(ArtworkSize)
-                    .clip(MaterialTheme.shapes.extraLarge),
-            )
-            Spacer(Modifier.height(CaptionSpacing))
-            OutlinedButton(
-                onClick = onChangeArtworkClick,
-                enabled = changeArtworkEnabled,
-                modifier = Modifier.heightIn(min = MinTouchTarget),
-            ) {
-                Text("Change artwork")
-            }
-            Spacer(Modifier.height(CaptionSpacing))
-            Text(
-                text = songTitle,
-                style = MaterialTheme.typography.songTitle,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = artistName,
-                style = MaterialTheme.typography.artistName,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TagEditorArtwork(artworkUri: String, contentDescription: String?, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val request = remember(artworkUri) {
-        ImageRequest.Builder(context).data(artworkUri.ifEmpty { null }).crossfade(true).build()
-    }
-    Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh),
-        contentAlignment = Alignment.Center,
-    ) {
-        AsyncImage(
-            model = request,
-            contentDescription = contentDescription,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
+    TagEditorCard(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        ArtworkThumbnail(
+            artworkUri = artworkUri.orEmpty(),
+            // Decorative: the song title Text is announced two stops later; describing the
+            // artwork made TalkBack read the title twice (a11y audit).
+            contentDescription = null,
+            shape = MaterialTheme.shapes.extraLarge,
+            large = true,
+            placeholderGlyphSize = RollaDimens.npArtGlyph,
+            modifier = Modifier.size(RollaDimens.detailArtworkSize),
         )
-        if (artworkUri.isEmpty()) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(ArtworkPlaceholderIconSize),
-            )
-        }
+        OneUiPillButton(
+            text = "Change artwork",
+            onClick = onChangeArtworkClick,
+            enabled = changeArtworkEnabled,
+            tonal = true,
+        )
+        HeaderTitles(songTitle = songTitle, artistName = artistName)
     }
 }
 
+/** The track's title (songTitle) over its artist (artistName), centred, one line each. */
+@Composable
+private fun HeaderTitles(songTitle: String, artistName: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = songTitle,
+            style = MaterialTheme.typography.songTitle,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = artistName,
+            style = MaterialTheme.typography.artistName,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+// Eight fields in one card, Year and Track number side by side; each call is one field.
 @Suppress("LongMethod")
 @Composable
 private fun TagEditorFieldsCard(
@@ -408,54 +361,45 @@ private fun TagEditorFieldsCard(
     onFieldChanged: (TagField, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(
-        modifier = modifier,
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        Column(
-            modifier = Modifier.padding(CardPadding),
-            verticalArrangement = Arrangement.spacedBy(FieldSpacing),
-        ) {
-            TagTextField(label = "Title", value = tags.title, onValueChange = { onFieldChanged(TagField.TITLE, it) })
+    TagEditorCard(modifier = modifier) {
+        TagTextField(label = "Title", value = tags.title, onValueChange = { onFieldChanged(TagField.TITLE, it) })
+        TagTextField(
+            label = "Artist",
+            value = tags.artist,
+            onValueChange = { onFieldChanged(TagField.ARTIST, it) },
+        )
+        TagTextField(label = "Album", value = tags.album, onValueChange = { onFieldChanged(TagField.ALBUM, it) })
+        TagTextField(
+            label = "Album artist",
+            value = tags.albumArtist,
+            onValueChange = { onFieldChanged(TagField.ALBUM_ARTIST, it) },
+        )
+        TagTextField(label = "Genre", value = tags.genre, onValueChange = { onFieldChanged(TagField.GENRE, it) })
+        Row(horizontalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap)) {
             TagTextField(
-                label = "Artist",
-                value = tags.artist,
-                onValueChange = { onFieldChanged(TagField.ARTIST, it) },
+                label = "Year",
+                value = tags.year,
+                onValueChange = { onFieldChanged(TagField.YEAR, it) },
+                keyboardType = KeyboardType.Number,
+                isError = yearError != null,
+                supportingText = yearError,
+                modifier = Modifier.weight(1f),
             )
-            TagTextField(label = "Album", value = tags.album, onValueChange = { onFieldChanged(TagField.ALBUM, it) })
             TagTextField(
-                label = "Album artist",
-                value = tags.albumArtist,
-                onValueChange = { onFieldChanged(TagField.ALBUM_ARTIST, it) },
-            )
-            TagTextField(label = "Genre", value = tags.genre, onValueChange = { onFieldChanged(TagField.GENRE, it) })
-            Row(horizontalArrangement = Arrangement.spacedBy(FieldSpacing)) {
-                TagTextField(
-                    label = "Year",
-                    value = tags.year,
-                    onValueChange = { onFieldChanged(TagField.YEAR, it) },
-                    keyboardType = KeyboardType.Number,
-                    isError = yearError != null,
-                    supportingText = yearError,
-                    modifier = Modifier.weight(1f),
-                )
-                TagTextField(
-                    label = "Track number",
-                    value = tags.trackNumber,
-                    onValueChange = { onFieldChanged(TagField.TRACK_NUMBER, it) },
-                    keyboardType = KeyboardType.Number,
-                    isError = trackNumberError != null,
-                    supportingText = trackNumberError,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            TagTextField(
-                label = "Composer",
-                value = tags.composer,
-                onValueChange = { onFieldChanged(TagField.COMPOSER, it) },
+                label = "Track number",
+                value = tags.trackNumber,
+                onValueChange = { onFieldChanged(TagField.TRACK_NUMBER, it) },
+                keyboardType = KeyboardType.Number,
+                isError = trackNumberError != null,
+                supportingText = trackNumberError,
+                modifier = Modifier.weight(1f),
             )
         }
+        TagTextField(
+            label = "Composer",
+            value = tags.composer,
+            onValueChange = { onFieldChanged(TagField.COMPOSER, it) },
+        )
     }
 }
 
@@ -470,59 +414,50 @@ private fun TagTextField(
     isError: Boolean = false,
     supportingText: String? = null,
 ) {
-    OutlinedTextField(
+    OneUiTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
-        singleLine = true,
-        isError = isError,
-        supportingText = supportingText?.let { message ->
-            { Text(text = message, color = MaterialTheme.colorScheme.error) }
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        label = label,
         modifier = modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        isError = isError,
+        supportingText = supportingText,
     )
 }
 
-@Suppress("LongMethod")
+/**
+ * Cancel (a tonal pill, locked while saving) and Save (a filled pill that shows a progress ring described as "Saving"
+ * while [isSaving]). Both take an equal share of the row, so the ring swapping in for the label never moves either.
+ * Save stays at full strength while it shows the ring (the ViewModel drops canSave while saving); the pill itself
+ * ignores taps while loading.
+ */
 @Composable
-private fun SaveCancelRow(
+internal fun TagEditorSaveCancelRow(
     canSave: Boolean,
     isSaving: Boolean,
     onSaveClick: () -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(ButtonSpacing)) {
-        OutlinedButton(
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+    ) {
+        OneUiPillButton(
+            text = "Cancel",
             onClick = onCancelClick,
+            modifier = Modifier.weight(1f),
             enabled = !isSaving,
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = MinTouchTarget),
-        ) {
-            Text("Cancel")
-        }
-        Button(
+            tonal = true,
+        )
+        OneUiPillButton(
+            text = "Save",
             onClick = onSaveClick,
-            enabled = canSave && !isSaving,
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = MinTouchTarget)
-                // While saving, the label Text is swapped for a bare spinner and the (still
-                // focusable, disabled) button would otherwise lose its accessible name entirely.
-                .semantics { if (isSaving) contentDescription = "Saving" },
-        ) {
-            if (isSaving) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(SaveProgressSize),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = SaveProgressStrokeWidth,
-                )
-            } else {
-                Text("Save")
-            }
-        }
+            modifier = Modifier.weight(1f),
+            enabled = canSave || isSaving,
+            loading = isSaving,
+            loadingDescription = "Saving",
+        )
     }
 }
 

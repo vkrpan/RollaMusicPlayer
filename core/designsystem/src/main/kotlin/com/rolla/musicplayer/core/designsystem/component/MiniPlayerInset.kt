@@ -11,12 +11,11 @@ import androidx.compose.ui.unit.dp
 /**
  * The floating mini-player pill's measured footprint (its own margins included, navigation bar excluded), provided by
  * the app shell (spec §7.3); 0 dp while the pill is hidden or the IME is visible. It drops to 0 as soon as the pill
- * is told to hide, before its exit animation ends. Every scrollable list on Home and on the detail screens
+ * is told to hide, before its exit animation ends. Every scrollable list on Home, on Search and on the detail screens
  * (FolderDetail, AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist) adds it, plus the navigation-bar inset, to
  * its bottom contentPadding (see [homeListBottomPadding]), so content scrolls under the pill and the last item can
- * still be scrolled fully into view. Screens still wrapped in the app's PushedScreen (Search, the tag editors,
- * Equaliser, Settings, About, Licenses, Privacy) must not add it: the shell already pads them by it, until Phase 6b
- * moves them over too.
+ * still be scrolled fully into view. The app shell pads no destination by it (Phase 6b): the screens that hide the pill
+ * (the tag editors, Equaliser, Settings, About, Licenses, Privacy, Now Playing) read 0 here.
  */
 val LocalMiniPlayerInset = compositionLocalOf { 0.dp }
 
@@ -25,9 +24,8 @@ val LocalMiniPlayerInset = compositionLocalOf { 0.dp }
  * list scrolls under both the floating pill and the navigation bar while its last item can still be scrolled fully
  * into view above them (spec §7.3).
  *
- * Home's lists and the detail screens' lists use it. Screens wrapped in PushedScreen must not: the app shell already
- * pads them by the pill's inset and each such `Scaffold` owns its navigation-bar inset, so adding this would pad them
- * twice.
+ * Home's, Search's and the detail screens' lists use it. A screen whose `Scaffold` owns its navigation-bar inset must
+ * not add it to the Scaffold's content as well, or the navigation bar is padded twice.
  */
 @Composable
 fun homeListBottomPadding(): Dp =

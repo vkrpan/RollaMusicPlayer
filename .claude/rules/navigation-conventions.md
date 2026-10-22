@@ -98,6 +98,19 @@ navBackStackEntry?.destination?.hasRoute<Library>()
 If you're not navigation-agent and you find yourself editing Routes.kt or the
 NavHost composable directly, stop — flag it for navigation-agent instead.
 
+## Shared navigation helpers and testable destinations (redesign Phases 6a–6b)
+
+- A destination reached from many screens gets one helper instead of copied `navigate` bodies. The tag editor is the
+  example: every single-track "Edit tags" calls `NavController.openTagEditor(song)` / `openTagEditor(songId)` in
+  `app/.../navigation/TagEditorNavigation.kt`, which owns `launchSingleTop = true` and the defensive
+  `song.id.toLongOrNull()` (a malformed id no-ops).
+- A destination whose wiring needs a JVM test is registered through an `internal fun NavGraphBuilder.xxxDestination(
+  navController, provideViewModel: @Composable () -> VM = { hiltViewModel() })` extension
+  (`albumDetailDestination`, `artistDetailDestination`, `playlistDetailDestinations`, `searchDestination`), so a test can
+  drive the real destination through a real `NavHost` with a fake ViewModel.
+- There is no padding wrapper around destinations. A screen that shows the mini-player pads its own list by
+  `homeListBottomPadding()`; screens that hide the pill need nothing.
+
 ## Back stack behavior
 
 - Any destination reachable from more than one entry point (e.g. NowPlaying

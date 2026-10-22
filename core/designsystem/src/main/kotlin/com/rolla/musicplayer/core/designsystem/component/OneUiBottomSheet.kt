@@ -9,6 +9,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Modifier
@@ -27,6 +28,9 @@ import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
  * optional sectionHeader [title] that TalkBack reads as a heading. The sheet's window is edge to edge (M3 1.3.0), so
  * statusBarsPadding() keeps the expanded sheet below the status bar; it is composed, so it reads the sheet window's
  * insets (the QueueSheet lesson, Phase 3).
+ *
+ * [skipPartiallyExpanded] opens a tall sheet straight at full height instead of at half the screen (the queue sheet,
+ * Phase 6b ruling 1); it only reaches rememberModalBottomSheetState. Every other sheet keeps the default.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,10 +38,12 @@ fun OneUiBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
     title: String? = null,
+    skipPartiallyExpanded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded),
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = MaterialTheme.shapes.large.copy(bottomStart = ZeroCornerSize, bottomEnd = ZeroCornerSize),
         modifier = modifier.statusBarsPadding(),

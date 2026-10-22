@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.Saver
@@ -19,7 +20,9 @@ class SongSelectionState internal constructor(initial: Set<String>) {
         private set
 
     val count: Int get() = selectedIds.size
-    val isActive: Boolean get() = selectedIds.isNotEmpty()
+
+    // Derived, so a reader of isActive recomposes only when selection starts or ends, not on every toggle in between.
+    val isActive: Boolean by derivedStateOf { selectedIds.isNotEmpty() }
 
     fun isSelected(songId: String): Boolean = songId in selectedIds
 

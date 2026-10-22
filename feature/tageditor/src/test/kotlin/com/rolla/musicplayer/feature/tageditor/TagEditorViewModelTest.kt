@@ -121,7 +121,7 @@ class TagEditorViewModelTest {
             val state = expectMostRecentItem()
             assertEquals(false, state.isLoading)
             assertTrue(state.isClosed)
-            assertEquals("Song not found.", state.message)
+            assertEquals("Track not found.", state.message)
         }
     }
 

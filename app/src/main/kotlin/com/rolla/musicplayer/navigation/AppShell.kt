@@ -26,9 +26,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
  *
  * Insets, each with a single owner: every screen draws edge to edge under the status bar and owns its top inset
  * through its own top bar; the NavHost pads the horizontal safe-drawing insets once, for every destination including
- * Home; MiniPlayerHost pads the pill above the navigation bar; Home and the detail screens (playlists, albums, artists
- * and folders) pad only their lists (they scroll under the pill), and PushedScreen pads every other destination except
- * Now Playing.
+ * Home; MiniPlayerHost pads the pill above the navigation bar; Home, Search and the detail screens (playlists, albums,
+ * artists and folders) pad only their lists (they scroll under the pill). Every other destination hides the pill
+ * (MiniPlayerVisibility), so nothing pads it by the pill's inset.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable

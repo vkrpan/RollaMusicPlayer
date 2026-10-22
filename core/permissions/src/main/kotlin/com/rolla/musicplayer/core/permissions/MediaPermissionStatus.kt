@@ -1,6 +1,6 @@
 package com.rolla.musicplayer.core.permissions
 
-internal enum class MediaPermissionStatus {
+enum class MediaPermissionStatus {
     GRANTED,
     NEEDS_REQUEST,
     SHOW_RATIONALE,

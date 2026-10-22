@@ -184,4 +184,9 @@ object RollaDimens {
 
     // Queue sheet
     val queueCurrentGlyph = 16.dp // the small EqualizerBars glyph on the playing row; unmeasured
+
+    // Search field (OneUiSearchField, Phase 6b ruling 1): a minTouchTarget pill. Not measured on the reference;
+    // Phase 7 calibrates.
+    val searchFieldStart = 16.dp // pill start to the leading Search glyph (and query end to pill end when empty)
+    val searchFieldGlyphGap = 12.dp // Search glyph to the query text
 }

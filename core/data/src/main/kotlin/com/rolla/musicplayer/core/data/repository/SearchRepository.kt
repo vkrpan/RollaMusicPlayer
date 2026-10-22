@@ -33,6 +33,12 @@ interface SearchRepository {
      */
     suspend fun recordRecentSearch(query: String)
 
+    /**
+     * Removes [query] from the recent search history, matching it exactly (Phase 6b ruling 5) — see
+     * `RecentSearchesDataSource.remove`.
+     */
+    suspend fun removeRecentSearch(query: String)
+
     /** Clears all recent search history. */
     suspend fun clearRecentSearches()
 }

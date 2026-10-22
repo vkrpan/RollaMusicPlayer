@@ -17,6 +17,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -29,6 +32,8 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -75,6 +80,9 @@ class HomeScreenTest {
     private var editTagsClicks = 0
     private var rowTaps = 0
     private var rowLongClicks = 0
+
+    // Ruling 8: Home's access state, fed to HomeScreen by both helpers. Tests flip it with runOnIdle (one setContent).
+    private var accessGranted by mutableStateOf(true)
 
     // Captured inside the theme by setHome: songTitle's line height, and labelLarge's, which is M3's default menu-item
     // text style (MenuTokens.ListItemLabelTextFont). The Home menu test tells the two apart by rendered text height.
@@ -125,6 +133,65 @@ class HomeScreenTest {
         composeRule.onNodeWithText("page-PLAYLISTS").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Create playlist").assertIsDisplayed().performClick()
         assertEquals("+ must request the create dialog once", 1, createPlaylistClicks)
+    }
+
+    // Ruling 8: after a restore with access denied, + would open a dialog PlaylistsTab never composes (a dead control).
+    // Trivial stub: + always shown on Playlists → it still exists after the flip. Mutation: ignore accessGranted for
+    // + → RED on the last assertion.
+    @Test
+    fun createPlaylistIsHiddenWhileAccessIsDenied() {
+        setHome()
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.waitForIdle()
+        assertEquals("the pager settles on Playlists", HomeTab.PLAYLISTS.ordinal, pagerState.settledPage)
+        composeRule.onNodeWithContentDescription("Create playlist")
+            .assertExists("with access granted, Playlists shows +")
+
+        composeRule.runOnIdle { accessGranted = false }
+        assertEquals("with access denied, Playlists shows no +", 0, descriptionCount("Create playlist"))
+    }
+
+    // T2 M1: HomeRoute's create-dialog flag is saveable, so a flag set while access was granted would pop the dialog
+    // after a re-grant. HomeRoute needs Hilt (its ViewModel and the tabs'), so the reset lives in HomeScreen behind
+    // onAccessLost, and the host (setHomeWithCreateDialog) keeps the flag the way HomeRoute does. Trivial stub:
+    // onAccessLost never called → the dialog returns with access. Mutation: drop the onAccessLost() call → RED on the
+    // last assertion. Control: + opens the dialog first.
+    @Test
+    fun aCreateDialogRequestedBeforeAccessWasLostDoesNotReturnWithAccess() {
+        setHomeWithCreateDialog()
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription("Create playlist").performClick()
+        assertEquals("control: + opens the create dialog while access is granted", 1, textCount(CREATE_DIALOG))
+
+        composeRule.runOnIdle { accessGranted = false }
+        assertEquals("with access denied the prompt replaces the pages", 1, textCount("prompt"))
+
+        composeRule.runOnIdle { accessGranted = true }
+        composeRule.onNodeWithText("page-PLAYLISTS").assertExists("with access back, Playlists shows again")
+        assertEquals(
+            "a create dialog requested before access was lost does not return with access",
+            0,
+            textCount(CREATE_DIALOG),
+        )
+    }
+
+    // Ruling 8: a selection must not act on rows hidden behind the prompt; losing access clears it rather than hiding
+    // the bar. Trivial stub: the selection bar regardless of access → "1 selected" survives the flip. Mutation: hide
+    // the bar without clearing → RED on the last assertion ("1 selected" returns with access).
+    @Test
+    fun deniedAccessClearsTheSelectionAndShowsTheHeader() {
+        setHomeWithTappableRows()
+        composeRule.onNodeWithTag(rowTag(0)).performTouchInput { longClick() }
+        composeRule.onNodeWithText("1 selected").assertExists("a long press selects the row")
+
+        composeRule.runOnIdle { accessGranted = false }
+        composeRule.onNodeWithText("Rolla Music").assertExists("with access denied, Home shows its header")
+        assertEquals("with access denied, there is no selection bar", 0, textCount("1 selected"))
+
+        composeRule.runOnIdle { accessGranted = true }
+        assertEquals("access lost cleared the selection: it does not return with access", 0, textCount("1 selected"))
+        composeRule.onNodeWithText("Rolla Music").assertExists("with access back, the header stays")
     }
 
     @Test
@@ -270,7 +337,10 @@ class HomeScreenTest {
         assertEquals("Search must fire once", 1, searchClicks)
     }
 
-    /** Tracks page = a list of full-width combinedClickable rows (like SongListItem) that count taps. */
+    /**
+     * Tracks page = a list of full-width combinedClickable rows (like SongListItem) that count taps. A long press also
+     * toggles the row into the selection, as SongListItem's long press does.
+     */
     private fun setHomeWithTappableRows() {
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
@@ -284,11 +354,43 @@ class HomeScreenTest {
                     onSettingsClick = {},
                     onCreatePlaylistClick = {},
                     onEditTagsForSelection = {},
+                    accessGranted = accessGranted,
                 ) { tab ->
                     if (tab == HomeTab.TRACKS) {
                         TappableRows()
                     } else {
                         Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Home holding a create-dialog flag the way HomeRoute does: + sets it, onAccessLost clears it, the Playlists page
+     * draws [CREATE_DIALOG] while it is set, and the container shows "prompt" instead of the pages while access is
+     * denied, as the permission gate does.
+     */
+    private fun setHomeWithCreateDialog() {
+        var showCreateDialog by mutableStateOf(false)
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                pagerState = rememberHomePagerState()
+                selection = rememberSongSelectionState()
+                HomeScreen(
+                    pagerState = pagerState,
+                    selection = selection,
+                    onSearchClick = {},
+                    onSettingsClick = {},
+                    onCreatePlaylistClick = { showCreateDialog = true },
+                    onEditTagsForSelection = {},
+                    accessGranted = accessGranted,
+                    onAccessLost = { showCreateDialog = false },
+                    pagerContainer = { pages -> if (accessGranted) pages() else Text("prompt") },
+                ) { tab ->
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
+                        if (tab == HomeTab.PLAYLISTS && showCreateDialog) Text(CREATE_DIALOG)
                     }
                 }
             }
@@ -308,13 +410,25 @@ class HomeScreenTest {
                         .fillMaxWidth()
                         .height(72.dp)
                         .testTag(rowTag(index))
-                        .combinedClickable(onClick = { rowTaps++ }, onLongClick = { rowLongClicks++ }),
+                        .combinedClickable(
+                            onClick = { rowTaps++ },
+                            onLongClick = {
+                                rowLongClicks++
+                                selection.toggle(rowTag(index))
+                            },
+                        ),
                 )
             }
         }
     }
 
     private fun rowTag(index: Int) = "row-$index"
+
+    private fun textCount(text: String): Int =
+        composeRule.onAllNodesWithText(text).fetchSemanticsNodes().size
+
+    private fun descriptionCount(description: String): Int =
+        composeRule.onAllNodesWithContentDescription(description).fetchSemanticsNodes().size
 
     private fun setHome() {
         composeRule.setContent {
@@ -332,6 +446,7 @@ class HomeScreenTest {
                     onSettingsClick = { settingsClicks++ },
                     onCreatePlaylistClick = { createPlaylistClicks++ },
                     onEditTagsForSelection = { editTagsClicks++ },
+                    accessGranted = accessGranted,
                 ) { tab ->
                     Column(modifier = Modifier.fillMaxSize()) {
                         Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
@@ -346,6 +461,7 @@ class HomeScreenTest {
 
     private companion object {
         const val LIST_TAG = "rows"
+        const val CREATE_DIALOG = "create-dialog"
         const val ROW_COUNT = 40
         const val TEXT_HEIGHT_TOLERANCE_DP = 0.75f
     }

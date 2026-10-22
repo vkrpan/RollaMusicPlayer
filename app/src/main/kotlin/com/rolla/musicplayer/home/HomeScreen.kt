@@ -17,10 +17,13 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -40,11 +43,14 @@ import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.permissions.MediaPermissionGate
+import com.rolla.musicplayer.core.permissions.MediaPermissionState
+import com.rolla.musicplayer.core.permissions.rememberMediaPermissionState
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
 import com.rolla.musicplayer.feature.library.AlbumsTab
 import com.rolla.musicplayer.feature.library.ArtistsTab
 import com.rolla.musicplayer.feature.library.FoldersTab
+import com.rolla.musicplayer.feature.library.ScanState
 import com.rolla.musicplayer.feature.library.TracksTab
 import com.rolla.musicplayer.feature.playlists.FavouritesTab
 import com.rolla.musicplayer.feature.playlists.PlaylistsTab
@@ -55,12 +61,15 @@ import kotlinx.coroutines.launch
  * Home (spec §7.2): the "Rolla Music" header, the Favourites / Playlists / Tracks / Albums / Artists / Folders tab row
  * and the pager hosting those six tabs. It opens on Tracks. [MediaPermissionGate] wraps the tab row and pager only, so
  * the header (Search, Settings) stays usable while access is denied, and its first grant runs the library sync for
- * every tab. Album, artist and folder taps leave Home through [onAlbumClick] (album id), [onArtistClick] (artist name)
- * and [onFolderClick] (folder path).
+ * every tab through [HomeViewModel.onPermissionGranted] (Phase 2 ruling 2; the gate keys it on the status, so it runs
+ * once per grant, never on recomposition). The [permission] state is hoisted here (Phase 6b ruling 8), so the header
+ * also knows when access is denied and hides + and the selection bar. Losing access also drops the saved create-dialog
+ * flag, so a dialog requested before access was lost never pops after a re-grant. Album, artist and folder taps leave
+ * Home through [onAlbumClick] (album id), [onArtistClick] (artist name) and [onFolderClick] (folder path).
  */
-// Nine navigation callbacks plus the injectable ViewModel: each is a distinct exit from Home. LongMethod: one
-// when-branch per tab (six) keeps the tab-to-page dispatch in one place.
-@Suppress("LongParameterList", "LongMethod")
+// Nine navigation callbacks plus the injectable ViewModel and permission state: each callback is a distinct exit
+// from Home.
+@Suppress("LongParameterList")
 @Composable
 fun HomeRoute(
     onSearchClick: () -> Unit,
@@ -73,34 +82,66 @@ fun HomeRoute(
     onArtistClick: (String) -> Unit,
     onFolderClick: (String) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
+    permission: MediaPermissionState = rememberMediaPermissionState(),
 ) {
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
-    val pagerState = rememberHomePagerState()
     val selection = rememberSongSelectionState()
-    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
-    val onGranted = remember(viewModel) { viewModel::onPermissionGranted }
+    val createDialog = rememberSaveable { mutableStateOf(false) }
     HomeScreen(
-        pagerState = pagerState,
+        pagerState = rememberHomePagerState(),
         selection = selection,
         onSearchClick = onSearchClick,
         onSettingsClick = onSettingsClick,
-        onCreatePlaylistClick = { showCreateDialog = true },
+        onCreatePlaylistClick = { createDialog.value = true },
         onEditTagsForSelection = { editTagsForSelection(selection, onEditTagsForSelection) },
-        pagerContainer = { pager -> MediaPermissionGate(onGranted = onGranted, content = pager) },
+        accessGranted = permission.isGranted,
+        onAccessLost = { createDialog.value = false },
+        pagerContainer = { pager -> MediaPermissionGate(permission, viewModel::onPermissionGranted, content = pager) },
     ) { tab ->
-        when (tab) {
-            HomeTab.FAVOURITES -> FavouritesTab(onEditTagsClick = onEditTagsClick)
-            HomeTab.PLAYLISTS -> PlaylistsTab(
-                showCreateDialog = showCreateDialog,
-                onDismissCreateDialog = { showCreateDialog = false },
-                onPlaylistClick = onPlaylistClick,
-                onSmartPlaylistClick = onSmartPlaylistClick,
-            )
-            HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
-            HomeTab.ALBUMS -> AlbumsTab(scanState = scanState, onAlbumClick = onAlbumClick)
-            HomeTab.ARTISTS -> ArtistsTab(scanState = scanState, onArtistClick = onArtistClick)
-            HomeTab.FOLDERS -> FoldersTab(scanState = scanState, onFolderClick = onFolderClick)
-        }
+        HomeTabPage(
+            tab = tab,
+            selection = selection,
+            scanState = scanState,
+            createDialog = createDialog,
+            onEditTagsClick = onEditTagsClick,
+            onPlaylistClick = onPlaylistClick,
+            onSmartPlaylistClick = onSmartPlaylistClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
+            onFolderClick = onFolderClick,
+        )
+    }
+}
+
+/** One Home page per [tab]: the tab-to-page dispatch, in one place (Phase 6b ruling 11). */
+// The page state each tab reads (selection, scan state, the create dialog) plus Home's navigation exits. The create
+// dialog's flag is HomeRoute's saveable state, shared with Home's + and its access-lost reset; only Playlists reads it.
+@Suppress("LongParameterList")
+@Composable
+private fun HomeTabPage(
+    tab: HomeTab,
+    selection: SongSelectionState,
+    scanState: ScanState,
+    createDialog: MutableState<Boolean>,
+    onEditTagsClick: (Song) -> Unit,
+    onPlaylistClick: (Long) -> Unit,
+    onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
+    onAlbumClick: (Long) -> Unit,
+    onArtistClick: (String) -> Unit,
+    onFolderClick: (String) -> Unit,
+) {
+    when (tab) {
+        HomeTab.FAVOURITES -> FavouritesTab(onEditTagsClick = onEditTagsClick)
+        HomeTab.PLAYLISTS -> PlaylistsTab(
+            showCreateDialog = createDialog.value,
+            onDismissCreateDialog = { createDialog.value = false },
+            onPlaylistClick = onPlaylistClick,
+            onSmartPlaylistClick = onSmartPlaylistClick,
+        )
+        HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
+        HomeTab.ALBUMS -> AlbumsTab(scanState = scanState, onAlbumClick = onAlbumClick)
+        HomeTab.ARTISTS -> ArtistsTab(scanState = scanState, onArtistClick = onArtistClick)
+        HomeTab.FOLDERS -> FoldersTab(scanState = scanState, onFolderClick = onFolderClick)
     }
 }
 
@@ -125,10 +166,11 @@ internal fun editTagsForSelection(selection: SongSelectionState, onEditTags: (Li
 /**
  * Stateless Home: the header (or the selection bar while [selection] is active), then [pagerContainer] wrapping the
  * tab row and the pager, whose pages render [pageContent] inside a [ContentPanel]. While selecting, back clears the
- * selection and both tab clicks and swipes are disabled. The header owns the status-bar inset; the pages' lists pad
- * for the navigation bar themselves.
+ * selection and both tab clicks and swipes are disabled. While [accessGranted] is false (the gate shows its prompt
+ * instead of the pages), the header hides + and losing access clears the selection and calls [onAccessLost]. The
+ * header owns the status-bar inset; the pages' lists pad for the navigation bar themselves.
  */
-// Hoisted pager / selection state, four header events, and two content slots.
+// Hoisted pager / selection state, four header events, the access flag and its loss callback, and two content slots.
 @Suppress("LongParameterList")
 @Composable
 internal fun HomeScreen(
@@ -139,16 +181,31 @@ internal fun HomeScreen(
     onCreatePlaylistClick: () -> Unit,
     onEditTagsForSelection: () -> Unit,
     modifier: Modifier = Modifier,
+    accessGranted: Boolean = true,
+    onAccessLost: () -> Unit = {},
     pagerContainer: @Composable (@Composable () -> Unit) -> Unit = { it() },
     pageContent: @Composable (HomeTab) -> Unit,
 ) {
-    BackHandler(enabled = selection.isActive) { selection.clear() }
+    // Ruling 8: rows hidden behind the permission prompt cannot be acted on, so losing access clears the selection
+    // (a restored selection would otherwise come back with access). Until it clears, the bar and Back stay off.
+    // onAccessLost lets the caller drop its own page state the same way (HomeRoute's saved create-dialog flag, which
+    // would otherwise pop the dialog after a re-grant).
+    val currentOnAccessLost by rememberUpdatedState(onAccessLost)
+    LaunchedEffect(accessGranted) {
+        if (!accessGranted) {
+            selection.clear()
+            currentOnAccessLost()
+        }
+    }
+    val selecting = accessGranted && selection.isActive
+    BackHandler(enabled = selecting) { selection.clear() }
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        if (selection.isActive) {
+        if (selecting) {
             SelectionBar(selection = selection, onEditTagsClick = onEditTagsForSelection)
         } else {
             HomeHeader(
-                showCreatePlaylist = pagerState.settledPage == HomeTab.PLAYLISTS.ordinal,
+                // Ruling 8: with access denied PlaylistsTab is not composed, so + would open nothing.
+                showCreatePlaylist = accessGranted && pagerState.settledPage == HomeTab.PLAYLISTS.ordinal,
                 onCreatePlaylistClick = onCreatePlaylistClick,
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,

@@ -26,7 +26,7 @@ import javax.inject.Inject
 
 private const val DENIED_MESSAGE = "Changes weren't saved — permission declined."
 private const val GENERIC_FAILURE_MESSAGE = "Couldn't save changes. Please try again."
-private const val SONG_NOT_FOUND_MESSAGE = "Song not found."
+private const val SONG_NOT_FOUND_MESSAGE = "Track not found."
 private const val READ_FAILURE_MESSAGE = "Couldn't read tags for this file."
 private const val ARTWORK_LOAD_FAILURE_MESSAGE = "Couldn't use that image as artwork."
 

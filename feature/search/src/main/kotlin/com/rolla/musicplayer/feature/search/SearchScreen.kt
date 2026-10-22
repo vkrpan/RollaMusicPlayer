@@ -3,71 +3,64 @@
 package com.rolla.musicplayer.feature.search
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.exclude
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.ScaffoldDefaults
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.rolla.musicplayer.core.designsystem.component.ContentPanel
+import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
+import com.rolla.musicplayer.core.designsystem.component.OneUiSearchField
+import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
+import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.emptyState
 import com.rolla.musicplayer.core.designsystem.theme.sectionHeader
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Artist
+import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.SearchResults
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.ui.AlbumRow
 import com.rolla.musicplayer.core.ui.ArtistRow
 import com.rolla.musicplayer.core.ui.SongListItem
-
-private val SurfaceHorizontalMargin = 8.dp
-private val SurfaceVerticalMargin = 8.dp
-private val MinTouchTarget = 48.dp
-private val EmptyStateHorizontalPadding = 32.dp
-private val EmptyStateCaptionSpacing = 8.dp
-private val SectionHeaderHorizontalPadding = 16.dp
-private val SectionHeaderVerticalPadding = 12.dp
+import com.rolla.musicplayer.core.ui.SongOptionsHost
 
 /**
  * Stateful entry point for the local search screen, mirroring the Route/Screen split used by
@@ -79,22 +72,27 @@ private val SectionHeaderVerticalPadding = 12.dp
  * artists have no durable id in the songs schema (see the ArtistDetail route in Routes.kt), so the
  * name is passed through instead.
  */
+// The signature is Phase 6b Task 3's contract with :app: four navigation events, the ViewModel and the modifier.
+@Suppress("LongParameterList")
 @Composable
 fun SearchRoute(
     onNavigateUp: () -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (String) -> Unit,
+    onEditTagsClick: (Song) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val recentSearches by viewModel.recentSearches.collectAsStateWithLifecycle()
+    val userPlaylists by viewModel.userPlaylists.collectAsStateWithLifecycle()
 
     SearchScreen(
         query = query,
         uiState = uiState,
         recentSearches = recentSearches,
+        userPlaylists = userPlaylists,
         onQueryChanged = remember(viewModel) { viewModel::onQueryChanged },
         onNavigateUp = onNavigateUp,
         onSongClick = remember(viewModel) { viewModel::play },
@@ -102,16 +100,35 @@ fun SearchRoute(
         onArtistClick = onArtistClick,
         onRecentSearchClick = remember(viewModel) { viewModel::onRecentSearchClicked },
         onClearRecentSearches = remember(viewModel) { viewModel::onClearRecentSearches },
+        onRemoveRecentSearch = remember(viewModel) { viewModel::onRemoveRecentSearch },
+        onAddSongToPlaylist = remember(viewModel) { viewModel::addSongToPlaylist },
+        onCreatePlaylistAndAddSong = remember(viewModel) { viewModel::createPlaylistAndAddSong },
+        onEditTagsClick = onEditTagsClick,
         modifier = modifier,
     )
 }
 
+/**
+ * The stateless Search screen (spec §7.3, §7.4, §8.7; Phase 6b rulings 3–5). No Scaffold:
+ * - a search bar (status-bar inset, [RollaDimens.headerHeight] tall): Navigate up, then [OneUiSearchField];
+ * - [RollaDimens.panelTopGap], then a [ContentPanel] holding the state's content.
+ *
+ * Insets have one owner each (spec §7.4). The outer padding takes the keyboard minus the navigation bar, and every
+ * list pads its bottom by [homeListBottomPadding] (the pill plus the navigation bar). With the keyboard closed the
+ * outer padding is 0 and the last row clears the pill. With it open the app shell drops the pill inset to 0
+ * (spec §7.3), so the two paddings add up to exactly the keyboard.
+ *
+ * A track row's ⋮ opens [SongOptionsHost] (Add to playlist, Edit tags), which closes itself when its track leaves the
+ * results (6a ruling 10).
+ */
+// The stateless half of SearchRoute: every input is a distinct piece of state or a distinct event.
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 fun SearchScreen(
     query: String,
     uiState: SearchUiState,
     recentSearches: List<String>,
+    userPlaylists: List<Playlist>,
     onQueryChanged: (String) -> Unit,
     onNavigateUp: () -> Unit,
     onSongClick: (Song) -> Unit,
@@ -119,6 +136,10 @@ fun SearchScreen(
     onArtistClick: (String) -> Unit,
     onRecentSearchClick: (String) -> Unit,
     onClearRecentSearches: () -> Unit,
+    onRemoveRecentSearch: (String) -> Unit,
+    onAddSongToPlaylist: (String, Long) -> Unit,
+    onCreatePlaylistAndAddSong: (String, String) -> Unit,
+    onEditTagsClick: (Song) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // The keyboard must open the instant this screen appears, there is nothing else to do on a
@@ -127,225 +148,154 @@ fun SearchScreen(
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
+    // IME Search only dismisses the keyboard: results already stream from the query as it changes.
+    val keyboardController = LocalSoftwareKeyboardController.current
+    var optionsSong by remember { mutableStateOf<Song?>(null) }
 
-    Scaffold(
-        // Allows the whole Scaffold (top bar + results) to resize as the keyboard opens or
-        // closes, so the IME can never cover the tail of the results list -- there is no other
-        // scrollable container here for a plain per-content imePadding to attach to usefully.
-        modifier = modifier.imePadding(),
-        // The outer imePadding above is the ONE owner of the IME inset: excluding ime here
-        // guarantees Scaffold's innerPadding can never also reserve keyboard height (M3's
-        // default contentWindowInsets may include ime depending on version), which would
-        // squeeze the results list by twice the keyboard height.
-        contentWindowInsets = ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            SearchTopBar(
-                query = query,
-                onQueryChanged = onQueryChanged,
-                onNavigateUp = onNavigateUp,
-                focusRequester = focusRequester,
-            )
-        },
-    ) { innerPadding ->
-        SearchContent(
-            uiState = uiState,
-            recentSearches = recentSearches,
-            onSongClick = onSongClick,
-            onAlbumClick = onAlbumClick,
-            onArtistClick = onArtistClick,
-            onRecentSearchClick = onRecentSearchClick,
-            onClearRecentSearches = onClearRecentSearches,
-            modifier = Modifier.padding(innerPadding),
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            // The keyboard's owner (ruling 3): the lists below already pad by the navigation bar.
+            .windowInsetsPadding(WindowInsets.ime.exclude(WindowInsets.navigationBars)),
+    ) {
+        SearchBar(
+            query = query,
+            onQueryChanged = onQueryChanged,
+            onNavigateUp = onNavigateUp,
+            onSearch = { keyboardController?.hide() },
+            focusRequester = focusRequester,
         )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SearchTopBar(
-    query: String,
-    onQueryChanged: (String) -> Unit,
-    onNavigateUp: () -> Unit,
-    focusRequester: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    TopAppBar(
-        title = {
-            SearchField(
-                query = query,
-                onQueryChanged = onQueryChanged,
-                focusRequester = focusRequester,
-                modifier = Modifier.fillMaxWidth(),
+        Spacer(modifier = Modifier.height(RollaDimens.panelTopGap))
+        ContentPanel {
+            SearchPanelContent(
+                uiState = uiState,
+                recentSearches = recentSearches,
+                onSongClick = onSongClick,
+                onSongMoreClick = { optionsSong = it },
+                onAlbumClick = onAlbumClick,
+                onArtistClick = onArtistClick,
+                onRecentSearchClick = onRecentSearchClick,
+                onClearRecentSearches = onClearRecentSearches,
+                onRemoveRecentSearch = onRemoveRecentSearch,
             )
-        },
-        navigationIcon = {
-            IconButton(onClick = onNavigateUp) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-        modifier = modifier,
+        }
+    }
+    SongOptionsHost(
+        song = optionsSong,
+        userPlaylists = userPlaylists,
+        onDismiss = { optionsSong = null },
+        onAddSongToPlaylist = onAddSongToPlaylist,
+        onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
+        onEditTagsClick = onEditTagsClick,
+        // The rows' list (6a ruling 10), tracked only in states that say what the query matches.
+        currentSongs = sheetTrackedSongs(uiState),
     )
 }
 
 /**
- * The search text field itself: a pill/large-radius field on surfaceContainerHigh per
- * ui-style-guide.md section 6, with a trailing clear button that only appears once query is
- * non-empty. The IME action is Search, which just dismisses the keyboard; results already stream
- * reactively from SearchViewModel.uiState as query changes, so there is nothing left to trigger.
+ * The list the options sheet checks its track against (6a ruling 10):
+ * - Results: the result tracks, so a track that leaves them closes the sheet.
+ * - Empty: no tracks, so a tag edit that leaves the query matching nothing closes it too.
+ * - Idle and Loading: null, which means "do not track". Returning after more than 5 s in the background restarts the
+ *   WhileSubscribed search, which passes through Loading. The open sheet, or a half-typed playlist name, must survive
+ *   that.
  */
-@Suppress("LongMethod")
-@Composable
-private fun SearchField(
-    query: String,
-    onQueryChanged: (String) -> Unit,
-    focusRequester: FocusRequester,
-    modifier: Modifier = Modifier,
-) {
-    val keyboardController = LocalSoftwareKeyboardController.current
-    TextField(
-        value = query,
-        onValueChange = onQueryChanged,
-        modifier = modifier
-            .focusRequester(focusRequester)
-            .heightIn(min = MinTouchTarget),
-        placeholder = { Text("Search your library") },
-        singleLine = true,
-        shape = MaterialTheme.shapes.large,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            cursorColor = MaterialTheme.colorScheme.primary,
-        ),
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChanged("") }) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Clear search",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        },
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
-    )
+private fun sheetTrackedSongs(uiState: SearchUiState): List<Song>? = when (uiState) {
+    is SearchUiState.Results -> uiState.results.songs
+    SearchUiState.Empty -> emptyList()
+    SearchUiState.Idle, SearchUiState.Loading -> null
 }
 
+/** Navigate up at [RollaDimens.topBarEdge], then the search pill, ending [RollaDimens.screenEdge] from the edge. */
+@Composable
+private fun SearchBar(
+    query: String,
+    onQueryChanged: (String) -> Unit,
+    onNavigateUp: () -> Unit,
+    onSearch: () -> Unit,
+    focusRequester: FocusRequester,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .heightIn(min = RollaDimens.headerHeight)
+            .padding(start = RollaDimens.topBarEdge, end = RollaDimens.screenEdge),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OneUiIconButton(icon = RollaIcons.ChevronBack, contentDescription = "Navigate up", onClick = onNavigateUp)
+        OneUiSearchField(
+            query = query,
+            onQueryChange = onQueryChanged,
+            placeholder = "Search your library",
+            modifier = Modifier.weight(1f).focusRequester(focusRequester),
+            onSearch = onSearch,
+        )
+    }
+}
+
+/** The panel's body for each [SearchUiState]. Loading renders nothing: no spinner flash (6a §8.7). */
 @Suppress("LongParameterList")
 @Composable
-private fun SearchContent(
+private fun SearchPanelContent(
     uiState: SearchUiState,
     recentSearches: List<String>,
     onSongClick: (Song) -> Unit,
+    onSongMoreClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (String) -> Unit,
     onRecentSearchClick: (String) -> Unit,
     onClearRecentSearches: () -> Unit,
-    modifier: Modifier = Modifier,
+    onRemoveRecentSearch: (String) -> Unit,
 ) {
-    Surface(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = SurfaceHorizontalMargin, vertical = SurfaceVerticalMargin),
-        color = MaterialTheme.colorScheme.surfaceContainer,
-        shape = MaterialTheme.shapes.large,
-    ) {
-        when (uiState) {
-            SearchUiState.Idle -> IdleContent(
+    when (uiState) {
+        SearchUiState.Idle -> if (recentSearches.isEmpty()) {
+            // Nothing typed yet and no history, e.g. the very first launch.
+            PanelMessage(lines = listOf("Search your library"))
+        } else {
+            RecentSearchesList(
                 recentSearches = recentSearches,
                 onRecentSearchClick = onRecentSearchClick,
                 onClearRecentSearches = onClearRecentSearches,
-            )
-            SearchUiState.Loading -> LoadingIndicator()
-            SearchUiState.Empty -> NoResultsMessage()
-            is SearchUiState.Results -> SearchResultsList(
-                results = uiState.results,
-                onSongClick = onSongClick,
-                onAlbumClick = onAlbumClick,
-                onArtistClick = onArtistClick,
+                onRemoveRecentSearch = onRemoveRecentSearch,
             )
         }
-    }
-}
-
-/**
- * Idle state: nothing typed yet. Renders the recent-search history when there is any -- see
- * [RecentSearchesList] -- and falls back to the plain "type to search" prompt otherwise, e.g. on
- * the very first launch before anything has ever been searched.
- */
-@Composable
-private fun IdleContent(
-    recentSearches: List<String>,
-    onRecentSearchClick: (String) -> Unit,
-    onClearRecentSearches: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    if (recentSearches.isEmpty()) {
-        IdlePrompt(modifier = modifier)
-    } else {
-        RecentSearchesList(
-            recentSearches = recentSearches,
-            onRecentSearchClick = onRecentSearchClick,
-            onClearRecentSearches = onClearRecentSearches,
-            modifier = modifier,
+        SearchUiState.Loading -> Unit
+        // Two lines, so it reads as "we looked and found nothing" rather than "nothing typed yet".
+        SearchUiState.Empty -> PanelMessage(
+            lines = listOf("No results", "Nothing in your library matched that search."),
+        )
+        is SearchUiState.Results -> SearchResultsList(
+            results = uiState.results,
+            onSongClick = onSongClick,
+            onSongMoreClick = onSongMoreClick,
+            onAlbumClick = onAlbumClick,
+            onArtistClick = onArtistClick,
         )
     }
 }
 
-/** Nothing typed yet and no recent-search history exists -- a plain "type to search" prompt. */
-@Composable
-private fun IdlePrompt(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(
-            text = "Search your library",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = EmptyStateHorizontalPadding),
-        )
-    }
-}
-
-@Composable
-private fun LoadingIndicator(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-    }
-}
-
 /**
- * Empty state: a query resolved but matched nothing. Deliberately a two-line, distinct message
- * (headline + caption) rather than reusing IdlePrompt's single line, so it reads as "we looked
- * and found nothing" instead of "nothing typed yet".
+ * A centred message in the panel, one Text per line, in emptyState / onSurfaceVariant (ruling 4), the lines
+ * [RollaDimens.settingsHeaderGap] apart.
  */
 @Composable
-private fun NoResultsMessage(modifier: Modifier = Modifier) {
+private fun PanelMessage(lines: List<String>, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "No results",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.heightIn(min = EmptyStateCaptionSpacing))
-            Text(
-                text = "Nothing in your library matched that search.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = EmptyStateHorizontalPadding),
-            )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+            modifier = Modifier.padding(horizontal = RollaDimens.screenEdge),
+        ) {
+            lines.forEach { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.emptyState,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
@@ -357,53 +307,77 @@ private fun NoResultsMessage(modifier: Modifier = Modifier) {
  */
 internal fun searchArtistKey(artist: Artist): String = "artist-${artist.name}"
 
+/** Test handle for the results list. Not `song_list`, which only the Tracks tab may carry (baseline profile). */
+internal const val SEARCH_RESULTS_LIST_TEST_TAG = "search_results_list"
+
+// The results list's content types, so the LazyColumn reuses a composition only for a row of the same kind.
+private const val CONTENT_TYPE_HEADER = "header"
+private const val CONTENT_TYPE_SONG = "song"
+private const val CONTENT_TYPE_ALBUM = "album"
+private const val CONTENT_TYPE_ARTIST = "artist"
+
 /**
- * Results state: one LazyColumn with up to three sections (Songs / Albums / Artists), each
+ * Results state: one LazyColumn with up to three sections (Tracks / Albums / Artists), each
  * present only when its list is non-empty. Keys are prefixed per section (song-/album-/artist-)
  * so keys from different sections can never collide: songs and albums are keyed by id, artists by
- * name ([searchArtistKey]).
+ * name ([searchArtistKey], Phase 4a ruling 12). A track tap plays the results from it (Phase 3 gate decision 5);
+ * its ⋮ opens the options sheet. The list pads its bottom by [homeListBottomPadding] (ruling 3).
  */
 @Suppress("LongParameterList")
 @Composable
 private fun SearchResultsList(
     results: SearchResults,
     onSongClick: (Song) -> Unit,
+    onSongMoreClick: (Song) -> Unit,
     onAlbumClick: (Long) -> Unit,
     onArtistClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier = modifier.fillMaxSize()) {
+    LazyColumn(
+        modifier = modifier.fillMaxSize().testTag(SEARCH_RESULTS_LIST_TEST_TAG),
+        contentPadding = PaddingValues(bottom = homeListBottomPadding()),
+    ) {
         if (results.songs.isNotEmpty()) {
-            item(key = "header-songs") { SectionHeader(text = "Songs") }
-            items(items = results.songs, key = { song -> "song-${song.id}" }) { song ->
-                SongListItem(song = song, onClick = { onSongClick(song) })
+            item(key = "header-songs", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Tracks") }
+            items(results.songs, key = { song -> "song-${song.id}" }, contentType = { CONTENT_TYPE_SONG }) { song ->
+                SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onSongMoreClick(song) })
             }
         }
         if (results.albums.isNotEmpty()) {
-            item(key = "header-albums") { SectionHeader(text = "Albums") }
-            items(items = results.albums, key = { album -> "album-${album.id}" }) { album ->
+            item(key = "header-albums", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Albums") }
+            items(results.albums, key = { "album-${it.id}" }, contentType = { CONTENT_TYPE_ALBUM }) { album ->
                 AlbumRow(album = album, onClick = { onAlbumClick(album.id) })
             }
         }
         if (results.artists.isNotEmpty()) {
-            item(key = "header-artists") { SectionHeader(text = "Artists") }
-            items(items = results.artists, key = { artist -> searchArtistKey(artist) }) { artist ->
+            item(key = "header-artists", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Artists") }
+            items(results.artists, key = ::searchArtistKey, contentType = { CONTENT_TYPE_ARTIST }) { artist ->
                 ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
             }
         }
     }
 }
 
+/**
+ * A section header (ruling 4): [text] in sectionHeader / onSurfaceVariant, starting at [RollaDimens.listThumbStart]
+ * and [RollaDimens.singleLineRowHeight] tall. TalkBack hears it as a heading.
+ */
 @Composable
-private fun SectionHeader(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.sectionHeader,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun SearchSectionHeader(text: String, modifier: Modifier = Modifier) {
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = SectionHeaderHorizontalPadding, vertical = SectionHeaderVerticalPadding),
-    )
+            .heightIn(min = RollaDimens.singleLineRowHeight)
+            .padding(start = RollaDimens.listThumbStart, end = RollaDimens.listTrailingEnd),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.sectionHeader,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { heading() },
+        )
+    }
 }
 
 private fun previewSong(id: String, title: String, artist: String) = Song(
@@ -437,11 +411,18 @@ private fun previewResults() = SearchResults(
 @Preview(name = "Search - Results - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewSearchScreenResults() {
+    SearchScreenPreview(query = "queen", uiState = SearchUiState.Results(previewResults()))
+}
+
+/** One preview host, so each preview names only the state it shows. */
+@Composable
+private fun SearchScreenPreview(query: String, uiState: SearchUiState, recentSearches: List<String> = emptyList()) {
     RollaMusicPlayerTheme {
         SearchScreen(
-            query = "queen",
-            uiState = SearchUiState.Results(previewResults()),
-            recentSearches = emptyList(),
+            query = query,
+            uiState = uiState,
+            recentSearches = recentSearches,
+            userPlaylists = emptyList(),
             onQueryChanged = {},
             onNavigateUp = {},
             onSongClick = {},
@@ -449,6 +430,10 @@ private fun PreviewSearchScreenResults() {
             onArtistClick = {},
             onRecentSearchClick = {},
             onClearRecentSearches = {},
+            onRemoveRecentSearch = {},
+            onAddSongToPlaylist = { _, _ -> },
+            onCreatePlaylistAndAddSong = { _, _ -> },
+            onEditTagsClick = {},
         )
     }
 }
@@ -458,20 +443,7 @@ private fun PreviewSearchScreenResults() {
 @Preview(name = "Search - Idle - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewSearchScreenIdle() {
-    RollaMusicPlayerTheme {
-        SearchScreen(
-            query = "",
-            uiState = SearchUiState.Idle,
-            recentSearches = emptyList(),
-            onQueryChanged = {},
-            onNavigateUp = {},
-            onSongClick = {},
-            onAlbumClick = {},
-            onArtistClick = {},
-            onRecentSearchClick = {},
-            onClearRecentSearches = {},
-        )
-    }
+    SearchScreenPreview(query = "", uiState = SearchUiState.Idle)
 }
 
 @Suppress("UnusedPrivateMember")
@@ -479,20 +451,11 @@ private fun PreviewSearchScreenIdle() {
 @Preview(name = "Search - Idle With Recents - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewSearchScreenIdleWithRecents() {
-    RollaMusicPlayerTheme {
-        SearchScreen(
-            query = "",
-            uiState = SearchUiState.Idle,
-            recentSearches = listOf("queen", "bohemian rhapsody", "jazz"),
-            onQueryChanged = {},
-            onNavigateUp = {},
-            onSongClick = {},
-            onAlbumClick = {},
-            onArtistClick = {},
-            onRecentSearchClick = {},
-            onClearRecentSearches = {},
-        )
-    }
+    SearchScreenPreview(
+        query = "",
+        uiState = SearchUiState.Idle,
+        recentSearches = listOf("queen", "bohemian rhapsody", "jazz"),
+    )
 }
 
 @Suppress("UnusedPrivateMember")
@@ -500,18 +463,5 @@ private fun PreviewSearchScreenIdleWithRecents() {
 @Preview(name = "Search - Empty - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewSearchScreenEmpty() {
-    RollaMusicPlayerTheme {
-        SearchScreen(
-            query = "xyz123",
-            uiState = SearchUiState.Empty,
-            recentSearches = emptyList(),
-            onQueryChanged = {},
-            onNavigateUp = {},
-            onSongClick = {},
-            onAlbumClick = {},
-            onArtistClick = {},
-            onRecentSearchClick = {},
-            onClearRecentSearches = {},
-        )
-    }
+    SearchScreenPreview(query = "xyz123", uiState = SearchUiState.Empty)
 }

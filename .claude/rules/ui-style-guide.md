@@ -129,6 +129,12 @@ Rule: containers and cards are **24dp+**; thumbnails **12dp**; anything button-l
 > `OneUiDialog` with `OneUiTextButton` (pass `destructive = true` for Delete/Remove: it draws `destructiveText`, never
 > `error`), `OneUiTextField`, `OneUiDropdownMenu`/`OneUiMenuItem`, and `SheetActionRow` for sheet actions. Spec §6 has
 > the signatures, §8.7 the anatomy.
+>
+> **Fields, buttons and search (redesign Phase 6b):** never call `Button`, `OutlinedButton` or `OutlinedTextField`
+> directly either. Use `OneUiPillButton` (filled `primary`/`onPrimary`, or `tonal`; `loading` for a save in progress),
+> `OneUiTextField` (with `isError`/`supportingText` for validation; the error text is `destructiveText`) and
+> `OneUiSearchField`. Per-field apply toggles use `OneUiSwitch`. Icons come only from `RollaIcons`: detekt's
+> `ForbiddenImport` fails the build on any `androidx.compose.material.icons` import.
 
 ### TopAppBar
 Large bold title left; trailing actions right (`Search`, optional `Add (+)`, `Overflow (⋮)`); a small accent

@@ -259,7 +259,7 @@ class BatchTagEditorViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaving)
         assertTrue(state.isClosed)
-        assertEquals("None of the selected songs could be found.", state.message)
+        assertEquals("None of the selected tracks could be found.", state.message)
         coVerify(exactly = 0) { songFileResolver.createEditableCopy(any()) }
     }
 
@@ -378,7 +378,7 @@ class BatchTagEditorViewModelTest {
         val state = viewModel.uiState.value
         assertEquals(false, state.isSaving)
         assertEquals(false, state.isClosed)
-        assertEquals("Edited 2 of 3 songs.", state.message)
+        assertEquals("Edited 2 of 3 tracks.", state.message)
         assertNull(state.progress)
     }
 
@@ -440,7 +440,7 @@ class BatchTagEditorViewModelTest {
         val state = viewModel.uiState.value
         assertNull(state.recoveryRequest)
         assertEquals(false, state.isClosed)
-        assertEquals("Edited 2 of 3 songs.", state.message)
+        assertEquals("Edited 2 of 3 tracks.", state.message)
         assertEquals(false, state.isSaving)
     }
 

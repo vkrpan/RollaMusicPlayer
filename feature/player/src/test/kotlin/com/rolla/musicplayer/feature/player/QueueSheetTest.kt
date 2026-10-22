@@ -3,7 +3,6 @@ package com.rolla.musicplayer.feature.player
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.ui.platform.AbstractComposeView
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
@@ -18,7 +17,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -122,8 +120,9 @@ class QueueSheetTest {
     // D3-1. The sheet's dialog window is edge to edge, so the fully expanded sheet must stop below the status bar while
     // the scrim stays full screen and the surface still runs behind the navigation bar, with the last row clearing it.
     // Robolectric dispatches no system-bar insets, so the test hands the dialog's ComposeView a status-bar and a
-    // navigation-bar inset itself, then expands the sheet through the drag handle's Expand action. Only the dialog gets
-    // insets; the activity's stay zero, so the test also tells the sheet's window apart from the host's.
+    // navigation-bar inset itself. The queue opens at full height (skipPartiallyExpanded, Phase 6b ruling 1), so the
+    // test asserts the inset directly; M3 offers no Expand action on a sheet that is already expanded. Only the dialog
+    // gets insets; the activity's stay zero, so the test also tells the sheet's window apart from the host's.
     // Mutation: drop statusBarsPadding() from the sheet modifier → the sheet's top is 0 → RED.
     // Mutation: windowInsetsPadding(WindowInsets.statusBars) instead (reads the activity's window) → top is 0 → RED.
     // Mutation: systemBarsPadding() instead → the sheet stops above the nav bar → RED.
@@ -131,8 +130,6 @@ class QueueSheetTest {
     fun fullyExpandedSheetStopsBelowTheStatusBar() {
         show(queue(60, current = 0))
         composeRule.runOnIdle { dispatchSystemBarInsets(top = STATUS_BAR_PX, bottom = NAV_BAR_PX) }
-        composeRule.onNode(SemanticsMatcher.keyIsDefined(SemanticsActions.Expand))
-            .performSemanticsAction(SemanticsActions.Expand)
         composeRule.waitForIdle()
 
         val window = composeRule.onNode(isDialog()).fetchSemanticsNode().boundsInRoot
@@ -146,6 +143,21 @@ class QueueSheetTest {
         composeRule.onNodeWithTag(QUEUE_LIST_TAG).performScrollToIndex(59)
         val lastRow = composeRule.onNodeWithText("T59").fetchSemanticsNode().boundsInRoot
         assertTrue("last row clears the nav bar", lastRow.bottom <= window.bottom - NAV_BAR_PX + PX_TOLERANCE)
+    }
+
+    // Phase 6b ruling 1 (user decision, 2026-10-21): the queue opens at full height, not half way. Control: the title
+    // is present. Trivial stub: the default (partially expanded) sheet → the title sits at half the root → RED.
+    // Mutation: drop skipPartiallyExpanded = true from QueueSheet → RED.
+    @Test
+    fun queueSheetOpensAtFullHeight() {
+        show(queue(40, current = 0))
+        composeRule.onNodeWithText("Queue").assertExists("the queue sheet shows its title")
+        val root = composeRule.onNode(isDialog()).fetchSemanticsNode().boundsInRoot
+        val titleTop = composeRule.onNodeWithText("Queue").fetchSemanticsNode().boundsInRoot.top - root.top
+        assertTrue(
+            "the queue opens at full height: title top $titleTop is in the top quarter of ${root.height}",
+            titleTop < root.height / 4,
+        )
     }
 
     // Ruling 2: scroll by list position. Reversed window indices: position 45 is "T14"; window index 45 ("T45") sits at

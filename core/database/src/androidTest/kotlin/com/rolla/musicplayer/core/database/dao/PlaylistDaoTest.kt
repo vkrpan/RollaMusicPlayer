@@ -274,6 +274,9 @@ class PlaylistDaoTest {
         )
     }
 
+    // One remove-then-append scenario with its fixture and checks; detekt reaches androidTest since the Phase 6b final
+    // fix wave.
+    @Suppress("LongMethod")
     @Test
     fun appendSongs_afterRemovingMiddleSong_assignsNextPositionWithoutCollision() = runTest {
         // Regression coverage for the position-collision risk: appendSongs must derive the next

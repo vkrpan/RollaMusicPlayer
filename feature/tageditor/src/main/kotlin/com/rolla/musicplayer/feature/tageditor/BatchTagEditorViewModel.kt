@@ -21,7 +21,7 @@ import java.io.File
 import javax.inject.Inject
 
 private const val DENIED_MESSAGE = "Changes weren't saved — permission declined."
-private const val NO_SONGS_MESSAGE = "None of the selected songs could be found."
+private const val NO_SONGS_MESSAGE = "None of the selected tracks could be found."
 private const val SONG_IDS_KEY = "songIds"
 
 /** Where BatchTagEditorViewModel's per-song loop paused, waiting on an API 29 recovery prompt. */
@@ -91,7 +91,7 @@ private data class WriteCollaborators(val songFileResolver: SongFileResolver, va
  * - **All songs succeeded**: [BatchTagEditorUiState.isClosed] is set with no
  *   [BatchTagEditorUiState.message] -- there is nothing the user needs to read, so the screen can
  *   navigate away immediately, same as [TagEditorViewModel]'s happy path.
- * - **One or more songs failed**: [BatchTagEditorUiState.message] is set to "Edited X of N songs."
+ * - **One or more songs failed**: [BatchTagEditorUiState.message] is set to "Edited X of N tracks."
  *   and [BatchTagEditorUiState.isClosed] is left false. This mirrors [TagEditorViewModel]'s
  *   generic-IO-failure path (message shown, screen stays open) rather than its "song not found"
  *   path (message shown AND closed at once) -- because unlike a same-screen snackbar racing a
@@ -327,7 +327,7 @@ class BatchTagEditorViewModel @Inject constructor(
             if (failed == 0) {
                 it.copy(isSaving = false, progress = null, isClosed = true)
             } else {
-                it.copy(isSaving = false, progress = null, message = "Edited ${total - failed} of $total songs.")
+                it.copy(isSaving = false, progress = null, message = "Edited ${total - failed} of $total tracks.")
             }
         }
         loadedSongs = emptyList()

@@ -26,15 +26,16 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * Review Focus 5 at the graph level (Phase 6a Task 8). The detail screens pad their own lists by the pill, so
- * MainActivity must not wrap their destinations in PushedScreen too. Each test hosts the real destination function from
- * MainActivity.kt (the graph calls the same function), opens it through its typed route, scrolls to the end and
- * measures the last row against the root: with a 60 dp pill it ends 60 dp above the bottom, not 120 dp (the list's
- * padding plus PushedScreen's). Bounds, not "is displayed": Robolectric's root here is 584 dp, where display checks are
- * blind.
+ * MainActivity must not wrap their destinations in an outer pill padding too. Each test hosts the real destination
+ * function from MainActivity.kt (the graph calls the same function), opens it through its typed route, scrolls to the
+ * end and measures the last row against the root: with a 60 dp pill it ends 60 dp above the bottom, not 120 dp (the
+ * list's padding plus the wrapper's). Bounds, not "is displayed": Robolectric's root here is 584 dp, where display
+ * checks are blind.
  *
  * Each test's control: the track list exists and its last row is in the tree (a destination that renders nothing fails
- * it). Mutation run for each test: wrap that destination's route call in PushedScreen { … } again → the gap is 120 dp
- * → RED.
+ * it). Mutation run for each test: wrap that destination's route call in
+ * Box(Modifier.padding(bottom = LocalMiniPlayerInset.current)) { … } (the wrapper Phase 6b deleted) → the gap is
+ * 120 dp → RED.
  */
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w360dp-h640dp", application = Application::class)
@@ -111,7 +112,7 @@ class DetailRoutesInsetTest {
         val root = composeRule.onRoot().getUnclippedBoundsInRoot()
         assertEquals(
             "gap below the last track scrolled to the end: the list's own pill padding only " +
-                "(${PILL_INSET.value * 2} would be the list's plus PushedScreen's)",
+                "(${PILL_INSET.value * 2} would be the list's plus an outer pill padding's)",
             PILL_INSET.value,
             (root.bottom - last.bottom).value,
             TOLERANCE_DP,

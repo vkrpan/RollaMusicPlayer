@@ -40,6 +40,11 @@ style:
     ignoreEnums: true
   UnusedPrivateMember:
     active: true
+  ForbiddenImport:
+    active: true
+    imports:
+      - value: 'androidx.compose.material.icons.*'
+        reason: 'Icons come from RollaIcons (spec §5.5)'
 
 potential-bugs:
   active: true

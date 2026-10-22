@@ -646,7 +646,8 @@ class PlayerViewModelTest {
         }
     }
 
-    // Review Focus 3: the tag editor would close at once with "Song not found", so Edit tags disables with Go to album.
+    // Review Focus 3: the tag editor would close at once with "Track not found.", so Edit tags disables with Go to
+    // album.
     // Mutations: (a) fall back to the playback Song's albumId 0L → albumId 0 instead of null → RED; (b) take songId
     // from the playback Song (song.id) instead of the library row → songId 42 instead of null → RED.
     @Test

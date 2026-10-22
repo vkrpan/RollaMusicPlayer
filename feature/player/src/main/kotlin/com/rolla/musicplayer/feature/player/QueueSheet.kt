@@ -60,7 +60,12 @@ fun QueueSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    OneUiBottomSheet(onDismissRequest = onDismissRequest, modifier = modifier, title = "Queue") {
+    OneUiBottomSheet(
+        onDismissRequest = onDismissRequest,
+        modifier = modifier,
+        title = "Queue",
+        skipPartiallyExpanded = true,
+    ) {
         if (queue.items.isEmpty()) {
             Text(
                 text = "Queue is empty",

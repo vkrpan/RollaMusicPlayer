@@ -10,6 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
+// Each migration test seeds a whole schema version in raw SQL, then checks every table it touches; splitting one would
+// only scatter its fixture. (detekt reaches androidTest since the Phase 6b final fix wave.)
+@Suppress("LongMethod")
 class MigrationTest {
 
     private val testDbName = "migration-test"
@@ -467,7 +470,8 @@ class MigrationTest {
         ).addMigrations(*ALL_MIGRATIONS).build()
         helper.closeWhenFinished(database)
 
-        database.openHelper.writableDatabase.query("SELECT title, folder_path FROM songs WHERE id = '1'").use { cursor ->
+        val query = "SELECT title, folder_path FROM songs WHERE id = '1'"
+        database.openHelper.writableDatabase.query(query).use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals("Test Song", cursor.getString(0))
             assertTrue(cursor.isNull(1))

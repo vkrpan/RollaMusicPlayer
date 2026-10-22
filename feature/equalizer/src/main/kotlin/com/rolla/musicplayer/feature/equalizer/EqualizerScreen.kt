@@ -144,7 +144,7 @@ fun EqualizerRoute(
 /**
  * The Equaliser screen (spec §8.5): the One UI detail bar, a small enable card, the edge-to-edge slider card, the
  * preset chip grid, then the preset caption and, in the Custom state only (ruling 11), "Save as preset". The
- * Scaffold keeps owning the navigation-bar inset (PushedScreen adds only the mini-player inset).
+ * Scaffold keeps owning the navigation-bar inset; the pill is hidden here, so there is no mini-player inset to pad.
  */
 @Suppress("LongParameterList")
 @Composable

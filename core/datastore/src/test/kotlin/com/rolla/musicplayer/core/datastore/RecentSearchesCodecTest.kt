@@ -124,4 +124,22 @@ class RecentSearchesCodecTest {
         assertEquals(MAX_RECENT_SEARCHES, updated.size)
         assertEquals(oldest, updated.first())
     }
+
+    // ── withoutRecentSearch ─────────────────────────────────────────────────────
+
+    // Phase 6b ruling 5, Review Focus 3. Trivial stub: return current → the first assertion fails. Mutation: match
+    // case-insensitively (`it.equals(query, ignoreCase = true)`) → "b" is removed for "B" → the second fails.
+    @Test
+    fun withoutRecentSearchRemovesOnlyThatExactQuery() {
+        assertEquals(
+            "removing b keeps a and c, in order",
+            listOf("a", "c"),
+            withoutRecentSearch(listOf("a", "b", "c"), "b"),
+        )
+        assertEquals(
+            "a query that differs only in case is not removed",
+            listOf("a", "b"),
+            withoutRecentSearch(listOf("a", "b"), "B"),
+        )
+    }
 }

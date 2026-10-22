@@ -25,6 +25,12 @@ interface RecentSearchesDataSource {
      */
     suspend fun record(query: String)
 
+    /**
+     * Removes [query] from the history. The match is exact, as [record] dedupes exact queries: an entry that differs
+     * only in case or surrounding whitespace stays. Removing a query that is not stored changes nothing.
+     */
+    suspend fun remove(query: String)
+
     /** Clears all recent search history. */
     suspend fun clear()
 }

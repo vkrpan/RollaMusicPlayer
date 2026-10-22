@@ -100,8 +100,9 @@ class FolderDaoTest {
         assertEquals(listOf("Alpha", "beta", "Charlie"), folderDao.observeFolders().first().map { it.path })
     }
 
-    // Plan ruling 15: folders group by the exact path. Fixture: the insertion order (music, Music, Music) is the reverse
-    // of the expected order, and "Music"'s artwork comes from its first title "b" (song 2), not its first insert.
+    // Plan ruling 15: folders group by the exact path. Fixture: the insertion order (music, Music, Music) is the
+    // reverse of the expected order, and "Music"'s artwork comes from its first title "b" (song 2), not its first
+    // insert.
     // Device mutation: `GROUP BY folder_path COLLATE NOCASE` → the two paths fold into one row → RED.
     @Test
     fun observeFolders_groupsByExactPath() = runTest {

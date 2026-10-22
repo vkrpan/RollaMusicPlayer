@@ -131,6 +131,65 @@ private fun SheetKitDialogControls() {
     }
 }
 
+// The Search screen's field (Phase 6b): empty with its placeholder, then with a query and the Clear search button.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Search field - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Search field - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Search field - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewOneUiSearchField() {
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OneUiSearchField(
+                    query = "",
+                    onQueryChange = {},
+                    placeholder = "Search",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OneUiSearchField(
+                    query = "Road trip",
+                    onQueryChange = {},
+                    placeholder = "Search",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
+// The tag editor's form parts (Phase 6b) on a surfaceContainer card: tonal and filled pills, a saving pill, a disabled
+// pill, and a field in error with its destructiveText supporting text.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Pill buttons - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Pill buttons - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Pill buttons - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewOneUiPillButton() {
+    RollaMusicPlayerTheme {
+        Surface(color = MaterialTheme.colorScheme.surfaceContainer) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OneUiPillButton(text = "Cancel", onClick = {}, tonal = true)
+                    OneUiPillButton(text = "Save", onClick = {})
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OneUiPillButton(text = "Save", onClick = {}, loading = true, loadingDescription = "Saving")
+                    OneUiPillButton(text = "Save", onClick = {}, enabled = false)
+                }
+                OneUiTextField(
+                    value = "20255",
+                    onValueChange = {},
+                    label = "Year",
+                    isError = true,
+                    supportingText = "Enter a year such as 1999",
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+    }
+}
+
 @Suppress("UnusedPrivateMember")
 @Preview(name = "Dialog - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Preview(name = "Dialog - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)

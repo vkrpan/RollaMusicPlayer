@@ -25,8 +25,8 @@ Phase 7 carry-overs are in the SDD ledger:
 - end labels that overflow the rail;
 - `BoxWithConstraints` → `Modifier.layout`;
 - inset calibration. | 2, 4a, 4b |
-| 6a Detail screens, sheets, dialogs, menus | [`2026-10-18-oneui-phase6a-details-sheets.md`](2026-10-18-oneui-phase6a-details-sheets.md) | Implemented and device-checked 2026-10-21 (Motorola edge 70), pending commit (Phase 6 split into 6a/6b/6c by user decision, 2026-10-18) | 1–5 |
-| 6b Search, tag editors, About/Licenses/Privacy, permission screen | `…-oneui-phase6b-search-editors.md` | Written after 6a; also owns Home's permission-state carry-over and the `HomeTabPage` extraction | 6a (kit) |
+| 6a Detail screens, sheets, dialogs, menus | [`2026-10-18-oneui-phase6a-details-sheets.md`](2026-10-18-oneui-phase6a-details-sheets.md) | **Committed 7edb0a7 (2026-10-21).** Device-checked on the Motorola edge 70 (Phase 6 split into 6a/6b/6c by user decision, 2026-10-18) | 1–5 |
+| 6b Search, tag editors, About/Licenses/Privacy, permission screen | [`2026-10-21-oneui-phase6b-search-editors.md`](2026-10-21-oneui-phase6b-search-editors.md) | Implemented, reviewed (final review 0 Critical/High after one fix wave; gate green, 1148 unit tests) and device-checked 2026-10-22 on the Motorola edge 70; pending commit. Also owns Home's permission-state carry-over and the `HomeTabPage` extraction | 6a (kit) |
 | 6c Widget | `…-oneui-phase6c-widget.md` | Written after 6b; starts with a read-only probe of how the launcher draws the widget | 6a |
 | 7 Device calibration, docs, baseline profile, final gate | `…-oneui-phase7-calibration-release.md` | Written after Phase 6 | all |
 

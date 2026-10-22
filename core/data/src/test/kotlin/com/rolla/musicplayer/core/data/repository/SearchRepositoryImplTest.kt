@@ -13,10 +13,13 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -140,5 +143,35 @@ class SearchRepositoryImplTest {
         repository.clearRecentSearches()
 
         coVerify { recentSearchesDataSource.clear() }
+    }
+
+    // Phase 6b ruling 5. Trivial stub: a no-op body → "q" is still stored → RED. Mutation: the same no-op body.
+    // Control: both queries are stored before the call.
+    @Test
+    fun removeRecentSearchDelegatesToTheDataSource() = runTest {
+        val dataSource = InMemoryRecentSearches(listOf("q", "r"))
+        val repository = SearchRepositoryImpl(searchDao, dataSource)
+        assertEquals("control: both queries are stored first", listOf("q", "r"), dataSource.recentSearches.first())
+
+        repository.removeRecentSearch("q")
+
+        val stored = dataSource.recentSearches.first()
+        assertFalse("q is removed from the data source", "q" in stored)
+        assertTrue("r stays in the data source", "r" in stored)
+    }
+
+    /** A list-backed data source, so the test reads what the repository left stored rather than which calls it made. */
+    private class InMemoryRecentSearches(initial: List<String>) : RecentSearchesDataSource {
+        private val queries = MutableStateFlow(initial)
+        override val recentSearches: Flow<List<String>> = queries
+        override suspend fun record(query: String) {
+            queries.value = listOf(query) + queries.value.filterNot { it == query }
+        }
+        override suspend fun remove(query: String) {
+            queries.value = queries.value.filterNot { it == query }
+        }
+        override suspend fun clear() {
+            queries.value = emptyList()
+        }
     }
 }

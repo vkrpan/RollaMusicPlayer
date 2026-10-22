@@ -68,7 +68,7 @@ fun AlbumDetailRoute(
 /**
  * Stateless AlbumDetail (spec §8.7); tests and previews host this.
  * - The bar owns the status-bar inset. The panel runs to the bottom edge, and the list pads by the pill and the
- *   navigation bar, so it scrolls under the pill (ruling 5: no PushedScreen).
+ *   navigation bar, so it scrolls under the pill (ruling 5: no outer pill padding).
  * - The hero and the sort row are the list's first two items, so they scroll with the tracks (ruling 5).
  * - Nothing renders while loading; a null album after loading is the not-found state (the album's last track was
  *   removed).

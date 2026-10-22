@@ -6,6 +6,7 @@ import com.rolla.musicplayer.core.data.repository.SearchRepository
 import com.rolla.musicplayer.core.media.PlaybackController
 import com.rolla.musicplayer.core.model.SearchResults
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.testing.FakePlaylistRepository
 import com.rolla.musicplayer.core.testing.FakeSearchRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import io.mockk.Runs
@@ -21,9 +22,11 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +38,9 @@ private const val QUERY_KEY = "query"
 
 // Deliberately far longer than the debounce window -- see mockSearchRepository's KDoc.
 private const val SLOW_QUERY_DELAY_MS = 10_000L
+
+// How long the refinement's search takes in uiState_refinementAfterResults_emitsNoLoading.
+private const val REFINEMENT_DELAY_MS = 1_000L
 
 /**
  * Unit tests for [SearchViewModel].
@@ -57,6 +63,8 @@ class SearchViewModelTest {
     // stub it manually in every test (same rationale as TracksViewModelTest).
     private val playbackController = mockk<PlaybackController>(relaxed = true)
 
+    private val playlistRepository = FakePlaylistRepository()
+
     private val sampleSong = Song(
         id = "song-1",
         title = "Song 1",
@@ -76,7 +84,7 @@ class SearchViewModelTest {
         } else {
             SavedStateHandle()
         }
-        return SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController)
+        return SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController, playlistRepository)
     }
 
     @Test
@@ -99,7 +107,7 @@ class SearchViewModelTest {
     @Test
     fun onQueryChanged_persistsValueToSavedStateHandle() = runTest(mainDispatcherRule.testDispatcher) {
         val savedStateHandle = SavedStateHandle()
-        val viewModel = SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController)
+        val viewModel = SearchViewModel(fakeSearchRepository, savedStateHandle, playbackController, playlistRepository)
 
         viewModel.onQueryChanged("metal")
 
@@ -258,6 +266,50 @@ class SearchViewModelTest {
         }
     }
 
+    // 6b perf audit blocker 1: a refinement goes Results to Results, so the results list stays composed. "ro" answers
+    // at once and "rock" after REFINEMENT_DELAY_MS, with different results, so the in-between state is observable.
+    // Trivial stub: never emit Loading → the control (the first query's Loading) fails. Mutation: always emit Loading
+    // → the refinement shows Loading, not the previous results → RED.
+    @Test
+    fun uiState_refinementAfterResults_emitsNoLoading() = runTest(mainDispatcherRule.testDispatcher) {
+        val roResults = SearchUiState.Results(searchResultsWithSong(id = "ro-song"))
+        val rockResults = SearchUiState.Results(searchResultsWithSong(id = "rock-song"))
+        val repository = refinementRepository(ro = roResults.results, rock = rockResults.results)
+        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController, playlistRepository)
+
+        viewModel.uiState.test {
+            assertEquals("starts Idle", SearchUiState.Idle, awaitItem())
+            viewModel.onQueryChanged("ro")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+            assertEquals("control: a first query from Idle shows Loading", SearchUiState.Loading, awaitItem())
+            assertEquals("then its results", roResults, awaitItem())
+
+            viewModel.onQueryChanged("rock")
+            advanceTimeBy(DEBOUNCE_MS)
+            runCurrent()
+            assertEquals("the previous results stay while the refinement runs", roResults, viewModel.uiState.value)
+            advanceTimeBy(REFINEMENT_DELAY_MS)
+            runCurrent()
+            assertEquals("a refinement goes Results to Results, with no Loading between", rockResults, awaitItem())
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    /** "ro" answers [ro] at once; "rock" answers [rock] after [REFINEMENT_DELAY_MS]. */
+    private fun refinementRepository(ro: SearchResults, rock: SearchResults): SearchRepository {
+        val repository = mockk<SearchRepository>()
+        every { repository.observeRecentSearches() } returns flowOf(emptyList())
+        coEvery { repository.recordRecentSearch(any()) } just Runs
+        every { repository.search("ro") } returns flowOf(ro)
+        every { repository.search("rock") } returns flow {
+            delay(REFINEMENT_DELAY_MS)
+            emit(rock)
+        }
+        return repository
+    }
+
     @Test
     fun uiState_repositoryEmitsNonEmptyResults_mapsToResultsState() = runTest(mainDispatcherRule.testDispatcher) {
         val viewModel = createViewModel()
@@ -328,7 +380,7 @@ class SearchViewModelTest {
             slowResults = searchResultsWithSong(id = "slow-song"),
             fastResults = fastResults,
         )
-        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController)
+        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController, playlistRepository)
 
         viewModel.uiState.test {
             assertEquals(SearchUiState.Idle, awaitItem())
@@ -510,5 +562,53 @@ class SearchViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // Phase 6b ruling 5. Trivial stub: a no-op body → "jazz" stays → RED. Mutation: the same no-op body.
+    // Control: both queries are in recentSearches before the removal.
+    @Test
+    fun removingARecentSearchRemovesIt() = runTest(mainDispatcherRule.testDispatcher) {
+        fakeSearchRepository.recordRecentSearch("queen")
+        fakeSearchRepository.recordRecentSearch("jazz")
+        val viewModel = createViewModel()
+        val collectJob = launch { viewModel.recentSearches.collect {} }
+        advanceUntilIdle()
+        assertEquals("control: both are recent searches first", listOf("jazz", "queen"), viewModel.recentSearches.value)
+
+        viewModel.onRemoveRecentSearch("jazz")
+        advanceUntilIdle()
+
+        assertFalse("jazz is removed", "jazz" in viewModel.recentSearches.value)
+        assertTrue("queen stays", "queen" in viewModel.recentSearches.value)
+
+        collectJob.cancel()
+    }
+
+    // The options sheet's playlist actions (ruling 4). One existing playlist makes the created playlist's id 2, apart
+    // from both the song id "1" and the picked playlist 7. Trivial stub: no-op bodies → no addSongs call → RED.
+    // Mutation: swap the ids/arguments (createPlaylistWithSong(songId, name)) → a playlist named "1" holding "Mix"
+    // → RED.
+    @Test
+    fun optionsSheetActionsReachThePlaylistRepository() = runTest(mainDispatcherRule.testDispatcher) {
+        val existingId = playlistRepository.createPlaylist("Existing")
+        val viewModel = createViewModel()
+
+        viewModel.addSongToPlaylist("1", 7L)
+        advanceUntilIdle()
+        assertEquals(
+            "Add to playlist appends the track once",
+            listOf(7L to listOf("1")),
+            playlistRepository.addSongsCalls,
+        )
+
+        viewModel.createPlaylistAndAddSong("Mix", "1")
+        advanceUntilIdle()
+        val created = playlistRepository.observePlaylists().first().single { it.id != existingId }
+        assertEquals("New playlist is created under the typed name", "Mix", created.name)
+        assertEquals(
+            "the track goes to the new playlist's id",
+            listOf(7L to listOf("1"), created.id to listOf("1")),
+            playlistRepository.addSongsCalls,
+        )
     }
 }
