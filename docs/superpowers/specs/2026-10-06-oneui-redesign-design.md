@@ -220,6 +220,16 @@ never declare private `dp` literals for anything this table covers.
 | `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | `fastScrollLetterSlot` | 16 dp (rail height one label needs, §10; Phase 5 ruling 10) |
 | `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | `detailArtworkSize` | = `npArtSize` (168 dp): the AlbumDetail/ArtistDetail hero artwork (amended 2026-10-18, Phase 6a ruling 5) |
 | `dragLiftElevation` | 6 dp: the shadow a PlaylistDetail row lifts to while dragged (moved from a private constant; amended 2026-10-18, Phase 6a Task 7) | | |
+| `widgetCardRadius` | 24 dp (the widget card; matches the launcher's system widget radius) | `widgetCardPaddingStart` | 10 dp (the reference artwork inset) |
+| `widgetCardPaddingEnd` | 10 dp (the reference end inset of the last control) | `widgetArt` | 69 dp |
+| `widgetArtRadius` | 12 dp | `widgetArtGap` | 10 dp (artwork to the text column) |
+| `widgetArtGlyph` | 44 dp (the note box; `MusicNote` spans 15.2 of 24 units, so the note draws 28 dp tall) | `widgetControlGlyph` | 28 dp (the transport glyph box; `Play` spans 15.2 of 24 units, so it draws about 18 dp, 17.7 dp against the measured 18 dp) |
+| `widgetProgressHeight` | 3 dp | `widgetTitleSize` | 16 sp |
+| `widgetArtistSize` | 13 sp | | |
+
+(Amended 2026-10-22, Phase 6c ruling 4.) The eleven `widget*` entries size the home-screen widget (§13). The widget's
+control cells reuse `minTouchTarget` for their height, and its colours are not tokens: they are the widget's own palette
+(§5.1 exempts `widget*`).
 
 **Touch targets.** Glyphs keep their measured visual size, but every interactive element is at least 48 × 48 dp, through
 `minimumInteractiveComponentSize()` or padding. Examples: the 34 dp circle buttons, the 40 dp chips and the 35 dp switch (whose
@@ -263,13 +273,21 @@ A new `:core:designsystem/icon/RollaIcons.kt` holds hand-authored `ImageVector`s
 | `Volume` (speaker + two arcs) | line | `EqualizerBars` (five vertical bars of varying height) | line |
 | `Heart` / `HeartFilled` | line / solid | `PlayOrder` ("A" over a right arrow) | line |
 | `Repeat` / `RepeatOne` | line | `Play` / `Pause` | solid |
-| `SkipPrevious` / `SkipNext` (bar + two triangles, ⏮ ⏭) | solid | `Replay15` / `Forward15` (widget, Now Playing ±15 if used) | line |
+| `SkipPrevious` / `SkipNext` (bar + two triangles, ⏮ ⏭) | solid | `Replay15` / `Forward15` (widget drawables only; see below) | line |
 | `MusicNote` (placeholder glyph) | line, 2.0 stroke | `FolderBadge` (small folder outline) | line |
 | `Close`, `Edit`, `Check`, `PlaylistAdd`, `Album`, `Person` | line | `FolderBadgeFill` (the `FolderBadge` outline as one filled shape, drawn under it; Phase 4b ruling 5) | solid |
 | `Delete` (bin; symmetric, never mirrors; amended 2026-10-18, Phase 6a) | line | | |
 
 Material icons stay only where no visible One UI equivalent exists, such as the tag-editor form affordances. Each one is listed in the
 plan as an explicit exception.
+
+(Amended 2026-10-22, Phase 6c rulings 5 and P5.) `Replay15` and `Forward15` are not `RollaIcons` entries. No Compose screen
+uses them, so they exist only as the widget's XML vector drawables `widget_ic_skip_back_15` and `widget_ic_skip_forward_15`.
+Each is a line icon (1.6 stroke, round caps and joins, no fill): a ring with an arrowhead, whose gap runs from ten o'clock to
+twelve like the usual replay glyph, and the numerals "15" drawn as strokes inside the box x 8–16, y 9–16. The forward ring
+mirrors the back ring about x = 12; the numerals stay upright. The widget's other glyphs (`widget_ic_previous`,
+`widget_ic_next`, `widget_ic_play`, `widget_ic_pause` and `widget_ic_music_note`) transcribe the geometry of `SkipPrevious`,
+`SkipNext`, `Play`, `Pause` and `MusicNote`.
 
 ## 6. Component kit (`:core:designsystem/component/`)
 
@@ -728,18 +746,98 @@ rejected: Room's verifier doesn't know them, and their order doesn't group by th
 
 ## 13. Widget (`:feature:widget`)
 
+(Amended 2026-10-22, Phase 6c.) The widget's sizes are the `RollaDimens.widget*` tokens (§5.4). Its colours are the
+widget's own palette, kept twice because Glance's colour factory and the drawables read it differently: as resources in
+`res/values/colors.xml` and as constants in `MusicWidgetTheme.kt`. `WidgetPaletteTest` keeps the two in step. The day and
+night `ColorProvider`s use the same scheme.
+
 - **Card:**
   - Color: pure black (`#000000` in both day and night `ColorProvider`s). The widget stays dark by design, as today.
-  - Corner radius: 24 dp on API 31+ via `cornerRadius`. API < 31 uses a rounded-rectangle drawable background.
+  - Corner radius: 24 dp, the same as the launcher's system widget radius on the Motorola edge 70. The card's background is a
+    rounded-rectangle drawable on every API, and `cornerRadius` also clips the card on API 31+.
+  - Tapping the card outside the controls opens the app ("Open Rolla Music").
 - **Layout:**
-  - A 69 dp rounded (12 dp) artwork box on the left (`#363636` placeholder with a white note).
+  - A 69 dp rounded (12 dp) artwork box on the left (`#363636` placeholder with a white note). (Amended 2026-10-22, Phase 6c
+    ruling 6.) The box's background is a rounded drawable on every API, so the placeholder is rounded everywhere (the
+    placeholder was device-checked on the Motorola edge 70, API 36). By design a real artwork bitmap is clipped round by
+    `cornerRadius` on API 31+ only and drawn square below API 31. Neither was checked on a device (no track in the test
+    queue carried artwork); `MusicWidgetContentTest` covers only that a bitmap replaces the placeholder.
   - A column on the right:
     - Title (16 sp Bold, `#FCFCFE`, one line) and artist (13 sp, `#B0B0B2`, one line).
-    - The transport row: prev · −15 · play/pause · +15 · next, as white line or solid vector drawables mirroring `RollaIcons` (Glance needs
-      XML drawables in `:feature:widget` resources).
-    - A 3 dp progress bar under the transport row: `#2F6FF0` on `#333333`.
-- **Unchanged:** the controls, action callbacks, update hook, artwork loader and picker preview. Regenerate the picker preview
-  drawable to match.
+    - The transport row: prev · −15 · play/pause · +15 · next, as white line or solid vector drawables mirroring
+      `RollaIcons` (Glance needs XML drawables in `:feature:widget` resources; the ±15 glyphs are widget-only line icons,
+      §5.5). Each control is one clickable cell that carries its description: an equal fifth of the column's width and
+      `minTouchTarget` (48 dp) tall, with a 28 dp glyph box (`widgetControlGlyph`) centred in it.
+    - A 3 dp progress bar under the transport row: `#2F6FF0` on `#646466`. Below API 31, Glance ignores the progress
+      tint, so the platform default colours render.
+  - (Amended 2026-10-23, Phase 6c rulings 3, P12 and P14.) The layout has two vertical modes, because a launcher can report
+    a smaller `LocalSize` height than it draws: the Motorola edge 70 reported about 167 dp for a 211.3 dp two-row card, and
+    at most 89.6 dp for the 97.7 dp one-row card. Centring needs height the launcher is known to draw, so:
+    - **Centred** when the reported height is at least `contentNominal + 2 × 4.51 dp` (98.58 dp at font scale 1.0): the row
+      and the text column wrap their height and the card centres them, with no padding and no bar inset. Device-checked
+      on 2026-10-27 on the Motorola edge 70 at two rows (374.7 × 211.3 dp): the artwork is centred in the card (centre
+      508 px against the card's 508.5 px), the text, controls and bar are centred within 2.5 dp of the artwork's centre,
+      and the bar sits 60.7 dp above the bottom.
+    - **Filled** otherwise (at one row on the Motorola, unchanged on 2026-10-27): the row fills the card the launcher
+      draws, and the padding below is computed from the reported height. The controls row and the bar are measured
+      first, and the title and artist take the height they
+      leave, bottom-aligned, so a large font cuts the title or artist, never a control (`WidgetLayoutTest`; a large font
+      was not checked on the device). The card's top and bottom padding is `max(0, (height − contentNominal) / 2)`, which
+      is under 4.51 dp in this mode. The text column also gets `barBottomInset = max(0, 4.51 dp − padding)` (ruling P12),
+      so the bar's bottom sits at least 4.51 dp above the card's bottom. 4.51 dp is the corner clearance
+      `r − √(r² − (r − p)²)`, with `r` = 24 dp and `p` = 10 dp the smaller card padding: where the corner arc rises at the
+      bar's outer end. The inset pads the text column only, so the artwork stays centred. At one row and at the narrowest
+      width the Motorola showed the whole bar inside the corners (bar 4.33 dp above the card's bottom; at most 1 px
+      shaved by rounding). Below API 31 the bar's square end can draw past the rounded background (not checked on a
+      device). The controls and the bar stay whole while the height is at least 48 + 3 + 4.51 ≈ 55.5 dp; `minResizeHeight`
+      is 70 dp.
+    - `contentNominal = max(widgetArt, textNominal + minTouchTarget + widgetProgressHeight)` and
+      `textNominal = (widgetTitleSize + widgetArtistSize) × 1.33 × fontScale`. The 1.33 factor estimates the platform's
+      default line height for these sizes.
+- **Track colour.** (Amended 2026-10-22, Phase 6c ruling 1.) The track is `#646466` (the app's dark `sliderInactiveTrack`),
+  not the reference's `#333333`. On the black card `#333333` reaches only 1.66:1, under the 3:1 non-text floor that §5.1
+  applies to slider tracks and that the 2026-07-15 widget audit applied to this track. `#646466` reaches 3.56:1, and the
+  `#2F6FF0` fill 4.65:1. The fill against the track is 1.31:1, the same pairing the app's sliders use (`primary` on
+  `sliderInactiveTrack`). In the widget's Glance colour scheme, `surfaceVariant` and `outline` both map to `#646466`
+  (ruling P4).
+- **Width.** (Amended 2026-10-22, Phase 6c ruling 2.) Every control cell must be at least 48 dp wide. With the artwork
+  that needs a card of at least 10 + 69 + 10 + 5 × 48 + 10 = 339 dp; below 339 dp the artwork box is not drawn and the
+  column takes the full width. Without the artwork the five cells need 10 + 5 × 48 + 10 = 260 dp, so
+  `music_widget_info.xml` sets `minWidth` and `minResizeWidth` to 260 dp. At the reference's own 325 dp card the cells
+  would be 45.3 dp wide, so at that width the 48 dp rule wins over the reference look.
+- **Height.** (Amended 2026-10-23, Phase 6c rulings T0 and T0c, measured on the Motorola edge 70.) The launcher pads a
+  widget by 8 dp on every side, and one row leaves about 97.7 dp inside that padding (read in Task 0 from another app's
+  one-row widget on the same grid). So `music_widget_info.xml` sets `targetCellHeight="1"` and `minHeight` to 97 dp.
+  Observed on that launcher: with `minResizeHeight` 97 dp the user could not resize the widget to one row, and with 70 dp
+  they could. Its DeviceProfile reports a 90 dp cellHeight while it draws a 113.7 dp row, and it reports `LocalSize`
+  heights below the drawn height. So `minResizeHeight` is 70 dp, the 69 dp artwork box + 1 dp. One row was confirmed on
+  the Motorola (374.7 × 97.7 dp). At four columns (the target width) the widget measured about 375 dp wide, so the artwork
+  shows.
+- **Glyph weight (Phase 7 calibration item).** On the Motorola the ±15 ring glyphs draw 21 dp tall against play's 18 dp,
+  so they may read heavier than the other controls. Phase 7 compares them with the reference and decides whether to
+  shrink them.
+- **Copy.** The receiver's label and the widget's strings say "Rolla Music" (Phase 6c ruling 7).
+- **Tests.**
+  - `WidgetPaletteTest` keeps `colors.xml` and the Kotlin palette in step, and checks that the light and dark sides resolve to
+    the same dark palette.
+  - `WidgetContrastTest` pins the palette's contrast ratios on the card (title and glyph tint 20.49:1, artist 9.70:1,
+    fill 4.65:1, track 3.56:1), the note on the placeholder (11.79:1), and `#333333` on the card at 1.66:1, under 3:1. It
+    does not pin the 1.31:1 fill-on-track ratio.
+  - `WidgetLayoutTest` pins the 339 dp and 260 dp widths, the padding formula and the large-font rule
+    (`largeFontKeepsControlsAndBarInsideTheCard`), the bar's corner clearance in both modes (`barClearsTheCardCorner`) and
+    when the centred mode applies (`centredModeOnlyWhenTheReportedHeightHoldsTheContent`). Glance's test matchers cannot
+    see size modifiers or alignment, so the centred tree itself is covered by the 2026-10-27 device check, not a JVM test.
+  - `MusicWidgetContentTest` (Glance unit tests on `glance-appwidget-testing` 1.1.0, a test-only dependency) pins the
+    controls' order, their callbacks and the copy, including the empty state and the narrow layout.
+  - `MusicWidgetInfoTest` pins the provider's `minWidth`, `minResizeWidth`, `minHeight`, `minResizeHeight`,
+    `targetCellHeight`, `updatePeriodMillis` and `resizeMode`, and the receiver's label.
+  - `WidgetIconParityTest` checks the previous, next, play, pause and note drawables, drawn with the platform
+    `VectorDrawable`, against `RollaIcons`, and checks that the +15 ring mirrors the −15 ring with the numerals upright.
+  - `WidgetPreviewTest` checks the picker preview's palette and its copies of the glyphs.
+- **Unchanged:** the controls, action callbacks, update hook and artwork loader. The picker preview drawable
+  (`widget_preview.xml`) is redrawn to match: a drawing in the widget palette with copies of the glyph paths, 339 × 110
+  (the artwork threshold width by the pre-Task-0 `minHeight`). The default is now one row, drawn about 97.7 dp tall on the
+  Motorola; the preview keeps its 110 dp proportions.
 
 ## 14. Device calibration (over adb)
 

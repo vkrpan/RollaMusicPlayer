@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_action_open_app">Open RollaMusicPlayer</string>
+    <string name="widget_label">Rolla Music</string>
+    <string name="widget_action_open_app">Open Rolla Music</string>
     <string name="widget_action_previous">Previous track</string>
     <string name="widget_action_skip_back_15">Skip back 15 seconds</string>
     <string name="widget_action_play">Play</string>
@@ -10,6 +11,6 @@
     <string name="widget_artwork_content_description">Album artwork for %1$s</string>
     <string name="widget_artwork_placeholder_content_description">No album artwork</string>
     <string name="widget_empty_title">Nothing playing</string>
-    <string name="widget_empty_artist">Open RollaMusicPlayer to start playback</string>
-    <string name="widget_description">Playback controls and artwork for RollaMusicPlayer on your home screen. Works fully offline.</string>
+    <string name="widget_empty_artist">Open Rolla Music to start playback</string>
+    <string name="widget_description">Playback controls and artwork for Rolla Music on your home screen. Works fully offline.</string>
 </resources>

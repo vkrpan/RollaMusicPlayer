@@ -116,6 +116,8 @@ jaudiotagger                    = { group = "com.github.Adonai",       name = "j
 # Glance
 glance-appwidget               = { group = "androidx.glance",          name = "glance-appwidget",              version.ref = "glance" }
 glance-material3               = { group = "androidx.glance",          name = "glance-material3",              version.ref = "glance" }
+# Test-only: runGlanceAppWidgetUnitTest (Phase 6c ruling 9). Never a runtime dependency.
+glance-appwidget-testing       = { group = "androidx.glance",          name = "glance-appwidget-testing",      version.ref = "glance" }
 
 # Coroutines
 kotlinx-coroutines-android     = { group = "org.jetbrains.kotlinx",   name = "kotlinx-coroutines-android",    version.ref = "coroutines" }

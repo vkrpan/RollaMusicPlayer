@@ -361,6 +361,33 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 >     and Search registers through `searchDestination`.
 >   - **No Material icons:** the `material-icons-extended` dependency is gone and detekt's `ForbiddenImport` rejects any
 >     `androidx.compose.material.icons` import in main, test and androidTest sources (`RollaStaticAnalysisPlugin`).
+> - **Phase 6c:** the home-screen widget has the One UI look (spec §13), device-checked on 2026-10-23 on the Motorola
+>   edge 70 (API 36). The centred mode for tall cards (ruling P14, below) was device-checked there on 2026-10-27.
+>   - **Look:** a black card with 24 dp corners; a 69 dp artwork box with 12 dp corners (a `#363636` placeholder with a white
+>     note); the title (16 sp Bold) and artist (13 sp) on one line each; the five controls (previous · −15 s · play/pause ·
+>     +15 s · next) as XML glyphs, where previous, play/pause and next mirror `RollaIcons` and ±15 are widget-only line
+>     icons; and a 3 dp `#2F6FF0` bar on a `#646466` track. The copy says "Rolla Music". The widget is meant to stay dark
+>     in the light system theme: `WidgetPaletteTest` pins the same palette for day and night, but it was not checked on the
+>     device.
+>   - **On the device:** the look and colours, every control, the body tap, one ellipsised line for a long title with the
+>     controls unmoved, one row (374.7 × 97.7 dp), the narrowest width (277 dp, artwork hidden, 51.4 dp cells) and the
+>     picker preview. Not checked on the device: a real artwork bitmap (only the placeholder; the JVM tests cover the
+>     bitmap branch), a large system font, the light system theme, and anything below API 31.
+>   - **Narrow width and large font:** every control is one 48 dp touch box, so below 339 dp the artwork hides and the
+>     controls take the full width; the minimum width is 260 dp. A large font cuts the title or artist, never a control
+>     (`WidgetLayoutTest`, not checked on the device).
+>   - **Height:** the widget targets one row (`targetCellHeight="1"`, `minHeight` 97 dp, `minResizeHeight` 70 dp = the
+>     artwork box + 1 dp); one row was confirmed on the Motorola. That launcher reports a smaller `LocalSize` height than it
+>     draws (about 167 dp for a 211.3 dp two-row card; at most 89.6 dp for the 97.7 dp one-row card), so the layout has two
+>     modes (ruling P14). When the reported height holds the nominal content plus a 4.51 dp corner clearance above and
+>     below, the content wraps its height and is centred. Device-checked on 2026-10-27 at two rows (374.7 × 211.3 dp): the
+>     artwork is centred in the card (centre 508 px against the card's 508.5 px), the text, controls and bar are centred
+>     within 2.5 dp of the artwork's centre, and the bar sits 60.7 dp above the bottom. Otherwise it fills the card, the
+>     text gives way, and the bar's `barBottomInset` (ruling P12) lifts it 4.51 dp clear of the card's corner:
+>     device-checked at one row and at the narrowest width, and unchanged at one row on 2026-10-27.
+>   - **Tokens:** sizes are `RollaDimens.widget*`. Colours are the widget's own palette in `colors.xml` and
+>     `MusicWidgetTheme.kt`, which `WidgetPaletteTest` keeps equal. The Glance unit tests use the test-only
+>     `glance-appwidget-testing` 1.1.0.
 > - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
 >   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
 >   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to

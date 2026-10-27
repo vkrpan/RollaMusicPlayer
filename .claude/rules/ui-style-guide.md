@@ -243,6 +243,12 @@ seekbar with times → transport row.
 
 ## 8. Home Screen Widget (Glance) Style
 
+> **Phase 6c (2026-10-22):** §13 of the redesign spec is binding for the widget. Where the bullets below differ from it,
+> the spec wins: the card is `#000000`, not `surfaceContainer`; the artwork box is 69 dp; the progress track is `#646466`.
+> The widget's sizes are the `RollaDimens.widget*` tokens in `:core:designsystem`. Its colours are not the app's
+> `colorScheme` but the widget's own palette: `feature/widget/src/main/res/values/colors.xml`, mirrored in
+> `MusicWidgetTheme.kt` and kept equal by `WidgetPaletteTest`.
+
 Mirror the mini-player / notification card:
 - **Container:** `surfaceContainer` (`#1C1C1E`), 24dp rounded, subtle/no elevation.
 - **Layout:** album art (rounded 12dp) left; title (`onSurface`, 1 line) + artist (`onSurfaceVariant`) stacked;

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The widget's artwork box (spec §13, Phase 6c ruling 6): #363636 (@color/widget_art_placeholder) with 12 dp corners,
+  behind the white widget_ic_music_note when no local artwork exists. A shape drawable is rounded on every API; the box
+  also adds GlanceModifier.cornerRadius(RollaDimens.widgetArtRadius), which clips a real artwork bitmap on API 31+ only
+  (below 31 the bitmap is drawn square, a documented degradation).
+-->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/widget_art_placeholder" />
+    <corners android:radius="12dp" />
+</shape>

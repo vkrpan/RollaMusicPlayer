@@ -1,21 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  minWidth/minHeight ~ 4x1 launcher cells (classic formula: 70*n - 30dp) widened in height to
-  ~2 cells (110dp) so artwork + title/artist + progress bar + the 5-icon control row all fit
-  comfortably without clipping. targetCellWidth/targetCellHeight (API 31+) express the same
-  intent in exact grid-cell units for launchers that support it; minWidth/minHeight remain for
-  pre-31 launchers. updatePeriodMillis="0" — push-driven by the playback service (later prompt),
-  never polled. previewImage is the schematic picker thumbnail in drawable/widget_preview.xml
-  (never rendered at runtime; the real UI is MusicWidgetContent.kt); description is the picker's
-  explanatory string.
+  Widths (Phase 6c ruling 2): 260dp = 10dp start padding + 5 x 48dp control cells + 10dp end padding,
+  the narrowest card that keeps every control a 48dp touch box (below 339dp the artwork hides; see
+  WidgetLayout.kt). Heights (Phase 6c Task 0, ruling T0c and Task 5, on the Motorola edge 70, API 36):
+  the launcher draws one row 97.7dp tall inside its 8dp widget padding (read in Task 0 from another
+  app's one-row widget on the same grid, and confirmed with this widget in Task 5), so minHeight is
+  97dp and the widget targets one row. Observed on that launcher: with minResizeHeight 97dp the user
+  could not resize the widget to one row, and with 70dp they could; its DeviceProfile reports a 90dp
+  cellHeight while it draws a 113.7dp row, and it reports LocalSize heights below the drawn height.
+  minResizeHeight is therefore 70dp = the 69dp artwork box + 1dp, so the fixed art box is never
+  clipped. Below the nominal 89.6dp content, ruling 3 lets the text give way and keeps every control
+  whole. targetCellWidth/targetCellHeight (API 31+) express the default in grid-cell units;
+  minWidth/minHeight remain for pre-31 launchers. MusicWidgetInfoTest pins minWidth, minResizeWidth,
+  minHeight, minResizeHeight, targetCellHeight, updatePeriodMillis and resizeMode (not
+  targetCellWidth).
+  updatePeriodMillis="0": push-driven by the playback service's PlaybackUpdateHook, never polled.
+  previewImage is the schematic picker thumbnail in drawable/widget_preview.xml (never rendered
+  at runtime; the real UI is MusicWidgetContent.kt); description is the picker's explanatory string.
 -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp"
-    android:minHeight="110dp"
+    android:minWidth="260dp"
+    android:minHeight="97dp"
     android:targetCellWidth="4"
-    android:targetCellHeight="2"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="90dp"
+    android:targetCellHeight="1"
+    android:minResizeWidth="260dp"
+    android:minResizeHeight="70dp"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"

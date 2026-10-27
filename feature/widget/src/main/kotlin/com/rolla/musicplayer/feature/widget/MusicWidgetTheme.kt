@@ -5,74 +5,82 @@ import androidx.compose.ui.graphics.Color
 import androidx.glance.color.ColorProviders
 import androidx.glance.material3.ColorProviders
 
-// ui-style-guide.md §2 dark-role values, duplicated from res/values/colors.xml -- the public
-// Glance API (androidx.glance.material3.ColorProviders) takes Compose ColorSchemes, not @ColorRes
-// providers (the resource-based ColorProviders constructor is protected). colors.xml remains the
-// source for the rounded-card background DRAWABLE; keep both in sync when the palette changes.
-private val WidgetSurfaceContainer = Color(0xFF1C1C1E)
-private val WidgetSurfaceContainerHigh = Color(0xFF2A2A2C)
-private val WidgetOnSurface = Color(0xFFFFFFFF)
-private val WidgetOnSurfaceVariant = Color(0xFF9CA0A6)
+// The widget palette (Phase 6c ruling 4, spec §13), duplicated from res/values/colors.xml: the public Glance factory
+// (androidx.glance.material3.ColorProviders) takes Compose ColorSchemes, not @ColorRes providers, while the drawables
+// read the resources. WidgetPaletteTest keeps the two equal.
 
-// Primary + track synced with colors.xml / :core:designsystem's 2026-07-15 WCAG audit values. The
-// old #3A3A3C track only cleared ~1.5:1 against the card, so an early-in-track progress bar read as
-// "missing". (onPrimary is deliberately NOT synced to #001B3F here: this scheme also maps it onto
-// the navy *Container roles below, where navy-on-navy text would be unreadable.)
-private val WidgetPrimary = Color(0xFF4780FF)
-private val WidgetOnPrimary = Color(0xFFFFFFFF)
-private val WidgetPrimaryContainer = Color(0xFF1E3A66)
-private val WidgetTrack = Color(0xFF6E6E73)
-private val WidgetOutlineVariant = Color(0xFF2C2C2E)
-private val WidgetError = Color(0xFFFF5A5A)
+/** The card: true black. */
+internal val WidgetCard = Color(0xFF000000)
+
+/** Title text and control glyph tint (20.49:1 on the card). */
+internal val WidgetTitle = Color(0xFFFCFCFE)
+
+/** Artist text (9.70:1 on the card). */
+internal val WidgetArtist = Color(0xFFB0B0B2)
+
+/** The one accent: the progress fill (4.65:1 on the card). */
+internal val WidgetAccent = Color(0xFF2F6FF0)
+
+/** The progress track (3.56:1 on the card). Ruling 1: the app's dark sliderInactiveTrack, not spec §13's #333333. */
+internal val WidgetTrack = Color(0xFF646466)
+
+/** The artwork placeholder box behind the white note (the note is 11.79:1 on it). */
+internal val WidgetArtPlaceholder = Color(0xFF363636)
+
+/** Unused by this layout; set so no Glance role falls back to a Material default. */
+internal val WidgetError = Color(0xFFFF5A5A)
 
 /**
- * The one Material 3 scheme this widget renders with -- `ui-style-guide.md` §8 prescribes the dark
- * mini-player look for the widget UNCONDITIONALLY, so the same dark scheme is used for both the
- * `light` and `dark` sides of [RollaWidgetColors] below (day == night, deliberately).
+ * The one Material 3 scheme this widget renders with. The widget stays dark whatever the system theme, so the same
+ * scheme is used for both the `light` and `dark` sides of [RollaWidgetColors] (day == night, deliberately).
  *
- * Roles this layout never touches (secondary/tertiary/error containers, inverse roles, ...) are
- * mapped to the nearest on-brand role -- `primary`/`onPrimary` for the accent family (§1: "One
- * stable accent... everything else is white/gray") and `surface`/`onSurface` for structural roles --
- * rather than left as Material defaults, which would bleed off-brand color if a future built-in
- * Glance control reads one of them.
+ * Roles this layout never reads are still mapped (ruling 4's role column) rather than left as Material defaults,
+ * which would bleed off-palette colour if a built-in Glance control read one: the accent family to [WidgetAccent],
+ * text-on roles to [WidgetTitle], `*Container` roles except `surfaceContainer*` to [WidgetArtPlaceholder], surface
+ * roles and `surfaceContainer*` to [WidgetCard], and `surfaceVariant` (the bar's track, which the layout reads) and
+ * `outline` to [WidgetTrack].
  */
 private val WidgetColorScheme = darkColorScheme(
-    primary = WidgetPrimary,
-    onPrimary = WidgetOnPrimary,
-    primaryContainer = WidgetPrimaryContainer,
-    onPrimaryContainer = WidgetOnPrimary,
-    secondary = WidgetPrimary,
-    onSecondary = WidgetOnPrimary,
-    secondaryContainer = WidgetPrimaryContainer,
-    onSecondaryContainer = WidgetOnPrimary,
-    tertiary = WidgetPrimary,
-    onTertiary = WidgetOnPrimary,
-    tertiaryContainer = WidgetPrimaryContainer,
-    onTertiaryContainer = WidgetOnPrimary,
-    error = WidgetError,
-    errorContainer = WidgetSurfaceContainerHigh,
-    onError = WidgetOnPrimary,
-    onErrorContainer = WidgetOnSurface,
-    background = WidgetSurfaceContainer,
-    onBackground = WidgetOnSurface,
-    surface = WidgetSurfaceContainer,
-    onSurface = WidgetOnSurface,
+    primary = WidgetAccent,
+    onPrimary = WidgetTitle,
+    primaryContainer = WidgetArtPlaceholder,
+    onPrimaryContainer = WidgetTitle,
+    inversePrimary = WidgetAccent,
+    secondary = WidgetAccent,
+    onSecondary = WidgetTitle,
+    secondaryContainer = WidgetArtPlaceholder,
+    onSecondaryContainer = WidgetTitle,
+    tertiary = WidgetAccent,
+    onTertiary = WidgetTitle,
+    tertiaryContainer = WidgetArtPlaceholder,
+    onTertiaryContainer = WidgetTitle,
+    background = WidgetCard,
+    onBackground = WidgetTitle,
+    surface = WidgetCard,
+    onSurface = WidgetTitle,
     surfaceVariant = WidgetTrack,
-    onSurfaceVariant = WidgetOnSurfaceVariant,
-    outline = WidgetOutlineVariant,
-    inverseSurface = WidgetOnSurface,
-    inverseOnSurface = WidgetSurfaceContainer,
-    inversePrimary = WidgetPrimary,
+    onSurfaceVariant = WidgetArtist,
+    inverseSurface = WidgetTitle,
+    inverseOnSurface = WidgetCard,
+    error = WidgetError,
+    onError = WidgetTitle,
+    errorContainer = WidgetArtPlaceholder,
+    onErrorContainer = WidgetTitle,
+    // Ruling P4: outline is M3's 3:1 boundary role, and only the track clears 3:1 on the card (3.56:1).
+    outline = WidgetTrack,
+    surfaceContainer = WidgetCard,
+    surfaceContainerHigh = WidgetCard,
+    surfaceContainerHighest = WidgetCard,
+    surfaceContainerLow = WidgetCard,
+    surfaceContainerLowest = WidgetCard,
 )
 
 /**
- * The widget's [ColorProviders], mapped from `ui-style-guide.md` §2/§8 -- NOT from the app's
- * `RollaMusicPlayerTheme`/`LocalRollaDarkTheme` semantic tokens (:core:designsystem), which only
- * resolve inside Compose UI. Glance composes in its own tree (backed by `RemoteViews`) and reads
- * colors through [androidx.glance.GlanceTheme.colors]; there is no bridge that lets a Glance
- * composable read `MaterialTheme.colorScheme`. Built via the public
- * [androidx.glance.material3.ColorProviders] factory; see [WidgetColorScheme] for the role
- * mapping and the day==night rationale.
+ * The widget's [ColorProviders], mapped from the widget palette above, not from the app's `RollaMusicPlayerTheme`
+ * tokens (:core:designsystem), which only resolve inside Compose UI. Glance composes in its own tree (backed by
+ * `RemoteViews`) and reads colours through [androidx.glance.GlanceTheme.colors]; there is no bridge that lets a Glance
+ * composable read `MaterialTheme.colorScheme`. Built via the public [androidx.glance.material3.ColorProviders]
+ * factory; see [WidgetColorScheme] for the role mapping and the day == night rationale.
  */
 val RollaWidgetColors: ColorProviders = ColorProviders(
     light = WidgetColorScheme,

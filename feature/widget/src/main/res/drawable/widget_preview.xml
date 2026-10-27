@@ -1,58 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Static schematic mock of the widget, used ONLY as the app-widget-picker thumbnail
-  (android:previewImage in xml/music_widget_info.xml). Not rendered by Glance at
-  runtime; the real UI is MusicWidgetContent.kt. Viewport (250x110) matches the
-  provider's minWidth/minHeight so it previews at roughly the true aspect ratio.
-  Shapes/colors mirror ui-style-guide.md section 2/8: dark rounded card, artwork
-  tile, two text bars, a progress fill, and five control dots (the middle one
-  filled solid as the play glyph, per section 1's "play is the only filled icon" rule).
+  The widget picker's thumbnail (android:previewImage in xml/music_widget_info.xml), a static drawing of the widget.
+  Glance never renders it; the live UI is MusicWidgetContent.kt. The viewport is 339 x 110 units: the artwork threshold
+  width (Phase 6c ruling 2) by 110, the provider's minHeight before Task 0. The default is now one row (drawn about
+  97.7 dp tall on the Motorola edge 70); the drawing keeps 110 for its proportions. Every colour is a widget palette
+  resource (ruling 4):
+  - card 0-339 x 0-110, 24 corners, @color/widget_card;
+  - artwork box x 10-79, y 20.5-89.5, 12 corners, @color/widget_art_placeholder, with widget_ic_music_note's path
+    scaled to a 44-unit box centred in it, @color/widget_title;
+  - title bar x 89-239, y 24-34, @color/widget_title; artist bar x 89-189, y 40-48, @color/widget_artist;
+  - the real paths of previous, back 15, play, forward 15 and next at 28 units, centred in five 48-unit cells from
+    x 89 to 329 (centres x 113, 161, 209, 257, 305) at centre y 72, @color/widget_title;
+  - progress track x 89-329, y 96-99, @color/widget_track, and fill x 89-169, @color/widget_accent.
+  WidgetPreviewTest samples it. When a glyph changes, copy its new path here.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="250dp"
+    android:width="339dp"
     android:height="110dp"
-    android:viewportWidth="250"
+    android:viewportWidth="339"
     android:viewportHeight="110">
-    <!-- Rounded card background (surfaceContainer). -->
+    <!-- Card. -->
     <path
-        android:fillColor="#FF1C1C1E"
-        android:pathData="M16,0 H234 A16,16 0 0 1 250,16 V94 A16,16 0 0 1 234,110 H16 A16,16 0 0 1 0,94 V16 A16,16 0 0 1 16,0 Z" />
-    <!-- Artwork placeholder tile (surfaceContainerHigh). -->
+        android:fillColor="@color/widget_card"
+        android:pathData="M24,0 H315 A24,24 0 0,1 339,24 V86 A24,24 0 0,1 315,110 H24 A24,24 0 0,1 0,86 V24 A24,24 0 0,1 24,0 Z" />
+    <!-- Artwork placeholder box. -->
     <path
-        android:fillColor="#FF2A2A2C"
-        android:pathData="M22,12 H58 A10,10 0 0 1 68,22 V58 A10,10 0 0 1 58,68 H22 A10,10 0 0 1 12,58 V22 A10,10 0 0 1 22,12 Z" />
-    <!-- Title text bar (onSurface). -->
+        android:fillColor="@color/widget_art_placeholder"
+        android:pathData="M22,20.5 H67 A12,12 0 0,1 79,32.5 V77.5 A12,12 0 0,1 67,89.5 H22 A12,12 0 0,1 10,77.5 V32.5 A12,12 0 0,1 22,20.5 Z" />
+    <!-- Music note (widget_ic_music_note), 24 units scaled to 44 at (22.5, 33). -->
+    <group
+        android:scaleX="1.8333333"
+        android:scaleY="1.8333333"
+        android:translateX="22.5"
+        android:translateY="33">
+        <path
+            android:pathData="M12.2,17 A3.2,3.2 0 0,1 5.8,17 A3.2,3.2 0 0,1 12.2,17 Z
+                M12.2,17 L12.2,5 C15.5,5 17.5,7.2 17.5,10.2"
+            android:strokeColor="@color/widget_title"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="2" />
+    </group>
+    <!-- Title and artist bars. -->
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M85,20 H195 A5,5 0 0 1 200,25 A5,5 0 0 1 195,30 H85 A5,5 0 0 1 80,25 A5,5 0 0 1 85,20 Z" />
-    <!-- Artist text bar (onSurfaceVariant). -->
+        android:fillColor="@color/widget_title"
+        android:pathData="M94,24 H234 A5,5 0 0,1 234,34 H94 A5,5 0 0,1 94,24 Z" />
     <path
-        android:fillColor="#FF9CA0A6"
-        android:pathData="M84,38 H156 A4,4 0 0 1 160,42 A4,4 0 0 1 156,46 H84 A4,4 0 0 1 80,42 A4,4 0 0 1 84,38 Z" />
-    <!-- Progress track (sliderInactiveTrack). -->
+        android:fillColor="@color/widget_artist"
+        android:pathData="M93,40 H185 A4,4 0 0,1 185,48 H93 A4,4 0 0,1 93,40 Z" />
+    <!-- Previous (widget_ic_previous), cell centre x 113. -->
+    <group
+        android:scaleX="1.1666667"
+        android:scaleY="1.1666667"
+        android:translateX="99"
+        android:translateY="58">
+        <path
+            android:fillColor="@color/widget_title"
+            android:pathData="M4.5,5.5 L4.5,5.5 A1,1 0 0,1 5.5,6.5 L5.5,17.5 A1,1 0 0,1 4.5,18.5 L4.5,18.5 A1,1 0 0,1 3.5,17.5 L3.5,6.5 A1,1 0 0,1 4.5,5.5 Z
+                M13,6.5 L13,17.5 L6.2,12 Z
+                M20.5,6.5 L20.5,17.5 L13.2,12 Z" />
+    </group>
+    <!-- Back 15 (widget_ic_skip_back_15), cell centre x 161. -->
+    <group
+        android:scaleX="1.1666667"
+        android:scaleY="1.1666667"
+        android:translateX="147"
+        android:translateY="58">
+        <path
+            android:pathData="M12,5.5 A7.5,7.5 0 1,1 5.5048,9.25
+                M13.84,3.96 L12,5.5 L13.84,7.04"
+            android:strokeColor="@color/widget_title"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="1.6" />
+        <path
+            android:pathData="M9.2,10.9 L10.3,9.8 L10.3,15.1
+                M15,9.8 L12.9,9.8 L12.7,12.1 C13.1,11.85 13.55,11.75 13.95,11.75 C14.6,11.75 15,12.35 15,13.4
+                C15,14.5 14.45,15.1 13.75,15.1 C13.25,15.1 12.85,14.9 12.6,14.55"
+            android:strokeColor="@color/widget_title"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="1.6" />
+    </group>
+    <!-- Play (widget_ic_play), cell centre x 209. -->
+    <group
+        android:scaleX="1.1666667"
+        android:scaleY="1.1666667"
+        android:translateX="195"
+        android:translateY="58">
+        <path
+            android:fillColor="@color/widget_title"
+            android:pathData="M7.5,5.2 C7.5,4.4 8.4,3.9 9.1,4.4 L19,11.1 C19.6,11.5 19.6,12.5 19,12.9 L9.1,19.6 C8.4,20.1 7.5,19.6 7.5,18.8 Z" />
+    </group>
+    <!-- Forward 15 (widget_ic_skip_forward_15), cell centre x 257. -->
+    <group
+        android:scaleX="1.1666667"
+        android:scaleY="1.1666667"
+        android:translateX="243"
+        android:translateY="58">
+        <path
+            android:pathData="M12,5.5 A7.5,7.5 0 1,0 18.4952,9.25
+                M10.16,3.96 L12,5.5 L10.16,7.04"
+            android:strokeColor="@color/widget_title"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="1.6" />
+        <path
+            android:pathData="M9.2,10.9 L10.3,9.8 L10.3,15.1
+                M15,9.8 L12.9,9.8 L12.7,12.1 C13.1,11.85 13.55,11.75 13.95,11.75 C14.6,11.75 15,12.35 15,13.4
+                C15,14.5 14.45,15.1 13.75,15.1 C13.25,15.1 12.85,14.9 12.6,14.55"
+            android:strokeColor="@color/widget_title"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="1.6" />
+    </group>
+    <!-- Next (widget_ic_next), cell centre x 305. -->
+    <group
+        android:scaleX="1.1666667"
+        android:scaleY="1.1666667"
+        android:translateX="291"
+        android:translateY="58">
+        <path
+            android:fillColor="@color/widget_title"
+            android:pathData="M19.5,5.5 L19.5,5.5 A1,1 0 0,1 20.5,6.5 L20.5,17.5 A1,1 0 0,1 19.5,18.5 L19.5,18.5 A1,1 0 0,1 18.5,17.5 L18.5,6.5 A1,1 0 0,1 19.5,5.5 Z
+                M11,6.5 L11,17.5 L17.8,12 Z
+                M3.5,6.5 L3.5,17.5 L10.8,12 Z" />
+    </group>
+    <!-- Progress track, then the fill over its first third. -->
     <path
-        android:fillColor="#FF3A3A3C"
-        android:pathData="M14,78 H236 A2,2 0 0 1 238,80 A2,2 0 0 1 236,82 H14 A2,2 0 0 1 12,80 A2,2 0 0 1 14,78 Z" />
-    <!-- Progress fill (primary). -->
+        android:fillColor="@color/widget_track"
+        android:pathData="M89,96 H329 V99 H89 Z" />
     <path
-        android:fillColor="#FF3D7BFF"
-        android:pathData="M14,78 H98 A2,2 0 0 1 100,80 A2,2 0 0 1 98,82 H14 A2,2 0 0 1 12,80 A2,2 0 0 1 14,78 Z" />
-    <!-- Control dots: previous, -15s (onSurface line icons). -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M35,98 A5,5 0 1,0 45,98 A5,5 0 1,0 35,98 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M80,98 A5,5 0 1,0 90,98 A5,5 0 1,0 80,98 Z" />
-    <!-- Play/pause: the one solidly filled control (primary accent). -->
-    <path
-        android:fillColor="#FF3D7BFF"
-        android:pathData="M117,97 A8,8 0 1,0 133,97 A8,8 0 1,0 117,97 Z" />
-    <!-- Control dots: +15s, next. -->
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M160,98 A5,5 0 1,0 170,98 A5,5 0 1,0 160,98 Z" />
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M205,98 A5,5 0 1,0 215,98 A5,5 0 1,0 205,98 Z" />
+        android:fillColor="@color/widget_accent"
+        android:pathData="M89,96 H169 V99 H89 Z" />
 </vector>

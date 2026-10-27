@@ -4,7 +4,9 @@
 package com.rolla.musicplayer.core.designsystem.theme
 
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
  * Measured One UI dimensions (spec §5.4, docs/design/oneui-measurements.md). They are PROVISIONAL at 3.0 px/dp
@@ -189,4 +191,22 @@ object RollaDimens {
     // Phase 7 calibrates.
     val searchFieldStart = 16.dp // pill start to the leading Search glyph (and query end to pill end when empty)
     val searchFieldGlyphGap = 12.dp // Search glyph to the query text
+
+    // Widget (spec §13). Insets and gaps are measured from the reference widget at 3.0 px/dp; the control cell
+    // height reuses minTouchTarget.
+    val widgetCardRadius = 24.dp // matches the launcher's system widget radius
+    val widgetCardPaddingStart = 10.dp // reference artwork inset
+    val widgetCardPaddingEnd = 10.dp // reference end inset of the last control
+    val widgetArt = 69.dp
+    val widgetArtRadius = 12.dp
+    val widgetArtGap = 10.dp // artwork to the text column
+
+    // MusicNote spans 15.2 of 24 viewport units, so a 28 dp tall note needs a 44 dp box.
+    val widgetArtGlyph = 44.dp
+
+    // Play spans 15.2 of 24 viewport units: 28 dp draws the measured 18 dp play glyph.
+    val widgetControlGlyph = 28.dp
+    val widgetProgressHeight = 3.dp
+    val widgetTitleSize: TextUnit = 16.sp
+    val widgetArtistSize: TextUnit = 13.sp
 }

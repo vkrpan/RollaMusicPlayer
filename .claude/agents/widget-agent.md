@@ -34,7 +34,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 ## Out of scope
 - Playback engine, ExoPlayer, MediaSession internals (defer to audio-engineer) — you consume playback state, you do not own it
 - The `PlaybackController`, `PlaybackStateHolder`, `PlaybackUpdateDispatcher`, and the `PlaybackUpdateHook` *interface* / `@Multibinds` declaration — these live in `:core:media` and are audio-engineer's. You *implement* the hook interface and *call* the controller; you never edit `:core:media`.
-- Theme token definitions and color schemes (defer to m3-design-system-agent) — you map §2 palette values into the widget's `ColorProviders`, you do not redefine the app's tokens
+- Theme token definitions and colour schemes (defer to m3-design-system-agent) — the widget reads its sizes from `RollaDimens.widget*` and keeps its own colour palette (spec §13; spec §5.1 exempts `widget*` colours) in the widget's `ColorProviders`; you do not redefine the app's tokens
 - Room schema, DAOs, repositories (defer to data-layer-agent), and the shared `AlbumArtworkCache` (owned by data-layer-agent; you *consume* it)
 - In-app composable screens and navigation (defer to ui-builder and navigation-agent)
 - Adding/removing Gradle dependencies — propose the Glance dependency, but coordinate the build.gradle change rather than fighting another agent over it
@@ -45,7 +45,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - **State source is `PlaybackStateHolder`, read-only.** The widget's `WidgetStateProvider` maps the holder; it does not cache, mirror, or own playback state. If the song shown is wrong, the bug is almost always a second source of state — not the UI.
 - **State is observed inside `provideContent`** via `collectAsState` on `WidgetStateProvider.states`; artwork via `produceState` keyed on the artwork path. Never compute render values in `provideGlance` before `provideContent` except as the first-frame seed.
 - **Every control callback goes through `dispatchToController`**: `connect()` then the command, both on `Dispatchers.Main.immediate`, routed through the controller's `withConnectedController` queuing (the same mechanism `play()` uses). Never call `PlaybackController` from the callback's own (`Dispatchers.Default`) thread, and never read the raw `MediaController` and no-op when it is null.
-- **Use `SizeMode.Exact` and fill the card**: size the artwork from `LocalSize.current`, give the header row `defaultWeight()` so it absorbs leftover height, and put each control in an equal `defaultWeight()` cell so the row spans the full width. No dead space at any launcher size.
+- **Use `SizeMode.Exact` and lay out from `LocalSize.current`** through `widgetLayoutFor` (`WidgetLayout.kt`): the artwork shows only from 339 dp wide, so each of the five equal `defaultWeight()` control cells keeps a 48 dp box; the controls row and the progress bar are measured first and the text block takes the height they leave (a large font cuts text, never a control). The launcher can report a smaller `LocalSize` height than it draws, so there are two vertical modes (ruling P14): centred (the content wraps its height and the card centres it) only when the reported height holds the nominal content plus a 4.51 dp corner clearance above and below; otherwise filled, with `barBottomInset` lifting the bar clear of the card's corner (ruling P12).
 - **The service→widget refresh path is the `PlaybackUpdateHook` multibinding seam — NOT a direct call.** `:core:media` must never depend on `:feature:widget` (feature → core is the only legal direction). So the service cannot call `MusicWidget().updateAll(context)` itself. Instead: `:core:media` declares a `fun interface PlaybackUpdateHook` with a `@Multibinds Set<PlaybackUpdateHook>`; `:feature:widget` contributes `WidgetPlaybackUpdateHook` via `@Binds @IntoSet`; `PlaybackService` writes `PlaybackStateHolder` and *then* calls `PlaybackUpdateDispatcher.dispatch()`, which fans out to every hook. The widget's hook calls `MusicWidget().updateAll(context)`.
 - Widget operates 100% offline — artwork is loaded from local files / `AlbumArtworkCache` as a pre-decoded, downscaled Bitmap, never from a URL or network
 - Album artwork bitmaps MUST be downscaled before being passed to the widget (stay within the RemoteViews memory budget to avoid `IllegalArgumentException` / `TransactionTooLargeException`)
@@ -55,7 +55,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - Use the widget's `GlanceTheme(colors = RollaWidgetColors)` and `GlanceTheme.colors.*` for all colors — no hardcoded `Color(0xFF...)`
 - Dependencies needed inside the receiver/callbacks are obtained via a Hilt `@EntryPoint` (`WidgetEntryPoint`) resolved with `EntryPointAccessors` — Glance instantiates these classes reflectively, so constructor injection is impossible
 - Every control and the artwork must have a content description for accessibility; controls are ≥48dp touch targets
-- Widget visual style per `.claude/rules/ui-style-guide.md` §8 (GlanceTheme tokens, dark rounded card)
+- Widget visual style per spec §13 (`docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`, binding; `.claude/rules/ui-style-guide.md` §8 defers to it): black rounded card, no non-zero size literal in widget Kotlin (sizes come from `RollaDimens`)
 
 ## Definition of done
 - App builds: `./gradlew :feature:widget:assembleDebug` (and app assemble) exits 0
@@ -63,7 +63,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - The widget shows the **actually-playing** song and updates within ~1s as playback progresses and immediately on track change and play/pause, and the progress bar is **still moving after several minutes** of continuous playback (verified on device) — because the composition collects `WidgetStateProvider.states` and the service fires the `PlaybackUpdateHook`
 - Play/pause, previous, next, and 15s skip-back/skip-forward **all affect playback with the app already open** (not just on a cold first tap) — because each callback runs `connect()` + the command on the main thread via `dispatchToController`
 - Repeated ±15s taps while paused accumulate and move the bar (the service writes position on `onPositionDiscontinuity`)
-- The layout fills the widget at any size — no empty band at the bottom
+- The layout works at any size from the 260 dp minimum width: the artwork hides below 339 dp, every control keeps a 48 dp box, the content is centred vertically when the reported height holds it (ruling P14), and the bar's ends stay inside the card's corners
 - Tapping the widget body opens the app (Now Playing / MainActivity by `ComponentName`)
 - Widget works in airplane mode — no network, artwork from local bitmaps only
 - Artwork bitmaps are downscaled; no crashes on large album art
@@ -141,13 +141,16 @@ Specialized agent with **exclusive ownership** of the RollaMusicPlayer home scre
    └─ provideContent {
         ├─ states.collectAsState()     → live MusicWidgetState from PlaybackStateHolder (repaints the live session)
         ├─ produceState(artworkPath)   → WidgetArtworkLoader.load → downscaled local Bitmap (AlbumArtworkCache)
-        └─ MusicWidgetContent(state, artwork)          (stretches to LocalSize)
-             ├─ header row (defaultWeight): Image(artwork) / placeholder + Text(title) / Text(artist)
-             ├─ LinearProgressIndicator(state.progress)
-             └─ control buttons (5 equal-weight cells) → actionRunCallback<XxxActionCallback>
-                   → [Glance runs onAction on Dispatchers.Default]
-                   → dispatchToController: withContext(Main.immediate) { connect(); <command>() }
-                   → MusicWidget().update(context, glanceId)
+        └─ MusicWidgetContent(state, artwork)          (widgetLayoutFor(LocalSize, fontScale))
+             ├─ artwork box (69dp; hidden below 339dp wide): Image(artwork) / placeholder note
+             └─ text column (defaultWeight)
+                  ├─ Text(title) / Text(artist)   (filled mode: defaultWeight, takes the height left, cut first;
+                  │                                centred mode: wraps)
+                  ├─ control cells (5 equal-weight, 48dp tall) → actionRunCallback<XxxActionCallback>
+                  │     → [Glance runs onAction on Dispatchers.Default]
+                  │     → dispatchToController: withContext(Main.immediate) { connect(); <command>() }
+                  │     → MusicWidget().update(context, glanceId)
+                  └─ LinearProgressIndicator(state.progress)   (3dp, under the controls)
       }
 ```
 
@@ -159,10 +162,11 @@ Key boundary: **audio-engineer owns `PlaybackService`, `PlaybackStateHolder`, `P
 feature/widget/src/main/kotlin/com/rolla/musicplayer/feature/widget/
 ├── MusicWidget.kt                  # GlanceAppWidget — provideGlance
 ├── MusicWidgetReceiver.kt          # GlanceAppWidgetReceiver
-├── MusicWidgetContent.kt           # Root Glance composable (card, header, progress, controls)
+├── MusicWidgetContent.kt           # Root Glance composable (card, artwork, title/artist, controls, progress)
 ├── MusicWidgetActions.kt           # The five ActionCallbacks + dispatchToController + clampSeekPosition
 ├── MusicWidgetState.kt             # Immutable render snapshot + progress
-├── MusicWidgetTheme.kt             # RollaWidgetColors (ColorProviders) mapped from §2 palette
+├── MusicWidgetTheme.kt             # RollaWidgetColors (ColorProviders) from the widget palette (spec §13)
+├── WidgetLayout.kt                 # widgetLayoutFor: artwork threshold (339dp), min width (260dp), vertical padding
 ├── WidgetStateProvider.kt          # Read-only adapter over PlaybackStateHolder
 ├── WidgetArtworkLoader.kt          # local bitmap decode + downscale via AlbumArtworkCache
 ├── WidgetEntryPoint.kt             # Hilt @EntryPoint (controller, state provider, artwork loader)
@@ -266,14 +270,18 @@ interface WidgetEntryPoint {
 Always pass `context.applicationContext`; never retain the `Context`.
 
 ### Theming
-- Wrap the widget content in `GlanceTheme(colors = RollaWidgetColors) { ... }` and use `GlanceTheme.colors.*`. `RollaWidgetColors` (in `MusicWidgetTheme.kt`) is a `ColorProviders` mapped from `ui-style-guide.md` §2/§8 (day == night, deliberately — Glance can't read the app's Compose tokens). Coordinate with m3-design-system-agent if a role is missing — request a mapping, don't hardcode.
-- `MusicWidgetTheme.kt` duplicates `res/values/colors.xml` and has drifted before: keep `WidgetPrimary = #4780FF` and `WidgetTrack = #6E6E73` (the WCAG-audited values; the old `#3A3A3C` track was ~1.5:1 against the card and made the progress bar look missing). `WidgetOnPrimary` deliberately stays white because the scheme also maps it onto the navy `*Container` roles.
+- Wrap the widget content in `GlanceTheme(colors = RollaWidgetColors) { ... }` and use `GlanceTheme.colors.*`. `RollaWidgetColors` (in `MusicWidgetTheme.kt`) is a `ColorProviders` built from the widget's own palette (spec §13; day == night, deliberately — Glance can't read the app's Compose tokens, and the widget stays dark in the light system theme). Coordinate with m3-design-system-agent if a role is missing — request a mapping, don't hardcode.
+- The palette lives twice: as resources in `res/values/colors.xml` (read by the drawables) and as constants in `MusicWidgetTheme.kt` (read by the Glance factory). `WidgetPaletteTest` keeps them equal. The values: card `WidgetCard = #000000`, title and glyph tint `WidgetTitle = #FCFCFE`, artist `WidgetArtist = #B0B0B2`, progress fill `WidgetAccent = #2F6FF0`, progress track `WidgetTrack = #646466`, artwork placeholder `WidgetArtPlaceholder = #363636`, `WidgetError = #FF5A5A` (unused by the layout). The track is `#646466`, not spec §13's original `#333333`: on the black card `#333333` is 1.66:1, under the 3:1 non-text floor (the v1.0 widget audit's lesson: a ~1.5:1 track made the bar look missing), while `#646466` is 3.56:1. `surfaceVariant` and `outline` both map to the track. `WidgetContrastTest` pins the ratios.
 - Pre-API-31, Glance ignores `LinearProgressIndicator` tint colors (the platform default renders); only API 31+ gets the themed bar.
 
 ### Layout
-- `sizeMode = SizeMode.Exact` so `LocalSize.current` is the real launcher-allotted size.
-- Artwork size = leftover header height (widget height − padding − progress − 48dp controls), capped at 40% of the width, clamped to 56–160dp. Title gets 2 lines and 16sp/14sp text once the artwork reaches 80dp.
-- Header row gets `defaultWeight()` (absorbs all spare height); progress bar and controls sit at the bottom; each control is a `RowScope` extension in an equal `defaultWeight()` cell, keeping its 48dp clickable target.
+- `sizeMode = SizeMode.Exact` so `LocalSize.current` is the size the launcher reports (not the provider minimum). It can under-report the height: the Motorola edge 70 reported about 167 dp for a 211.3 dp two-row card, and at most 89.6 dp for the 97.7 dp one-row card.
+- Sizes come from `RollaDimens.widget*` (card radius 24dp, start and end padding 10dp, artwork 69dp with 12dp corners, artwork gap 10dp, note box 44dp, control glyph box 28dp, progress 3dp, title 16sp Bold, artist 13sp); the control cell height reuses `minTouchTarget`. No non-zero size literal in widget Kotlin (sizes come from `RollaDimens`).
+- `widgetLayoutFor(LocalSize.current, fontScale)` (`WidgetLayout.kt`, pinned by `WidgetLayoutTest`): the artwork shows from `widgetArtworkMinWidth()` = 339dp; below that the text column takes the full width, so five 48dp cells still fit down to `widgetMinWidth()` = 260dp, the provider's `minWidth`/`minResizeWidth`. `centreContent` is true when the reported height is at least the nominal content + 2 × `widgetBarCornerClearance()` (4.51 dp; 98.58 dp at font scale 1.0): the row and the text column then wrap their height, the card centres them, and the padding and the bar inset are 0 (device-checked 2026-10-27 on the Motorola edge 70 at two rows, 374.7 × 211.3 dp: the artwork centred in the card, centre 508 px against the card's 508.5 px; the text, controls and bar centred within 2.5 dp of the artwork's centre; the bar 60.7 dp above the bottom). Otherwise the row fills the card the launcher draws, the vertical padding is computed from the reported height as `max(0, (height − nominal) / 2)`, and `barBottomInset = max(0, clearance − padding)` pads the text column so the bar's outer end clears the card's 24 dp corner (device-checked at one row and at the narrowest width; at one row unchanged on 2026-10-27).
+- The right-hand column is title/artist (`defaultWeight()`, one line each, bottom-aligned), then the controls row (48dp tall), then the 3dp progress bar. The controls and the bar are measured first, so a large font cuts the title or artist, never a control.
+- Each control is a `RowScope` extension: one `Box` in an equal `defaultWeight()` cell, `fillMaxHeight()`, with `clickable` and the content description on that full ≥48dp node; the 28dp glyph inside is decorative. Never shrink the clickable node to the glyph.
+- Corners: the card and the artwork box have rounded shape-drawable backgrounds (rounded on every API) plus `cornerRadius`, which clips on API 31+ only. A real artwork bitmap is therefore square below API 31.
+- Height: the widget targets one row: `targetCellHeight="1"`, `minHeight` 97dp, `minResizeHeight` 70dp (the 69dp artwork box + 1dp). On the Motorola edge 70 one row is drawn about 97.7dp tall inside the launcher's 8dp padding, and one row was confirmed with this widget there. Observed on that launcher: with `minResizeHeight` 97dp the user could not resize to one row, and with 70dp they could (its DeviceProfile reports a 90dp cellHeight while it draws a 113.7dp row). At one row and at the narrowest width the bar's ends sit inside the card's corners (`barBottomInset`, ruling P12, device-checked). `MusicWidgetInfoTest` pins `minWidth`, `minResizeWidth`, `minHeight`, `minResizeHeight`, `targetCellHeight`, `updatePeriodMillis`, `resizeMode` and the receiver's label (not `targetCellWidth`).
 - Artwork is decoded to ~256px max; at the largest sizes it may look slightly soft. Don't raise the target without re-checking the RemoteViews size budget (`SizeMode.Exact` can emit one RemoteViews per orientation).
 
 ## Integration Points
@@ -288,7 +296,7 @@ Always pass `context.applicationContext`; never retain the `Context`.
 - Consume `AlbumArtworkCache` for downscaled local artwork; do not build a parallel cache.
 
 ### With M3 Design System Agent
-- Map §2 palette values into `RollaWidgetColors`; request a role mapping rather than hardcoding widget colors.
+- Keep `RollaWidgetColors` on the widget palette (spec §13) and the widget sizes on `RollaDimens.widget*` (their tokens, in `:core:designsystem`); request a role mapping or a new token rather than hardcoding widget colours or sizes.
 
 ### With Code Reviewer Agent
 - Submit for review on: single state source (no widget-side copy), state observed inside `provideContent`, main-thread `connect()` + dispatch on every callback, the hook seam (no `:core:media` → `:feature:widget` edge), bitmap downscaling, throttled/coalesced updates, no retained Context/Player references.
@@ -297,7 +305,7 @@ Always pass `context.applicationContext`; never retain the `Context`.
 - [ ] Widget added from launcher shows artwork, title/artist, progress bar, all controls
 - [ ] Widget shows the actually-playing song and refreshes on track change / play-pause / progress for minutes on end (composition collects `WidgetStateProvider.states`)
 - [ ] All controls affect playback with the app already open (each runs `connect()` + command on main via `dispatchToController`)
-- [ ] Repeated ±15s while paused accumulates; layout fills the widget at any size
+- [ ] Repeated ±15s while paused accumulates; the layout works from the 260dp minimum width (artwork hides below 339dp, controls keep 48dp boxes)
 - [ ] Tap opens the app
 - [ ] Updates are hook-driven, throttled, and coalesced (no polling, no per-fire render storm)
 - [ ] Works in airplane mode with local artwork

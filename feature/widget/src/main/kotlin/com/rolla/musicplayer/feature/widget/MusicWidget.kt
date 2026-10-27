@@ -21,9 +21,10 @@ import androidx.glance.appwidget.provideContent
  * A pre-`provideContent` snapshot therefore froze the progress bar, play/pause icon, and title for
  * as long as music played. The snapshot below only seeds the first frame.
  *
- * [SizeMode.Exact] so [MusicWidgetContent] can read the real launcher-allotted size via
- * `LocalSize` and stretch to fill it (the default `SizeMode.Single` only reports the provider's
- * minimum size).
+ * [SizeMode.Exact] so [MusicWidgetContent] can read the size the launcher reports via `LocalSize`
+ * and lay out for it (the default `SizeMode.Single` only reports the provider's minimum size). The
+ * reported height can be smaller than the drawn card (the Motorola edge 70 reported about 167 dp
+ * for a 211 dp card); `widgetLayoutFor` allows for that (ruling P14).
  *
  * Dependencies come from [WidgetEntryPoint] (Hilt `@EntryPoint`), not constructor injection --
  * Glance instantiates this class itself via a no-arg constructor (see

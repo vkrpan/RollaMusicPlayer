@@ -33,7 +33,7 @@ Three wiring facts determine whether the widget works. Every other step exists t
 ```
 feature/widget/src/main/kotlin/com/rolla/musicplayer/feature/widget/
   MusicWidget.kt · MusicWidgetReceiver.kt · MusicWidgetContent.kt · MusicWidgetActions.kt
-  MusicWidgetState.kt · MusicWidgetTheme.kt · WidgetStateProvider.kt · WidgetArtworkLoader.kt
+  MusicWidgetState.kt · MusicWidgetTheme.kt · WidgetLayout.kt · WidgetStateProvider.kt · WidgetArtworkLoader.kt
   WidgetEntryPoint.kt · WidgetModule.kt · WidgetPlaybackUpdateHook.kt · WidgetIoDispatcher.kt
 feature/widget/src/main/res/xml/music_widget_info.xml
 feature/widget/src/main/AndroidManifest.xml
@@ -51,6 +51,8 @@ dependencies {
     implementation(project(":core:data"))      // AlbumArtworkCache
     implementation(libs.glance.appwidget)      // version catalog: glance = "1.1.0"
     implementation(libs.glance.material3)
+    implementation(project(":core:designsystem")) // RollaDimens.widget* sizes
+    testImplementation(libs.glance.appwidget.testing) // Glance unit tests (MusicWidgetContentTest); test-only
 }
 
 // app/build.gradle.kts  — REQUIRED, or the widget's @IntoSet hook and receiver never register
@@ -150,8 +152,8 @@ Return `null` on missing/undecodable art; the Glance UI renders the themed place
 ```kotlin
 // MusicWidget.kt
 class MusicWidget : GlanceAppWidget() {
-    // Exact: LocalSize reports the real launcher-allotted size (Single only reports the provider minimum),
-    // so the layout can stretch to fill the card.
+    // Exact: LocalSize reports the size the launcher gives the widget (Single only reports the provider minimum).
+    // The reported height can be smaller than the drawn card (Motorola edge 70: about 167dp for 211dp), see Step 4.
     override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -169,7 +171,7 @@ class MusicWidget : GlanceAppWidget() {
             val artwork by produceState(initialArtwork, artworkPath) {     // re-resolves on album change
                 value = artworkLoader.load(artworkPath)                    // memoized: same path is cheap
             }
-            GlanceTheme(colors = RollaWidgetColors) {                   // app palette, day == night
+            GlanceTheme(colors = RollaWidgetColors) {                   // widget palette, day == night
                 MusicWidgetContent(context, state, artwork)
             }
         }
@@ -178,43 +180,74 @@ class MusicWidget : GlanceAppWidget() {
 ```
 
 ```kotlin
-// MusicWidgetContent.kt (abridged — full layout per ui-style-guide.md §8)
+// MusicWidgetContent.kt (abridged — the layout is spec §13; sizes are RollaDimens.widget*, colours GlanceTheme.colors)
 @Composable
 internal fun MusicWidgetContent(context: Context, state: MusicWidgetState, artwork: Bitmap?) {
-    val openApp = actionStartActivity(
-        ComponentName(context.packageName, "com.rolla.musicplayer.MainActivity")  // string: no :app dep
-    )
-    val artworkSize = artworkSizeFor(LocalSize.current)   // grows into leftover height, 56..160dp, ≤40% width
-    Box(GlanceModifier.fillMaxSize().background(ImageProvider(R.drawable.widget_card_background))
-        .padding(12.dp).clickable(openApp)) {
-        Column(GlanceModifier.fillMaxSize()) {
-            // Header (artwork + title/artist) takes ALL height the fixed rows leave → no dead space below.
-            WidgetHeaderRow(context, state, artwork, artworkSize, GlanceModifier.fillMaxWidth().defaultWeight())
-            WidgetProgressBar(state.progress)   // primary fill on surfaceVariant (#6E6E73) track
-            WidgetControlsRow(context, state)   // pinned to the bottom
+    // WidgetLayout.kt: artwork only from 339dp wide (so five cells keep 48dp), and two vertical modes (ruling P14).
+    // The launcher can report a smaller height than it draws, so centring needs height it is known to draw:
+    // - centreContent (reported height >= nominal content + 2 × 4.51dp corner clearance): the row and the text column
+    //   wrap their height and the card centres them; verticalPadding and barBottomInset are 0.
+    // - otherwise the row fills the card, the text gives way first, and barBottomInset (ruling P12) lifts the bar
+    //   clear of the card's 24dp corner.
+    val layout = widgetLayoutFor(LocalSize.current, context.resources.configuration.fontScale)
+    val centred = layout.centreContent
+    Box(
+        GlanceModifier.fillMaxSize()
+            .background(ImageProvider(R.drawable.widget_card_background))   // rounded on every API
+            .cornerRadius(RollaDimens.widgetCardRadius)                      // clips on API 31+
+            // MAIN_ACTIVITY_CLASS_NAME is a string: :feature:widget cannot depend on :app.
+            .clickable(actionStartActivity(ComponentName(context.packageName, MAIN_ACTIVITY_CLASS_NAME))),
+        contentAlignment = if (centred) Alignment.CenterStart else Alignment.TopStart,
+    ) {
+        Row(
+            (if (centred) GlanceModifier.fillMaxWidth() else GlanceModifier.fillMaxSize()).padding(
+                start = RollaDimens.widgetCardPaddingStart, end = RollaDimens.widgetCardPaddingEnd,
+                top = layout.verticalPadding, bottom = layout.verticalPadding,
+            ),
+            verticalAlignment = Alignment.Vertical.CenterVertically,
+        ) {
+            if (layout.showArtwork) {
+                WidgetArtwork(context, artwork, state.title)   // 69dp box, 12dp corners, placeholder note
+                Spacer(GlanceModifier.width(RollaDimens.widgetArtGap))
+            }
+            Column(
+                GlanceModifier.defaultWeight()
+                    .then(if (centred) GlanceModifier else GlanceModifier.fillMaxHeight())
+                    .padding(bottom = layout.barBottomInset),                // bar clears the corner arc
+            ) {
+                // title/artist, one line each: defaultWeight() when filled (text gives way first), wrapped when centred
+                WidgetMetadata(context, state, fillHeight = !centred)
+                WidgetControlsRow(context, state)    // 48dp tall, five equal cells
+                LinearProgressIndicator(
+                    progress = state.progress,
+                    modifier = GlanceModifier.fillMaxWidth().height(RollaDimens.widgetProgressHeight),
+                    color = GlanceTheme.colors.primary,              // #2F6FF0
+                    backgroundColor = GlanceTheme.colors.surfaceVariant,   // track #646466
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun WidgetControlsRow(context: Context, state: MusicWidgetState) {
-    // Each WidgetIconButton is a RowScope extension sitting in an equal defaultWeight() cell,
-    // so the five controls spread evenly across the full card width.
-    Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.Vertical.CenterVertically) {
-        WidgetIconButton(R.drawable.widget_ic_previous, "Previous", actionRunCallback<PreviousActionCallback>())
-        WidgetIconButton(R.drawable.widget_ic_skip_back_15, "Skip back 15 seconds", actionRunCallback<SkipBack15ActionCallback>())
-        WidgetIconButton(
+    Row(GlanceModifier.fillMaxWidth().height(RollaDimens.minTouchTarget)) {
+        WidgetControl(R.drawable.widget_ic_previous, context.getString(R.string.widget_action_previous), actionRunCallback<PreviousActionCallback>())
+        WidgetControl(R.drawable.widget_ic_skip_back_15, context.getString(R.string.widget_action_skip_back_15), actionRunCallback<SkipBack15ActionCallback>())
+        WidgetControl(
             if (state.isPlaying) R.drawable.widget_ic_pause else R.drawable.widget_ic_play,
-            if (state.isPlaying) "Pause" else "Play",
+            context.getString(if (state.isPlaying) R.string.widget_action_pause else R.string.widget_action_play),
             actionRunCallback<PlayPauseActionCallback>(),
         )
-        WidgetIconButton(R.drawable.widget_ic_skip_forward_15, "Skip forward 15 seconds", actionRunCallback<SkipForward15ActionCallback>())
-        WidgetIconButton(R.drawable.widget_ic_next, "Next", actionRunCallback<NextActionCallback>())
+        WidgetControl(R.drawable.widget_ic_skip_forward_15, context.getString(R.string.widget_action_skip_forward_15), actionRunCallback<SkipForward15ActionCallback>())
+        WidgetControl(R.drawable.widget_ic_next, context.getString(R.string.widget_action_next), actionRunCallback<NextActionCallback>())
     }
 }
 
-// Touch target: .size(48.dp).clickable(action).padding(12.dp) — clickable on the FULL 48dp node,
-// padding insets only the icon. Padding BEFORE clickable would shrink the hit target below 48dp.
+// Touch target: each WidgetControl is a RowScope Box with .defaultWeight().fillMaxHeight().clickable(action) and the
+// content description on that node — clickable on the FULL cell (≥48dp wide, 48dp tall). The glyph inside is
+// decorative, sized RollaDimens.widgetControlGlyph (28dp). Never move clickable onto the glyph or put padding
+// before it: that would shrink the hit target below 48dp.
 ```
 
 ### Step 5: Implement Control Callbacks — `connect()` + command on the MAIN thread
@@ -303,21 +336,29 @@ class MusicWidgetReceiver : GlanceAppWidgetReceiver() {
 ```xml
 <!-- res/xml/music_widget_info.xml -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:minWidth="250dp" android:minHeight="110dp"
-    android:targetCellWidth="4" android:targetCellHeight="2"
-    android:minResizeWidth="180dp" android:minResizeHeight="90dp"
+    android:minWidth="260dp" android:minHeight="97dp"
+    android:targetCellWidth="4" android:targetCellHeight="1"
+    android:minResizeWidth="260dp" android:minResizeHeight="70dp"
     android:resizeMode="horizontal|vertical" android:widgetCategory="home_screen"
     android:updatePeriodMillis="0"                                  <!-- push-driven, never polled -->
     android:description="@string/widget_description"
     android:previewImage="@drawable/widget_preview"
     android:initialLayout="@layout/glance_default_loading_layout" />
 ```
+260dp = 10dp + 5 × 48dp control cells + 10dp, the narrowest card that keeps every control a 48dp box (the artwork hides
+below 339dp). `minHeight` 97dp and one target row come from the Motorola edge 70, where one row is drawn about 97.7dp
+tall inside the launcher's 8dp padding; one row was confirmed with this widget on that phone. `minResizeHeight` is 70dp
+(the 69dp artwork box + 1dp) because, observed on that launcher, the user could not resize to one row with 97dp and could
+with 70dp (its DeviceProfile reports a 90dp cellHeight while it draws a 113.7dp row). Below the nominal content the text
+gives way; the controls and the bar stay whole down to about 55.5dp (48 + 3 + the 4.51dp corner clearance).
+`MusicWidgetInfoTest` pins `minWidth`, `minResizeWidth`, `minHeight`, `minResizeHeight`, `targetCellHeight`,
+`updatePeriodMillis`, `resizeMode` and the receiver's label (not `targetCellWidth`).
 ```xml
 <!-- feature/widget/src/main/AndroidManifest.xml (inside <application>) -->
 <!-- exported MUST be true: the launcher (a different UID) delivers APPWIDGET_UPDATE. The APPWIDGET_*
      action family is platform-protected, so this is not an attack surface. exported="false" leaves
      the widget un-addable / never updating. -->
-<receiver android:name=".MusicWidgetReceiver" android:exported="true" android:label="RollaMusicPlayer">
+<receiver android:name=".MusicWidgetReceiver" android:exported="true" android:label="@string/widget_label">  <!-- "Rolla Music" -->
     <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
     </intent-filter>
@@ -389,7 +430,7 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 - [ ] Progress bar **keeps moving for minutes** of continuous playback (a frozen bar = state read outside `provideContent`)
 - [ ] Play/pause, prev, next, ±15s all **affect playback with the app already open** (each callback goes through `dispatchToController` → main thread). Test warm, not just the cold first tap — the cold tap works even with the threading bug
 - [ ] Repeated ±15s taps **while paused** accumulate and move the bar (service writes position on `onPositionDiscontinuity`)
-- [ ] Resizing the widget taller/wider fills the card (artwork grows, controls spread) — no dead space at the bottom
+- [ ] Resizing the widget narrower hides the artwork below 339dp and keeps all five controls in ≥48dp boxes down to the 260dp minimum; a long title stays one ellipsised line and the controls do not move
 - [ ] Tapping the body opens the app
 - [ ] Real-time, throttled, coalesced updates via the `PlaybackUpdateHook` seam (no polling)
 - [ ] Works in airplane mode (local artwork only)
@@ -418,12 +459,12 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 - Fix: `PlaybackService` writes `setPositionMs` + dispatches on `onPositionDiscontinuity` (Step 7).
 
 **Progress bar looks missing early in a track.**
-- Cause: the track color in `MusicWidgetTheme.kt` drifted from `colors.xml` (old `#3A3A3C` ≈ 1.5:1 against the card).
-- Fix: keep `WidgetTrack = #6E6E73` and `WidgetPrimary = #4780FF` in sync with `colors.xml` / `:core:designsystem`. Note pre-API-31 Glance ignores progress tint colors entirely (platform default colors render).
+- Cause: a track colour under 3:1 against the black card (v1.0's `#3A3A3C` was ≈ 1.5:1; the reference's `#333333` is 1.66:1), or `MusicWidgetTheme.kt` drifted from `colors.xml`.
+- Fix: keep `WidgetTrack = #646466` (3.56:1) and `WidgetAccent = #2F6FF0` (4.65:1), equal in `colors.xml` and `MusicWidgetTheme.kt`; `WidgetPaletteTest` and `WidgetContrastTest` fail if either drifts. Note pre-API-31 Glance ignores progress tint colours entirely (platform default colours render).
 
-**Lots of empty space at the bottom of the widget.**
-- Cause: default `SizeMode.Single` (LocalSize = provider minimum) and fixed-height children.
-- Fix: `SizeMode.Exact`, size artwork from `LocalSize.current`, give the header `defaultWeight()`, and put each control in an equal `defaultWeight()` cell (Step 4).
+**The layout ignores the launcher size (wrong artwork visibility, cramped controls).**
+- Cause: default `SizeMode.Single` (LocalSize = provider minimum).
+- Fix: `SizeMode.Exact`, and lay out through `widgetLayoutFor(LocalSize.current, fontScale)` (Step 4): the artwork shows from 339dp, each control sits in an equal `defaultWeight()` cell, and the content is centred only when the reported height holds it plus a corner clearance above and below (ruling P14; the launcher can report less height than it draws), otherwise it fills the card with the bar lifted clear of the corner (`barBottomInset`).
 
 **Widget never updates during playback (but shows the right song when re-added).**
 - Cause: `WidgetPlaybackUpdateHook` isn't contributed (`@Binds @IntoSet` missing), `:app` doesn't depend on `:feature:widget`, or `PlaybackService` never calls `dispatcher.dispatch()`.
@@ -449,7 +490,10 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 - `feature/widget/.../WidgetEntryPoint.kt` — Hilt entry point
 - `feature/widget/.../WidgetModule.kt` — `@Binds` provider + `@Binds @IntoSet` hook
 - `feature/widget/.../WidgetPlaybackUpdateHook.kt` — coalesced `updateAll`
-- `feature/widget/.../MusicWidgetTheme.kt` — `RollaWidgetColors`
+- `feature/widget/.../MusicWidgetTheme.kt` — `RollaWidgetColors` (the widget palette; `res/values/colors.xml` holds the same values, `WidgetPaletteTest` keeps them equal)
+- `feature/widget/.../WidgetLayout.kt` — `widgetLayoutFor`, `widgetArtworkMinWidth()` (339dp), `widgetMinWidth()` (260dp)
+- `feature/widget/src/test/.../MusicWidgetContentTest.kt` — Glance unit tests: controls' order, callbacks and copy
+- `feature/widget/src/test/.../WidgetIconParityTest.kt` — glyph drawables vs `RollaIcons`
 - `feature/widget/src/main/res/xml/music_widget_info.xml` — provider metadata
 - `feature/widget/src/main/AndroidManifest.xml` — receiver registration
 - `:core:media` — `PlaybackStateHolder`, `PlaybackController`, `PlaybackUpdateHook`, `PlaybackUpdateDispatcher`, `PlaybackUpdateModule`
@@ -464,4 +508,4 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 - Coalesce fires (`replay = 1`, `DROP_OLDEST`) to protect battery.
 - Use the widget `GlanceTheme(colors = RollaWidgetColors)` only — request a role mapping from m3-design-system-agent if one is missing.
 - Glance receivers/callbacks can't use constructor injection — use `WidgetEntryPoint` (`EntryPointAccessors`).
-- Visual style per `.claude/rules/ui-style-guide.md` §8.
+- Visual style per spec §13 (`docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`, binding; `.claude/rules/ui-style-guide.md` §8 defers to it). No non-zero size literal in widget Kotlin (sizes come from `RollaDimens`).
