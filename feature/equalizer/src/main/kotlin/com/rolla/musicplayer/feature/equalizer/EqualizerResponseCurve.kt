@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
@@ -46,7 +45,8 @@ private const val CURVE_STROKE_ALPHA = 0.35f
  *
  * Spec §8.5: it is drawn inside the slider card, behind the sliders, as a single [CURVE_STROKE_ALPHA] primary stroke
  * with no fill (the grid and the sliders stay legible through it), and the screen composes it only while a slider is
- * being dragged. The caller sizes it to the slider band (the row of nine sliders, eqSliderLength tall): one point
+ * being dragged. The caller sizes it to the slider band (the row of nine sliders, eqSliderLength + eqThumbDiameter
+ * tall): one point
  * sits on each of the nine equal-width band columns' centers, 0 gain at the vertical center, and the range's extremes
  * at the ends of the thumb's travel (the band length minus one [RollaDimens.eqThumbDiameter]), so every point lies on
  * its slider's thumb at any font scale.
@@ -181,7 +181,6 @@ private fun smoothPath(points: List<Offset>): Path = Path().apply {
 private val PREVIEW_GAINS_MILLIBEL: List<Short> = listOf(300, 150, 0, -100, -150, -50, 100, 250, 400)
 private const val PREVIEW_MIN_GAIN_MILLIBEL: Short = -1500
 private const val PREVIEW_MAX_GAIN_MILLIBEL: Short = 1500
-private val PreviewCurveHeight = 80.dp
 
 @Suppress("UnusedPrivateMember")
 @Preview(name = "Response Curve - Light")
@@ -197,7 +196,8 @@ private fun PreviewEqualizerResponseCurve() {
                 isDragging = false,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(PreviewCurveHeight),
+                    // The height the curve fills on the Equaliser screen: the slider area.
+                    .height(RollaDimens.eqSliderLength),
             )
         }
     }

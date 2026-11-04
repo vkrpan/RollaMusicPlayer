@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +77,20 @@ fun TracksTab(
 }
 
 /**
+ * Prunes ids a rescan removed, so Home's batch "Edit tags" only ever sees known songs. The guard skips the library
+ * before Room's first emission (null) and an empty list until a scan has finished (Done): pruning against either would
+ * wipe a selection restored after process death.
+ */
+@Composable
+private fun PruneRemovedSongs(songs: List<Song>?, scanState: ScanState, selection: SongSelectionState) {
+    LaunchedEffect(songs, scanState) {
+        if (songs != null && (songs.isNotEmpty() || scanState is ScanState.Done)) {
+            selection.retainAll(songs.mapTo(HashSet()) { it.id })
+        }
+    }
+}
+
+/**
  * Stateless Tracks tab content; tests and previews host this. It fills the ContentPanel that Home provides. While
  * [selection] is active a tap toggles the row instead of playing it, and a long press always toggles.
  */
@@ -84,7 +98,7 @@ fun TracksTab(
 @Suppress("LongParameterList")
 @Composable
 internal fun TracksTabContent(
-    songs: List<Song>,
+    songs: List<Song>?,
     scanState: ScanState,
     selection: SongSelectionState,
     userPlaylists: List<Playlist>,
@@ -97,16 +111,13 @@ internal fun TracksTabContent(
     modifier: Modifier = Modifier,
 ) {
     var optionsSheetSong by remember { mutableStateOf<Song?>(null) }
-    // Prune ids a rescan removed, so Home's batch "Edit tags" only ever sees known songs. The guard skips the
-    // ViewModel's initial emptyList() (stateIn's seed, before Room's first emission): pruning against it would wipe a
-    // selection restored after process death. An empty list counts only once a scan has finished (Done).
-    LaunchedEffect(songs, scanState) {
-        if (songs.isNotEmpty() || scanState is ScanState.Done) selection.retainAll(songs.mapTo(HashSet()) { it.id })
-    }
+    PruneRemovedSongs(songs = songs, scanState = scanState, selection = selection)
     Column(modifier = modifier.fillMaxSize()) {
-        TracksSortHeader(enabled = songs.isNotEmpty(), onShuffleClick = onShuffleClick, onPlayClick = onPlayClick)
+        TracksSortHeader(enabled = !songs.isNullOrEmpty(), onShuffleClick = onShuffleClick, onPlayClick = onPlayClick)
         when {
             scanState is ScanState.Scanning -> TabScanning()
+            // Not loaded yet (cold start): show nothing rather than flash the empty state (Phase 7, 6a deferral).
+            songs == null -> Unit
             songs.isEmpty() -> TabMessage("No music found on this device")
             else -> SongList(
                 songs = songs,
@@ -124,7 +135,7 @@ internal fun TracksTabContent(
         onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
         onEditTagsClick = onEditTagsClick,
         // The list the rows render, so the sheet closes when its track leaves it (ruling 10, controller ruling P6).
-        currentSongs = songs,
+        currentSongs = songs.orEmpty(),
     )
 }
 
@@ -180,7 +191,7 @@ private fun SongList(
             modifier = Modifier.fillMaxSize().testTag(SONG_LIST_TEST_TAG),
             contentPadding = PaddingValues(bottom = bottomPadding),
         ) {
-            items(items = songs, key = { song -> song.id }) { song ->
+            itemsIndexed(items = songs, key = { _, song -> song.id }) { index, song ->
                 val isSelected by remember(song.id, selection) { derivedStateOf { selection.isSelected(song.id) } }
                 SongListItem(
                     song = song,
@@ -189,6 +200,8 @@ private fun SongList(
                     selected = isSelected,
                     selectionModeActive = selectionActive,
                     onLongClick = { selection.toggle(song.id) },
+                    // No hairline under the list's last row (Phase 7 calibration).
+                    showDivider = index < songs.lastIndex,
                 )
             }
         }

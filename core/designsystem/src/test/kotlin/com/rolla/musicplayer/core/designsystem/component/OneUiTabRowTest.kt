@@ -73,6 +73,9 @@ private const val SWIPE_STEP_PX = 30f
 // Long enough for a pressed ripple to finish spreading and hold.
 private const val RIPPLE_SETTLE_MS = 1_000L
 
+// How far a measured pill edge or size may sit from its expected value (assertDpEquals).
+private val PILL_TOLERANCE = 1.dp
+
 @RunWith(AndroidJUnit4::class)
 @Config(sdk = [34])
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -251,8 +254,15 @@ class OneUiTabRowTest {
         setTabRow(LayoutDirection.Ltr) {}
         val row = tabRow().getUnclippedBoundsInRoot()
         val labelHeight = textLayout("Tracks").size.height.pxToDp() + RollaDimens.tabLabelVerticalPadding * 2
-        // Precondition: the label is shorter than the row, so a full-height pill would show.
-        assertTrue("label $labelHeight fills the row", labelHeight < row.bottom - row.top - 2.dp)
+        // Precondition: a full-height pill must be distinguishable from a label-height one. The label (tabSelected line
+        // + 2 × RollaDimens.tabLabelVerticalPadding) must sit at least 2 × PILL_TOLERANCE below the row's height
+        // (RollaDimens.tabRowHeight); otherwise the pill-height assertion below would accept either pill. Since the
+        // 2026-10-31 calibration this is exactly at the bound: 46 + 2 × 1 ≤ 48 dp (Phase 7 ruling P17).
+        val rowHeight = row.bottom - row.top
+        assertTrue(
+            "label $labelHeight + 2 × $PILL_TOLERANCE fits the row $rowHeight",
+            labelHeight + PILL_TOLERANCE * 2 <= rowHeight,
+        )
         // The current tab and a scaled neighbour: the pill follows each slot, scaled or not.
         for (title in listOf("Tracks", "Albums")) {
             val slot = composeRule.onNodeWithText(title).getUnclippedBoundsInRoot()
@@ -358,7 +368,7 @@ class OneUiTabRowTest {
     )
 
     private fun assertDpEquals(message: String, expected: Dp, actual: Dp) =
-        assertTrue("$message: expected $expected, was $actual", abs((expected - actual).value) <= 1f)
+        assertTrue("$message: expected $expected, was $actual", abs((expected - actual).value) <= PILL_TOLERANCE.value)
 
     private fun setTabRow(layoutDirection: LayoutDirection, onTabClick: (Int) -> Unit) {
         composeRule.setContent {

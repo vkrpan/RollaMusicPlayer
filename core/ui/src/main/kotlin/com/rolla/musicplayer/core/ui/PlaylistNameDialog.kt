@@ -3,7 +3,6 @@
 package com.rolla.musicplayer.core.ui
 
 import android.content.res.Configuration
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -12,15 +11,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialogField
 import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
-import com.rolla.musicplayer.core.designsystem.component.OneUiTextField
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 
 /**
  * The One UI dialog for capturing a playlist name (spec §8.7), reused by the "create playlist" and "rename playlist"
  * flows and by the add-to-playlist sheet's "New playlist" entry. Carries no ViewModel/repository knowledge: the caller
  * supplies the dialog copy and decides what happens with the trimmed name. Both buttons are accentText
- * [OneUiTextButton]s, and the field sits one container step above the dialog's surfaceContainerHigh.
+ * [OneUiTextButton]s, and the field is the kit's [OneUiDialogField] (focused on show, dialogFieldContainer).
  *
  * The caller is responsible for dismissing the dialog after [onConfirm] fires (e.g. by flipping
  * a `showDialog` flag to false) — this composable does not call [onDismiss] on confirm itself,
@@ -45,12 +44,7 @@ fun PlaylistNameDialog(
         },
         dismissButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         text = {
-            OneUiTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "Playlist name",
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            )
+            OneUiDialogField(value = name, onValueChange = { name = it }, label = "Playlist name")
         },
         modifier = modifier,
     )

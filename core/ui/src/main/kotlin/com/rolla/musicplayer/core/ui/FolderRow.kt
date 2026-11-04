@@ -20,15 +20,16 @@ import com.rolla.musicplayer.core.model.folderDisplayPath
 /**
  * Model-aware row for a [Folder] (spec §8.1): the folder's first-song art (or a note placeholder) with a FolderBadge
  * in its bottom-end corner, the folder name, and its display path ("/Internal storage/Music"). The anatomy is
- * [ListRowScaffold]'s; [onClick] opens the folder.
+ * [ListRowScaffold]'s; [onClick] opens the folder. The list passes [showDivider] = false for its last row.
  */
 @Composable
-fun FolderRow(folder: Folder, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun FolderRow(folder: Folder, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
     ListRowScaffold(
         title = folder.name,
         subtitle = folderDisplayPath(folder.path),
         onClick = onClick,
         modifier = modifier,
+        showDivider = showDivider,
     ) {
         Box {
             // Decorative within the merged row: the row's texts already name the folder.

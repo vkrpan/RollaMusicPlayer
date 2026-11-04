@@ -2,6 +2,7 @@ package com.rolla.musicplayer.feature.playlists
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -23,6 +24,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.component.FAST_SCROLL_RAIL_TEST_TAG
+import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
+import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Playlist
@@ -129,8 +132,9 @@ class PlaylistsTabTest {
         assertEquals(listOf("playlist:7"), events)
     }
 
-    // Spec §10: the rail covers the user rows only, so the jump skips the feature-card row. Mutation: itemOffset = 0 →
-    // "Alpha 19" at the top and "Mango 0" one row lower → RED. Control: "Jump to M" exists.
+    // Spec §10: the rail covers the user rows only, so the jump skips the feature-card row. Mutations: itemOffset = 0 →
+    // "Alpha 19" at the top and "Mango 0" one row lower → RED; sections built from the smart playlists' labels (Phase 7
+    // mutation-T6-7) → no "Jump to M" among [Jump to R] → RED. Control: "Jump to M" exists.
     @Test
     fun `the rail jumps over the feature cards to a playlist`() {
         setTab(userPlaylists = alphaMangoPlaylists())
@@ -184,18 +188,73 @@ class PlaylistsTabTest {
         )
     }
 
-    // No user playlists: only the cards and the hint, no rail. Mutation: build sections from the smart playlists'
-    // labels → a rail appears → RED. Control (ruling P3): with the 40 user playlists the rail appears ("never render"
-    // → RED there). The host is short (a landscape phone), so the cards and the hint alone overflow and the list can
-    // scroll: at full height they fit, the container's canScroll gate hides any rail, and the mutant survived.
+    // Phase 7 Task 6 (fix round 1, option b). What this test proves: the rail appears when the first user playlists
+    // arrive in a tab that had none. Mutation: always hide (`sections = emptyList()`) → the final assertExists → RED
+    // (mutation-T6-9). The absence half on the full 640 dp screen is guarded by the container's scroll gate (the cards
+    // and the hint fit) as well as by the empty sections, so no single mutation turns it RED; it is a precondition
+    // here.
+    // The Phase 5 240 dp host, where the empty list scrolled, now hides the rail for 40 playlists too (the space below
+    // the cards is under fastScrollMinRailHeight). Its mutant, sections built from the smart playlists' labels, is RED
+    // in `the rail jumps over the feature cards to a playlist` instead.
     @Test
-    fun `no user playlists means no rail`() {
+    fun `the rail appears when the first user playlists arrive`() {
         var playlists by mutableStateOf(emptyList<Playlist>())
-        setTab(userPlaylistsProvider = { playlists }, hostHeight = SHORT_HOST_HEIGHT)
+        setTab(userPlaylistsProvider = { playlists })
         composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertDoesNotExist()
         playlists = alphaMangoPlaylists()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertExists()
+    }
+
+    // Phase 7 Task 6 (Phase 5 T5 fix 1). The rail runs from the feature cards' bottom to the pill. When that space is
+    // shorter than fastScrollMinRailHeight (a short or landscape screen), the rail is hidden instead of squeezed into a
+    // sliver. The host height is set from the measured card row: the space is 4 dp more than the minimum (rail shown),
+    // then 4 dp less (rail hidden). The pill's inset is in force, so the space excludes it. Mutations: no height check
+    // → the rail stays → RED; the check without the bottom padding (152 dp of space) → the rail stays → RED. Control:
+    // with 4 dp to spare the rail exists, which catches "always hide".
+    @Test
+    fun `the rail hides when the space below the feature cards is shorter than the minimum rail`() {
+        var hostHeight by mutableStateOf<Dp?>(null)
+        var railBottomPadding = 0.dp
+        setTabWithPill(hostHeight = { hostHeight }, onRailBottomPadding = { railBottomPadding = it })
+        val cardsBottom = composeRule.onNodeWithTag(FEATURE_CARD_ROW_TEST_TAG).getUnclippedBoundsInRoot().bottom
+        assertTrue("the pill's inset is in force ($railBottomPadding)", railBottomPadding >= PILL_INSET)
+        val fits = cardsBottom + railBottomPadding + RollaDimens.fastScrollMinRailHeight
+
+        hostHeight = fits + 4.dp
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertExists(
+            "control: with 4 dp more than the minimum rail below the cards, the rail shows",
+        )
+
+        hostHeight = fits - 4.dp
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(FAST_SCROLL_RAIL_TEST_TAG).assertDoesNotExist()
+    }
+
+    /**
+     * The tab with 40 user playlists and the pill's inset in force, in a host of [hostHeight] (null: the full screen,
+     * read inside the composition so a test can change it). Reports the rail's bottom padding as composed.
+     */
+    private fun setTabWithPill(hostHeight: () -> Dp?, onRailBottomPadding: (Dp) -> Unit) {
+        composeRule.setContent {
+            CompositionLocalProvider(LocalMiniPlayerInset provides PILL_INSET) {
+                onRailBottomPadding(homeListBottomPadding())
+                RollaMusicPlayerTheme(darkTheme = true) {
+                    Box(hostHeight()?.let { Modifier.height(it) } ?: Modifier) {
+                        PlaylistsTabContent(
+                            smartPlaylists = summaries,
+                            userPlaylists = alphaMangoPlaylists(),
+                            showCreateDialog = false,
+                            onDismissCreateDialog = {},
+                            onCreatePlaylist = {},
+                            onPlaylistClick = {},
+                            onSmartPlaylistClick = {},
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun jumpTo(label: String) {
@@ -218,25 +277,22 @@ class PlaylistsTabTest {
         showCreateDialog: Boolean = false,
         // Read inside the composition, so a test can change the user playlists after setContent.
         userPlaylistsProvider: () -> List<Playlist> = { userPlaylists },
-        hostHeight: Dp? = null,
     ) {
         this.showCreateDialog = showCreateDialog
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
-                Box(if (hostHeight != null) Modifier.height(hostHeight) else Modifier) {
-                    PlaylistsTabContent(
-                        smartPlaylists = summaries,
-                        userPlaylists = userPlaylistsProvider(),
-                        showCreateDialog = this@PlaylistsTabTest.showCreateDialog,
-                        onDismissCreateDialog = {
-                            events += "dismiss"
-                            this@PlaylistsTabTest.showCreateDialog = false
-                        },
-                        onCreatePlaylist = { name -> events += "create:$name" },
-                        onPlaylistClick = { id -> events += "playlist:$id" },
-                        onSmartPlaylistClick = { kind -> events += "smart:${kind.name}" },
-                    )
-                }
+                PlaylistsTabContent(
+                    smartPlaylists = summaries,
+                    userPlaylists = userPlaylistsProvider(),
+                    showCreateDialog = this@PlaylistsTabTest.showCreateDialog,
+                    onDismissCreateDialog = {
+                        events += "dismiss"
+                        this@PlaylistsTabTest.showCreateDialog = false
+                    },
+                    onCreatePlaylist = { name -> events += "create:$name" },
+                    onPlaylistClick = { id -> events += "playlist:$id" },
+                    onSmartPlaylistClick = { kind -> events += "smart:${kind.name}" },
+                )
             }
         }
     }
@@ -247,8 +303,8 @@ class PlaylistsTabTest {
         const val SUMMARY_COUNT = 4
         val TOLERANCE = 0.5.dp
 
-        // Shorter than the sort header, the feature-card row and the empty hint together, so the empty list scrolls.
-        val SHORT_HOST_HEIGHT = 240.dp
+        // The mini-player pill's footprint (RollaDimens.miniPlayerHeight), as the Home shell provides it.
+        val PILL_INSET = RollaDimens.miniPlayerHeight
 
         // Counts 1..4 in spec order; empty art so the cards render placeholders and Coil never loads.
         val summaries = listOf(

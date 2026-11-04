@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher label (Phase 7 ruling 4): every user-visible name is "Rolla Music" (spec §2). -->
+    <string name="app_name">Rolla Music</string>
+</resources>

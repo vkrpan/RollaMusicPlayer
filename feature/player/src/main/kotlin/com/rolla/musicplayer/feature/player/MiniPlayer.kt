@@ -54,6 +54,7 @@ import com.rolla.musicplayer.core.designsystem.theme.miniPlayerContainer
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerSubtitle
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerTitle
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 
 internal const val MINI_PLAYER_ART_TAG = "mini_player_art"
 
@@ -122,7 +123,7 @@ fun MiniPlayer(
             // RecentSearchesSection.kt's RecentSearchRow for the same idiom without nested actions).
             // The wording is the :baselineprofile contract; do not change it.
             .semantics(mergeDescendants = true) {
-                contentDescription = "Now playing: ${song.title} by ${song.artist}. Open player."
+                contentDescription = "Now playing: ${song.title} by ${artistDisplayName(song.artist)}. Open player."
             }
             .padding(start = RollaDimens.miniPlayerArtStart, end = RollaDimens.miniPlayerEnd),
         verticalAlignment = Alignment.CenterVertically,
@@ -134,7 +135,7 @@ fun MiniPlayer(
             modifier = Modifier.size(RollaDimens.miniPlayerArt).testTag(MINI_PLAYER_ART_TAG),
         )
         Spacer(modifier = Modifier.width(RollaDimens.miniPlayerArtTextGap))
-        MiniPlayerInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
+        MiniPlayerInfo(title = song.title, artist = artistDisplayName(song.artist), modifier = Modifier.weight(1f))
         MiniPlayerControls(
             isPlaying = isPlaying,
             onPrevious = onPrevious,
@@ -216,12 +217,13 @@ private fun MiniPlayerArtwork(
                 modifier = Modifier.fillMaxSize(),
                 onState = { state -> showPlaceholder = artworkUri.isEmpty() || state is AsyncImagePainter.State.Error },
             )
-            if (artworkUri.isEmpty()) {
+            // The note belongs to the grey disc: it shows whenever the disc does, after a failed load too (Phase 7).
+            if (showPlaceholder) {
                 Icon(
                     imageVector = RollaIcons.MusicNote,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.miniPlayerArtGlyph,
-                    modifier = Modifier.size(RollaDimens.placeholderGlyph),
+                    modifier = Modifier.size(RollaDimens.miniPlayerArtGlyph),
                 )
             }
         }
@@ -237,15 +239,22 @@ private fun MiniPlayerControls(
     onQueue: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // OneUiIconButton defaults: a 24 dp glyph in a 48 dp touch target, tinted onSurface.
+    // OneUiIconButton defaults: a 24 dp glyph in a 48 dp touch target, tinted onSurface. Play and Queue draw smaller
+    // on the reference, so they take the compact icon box (Phase 7 calibration); previous and next keep iconSize.
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         OneUiIconButton(icon = RollaIcons.SkipPrevious, contentDescription = "Previous track", onClick = onPrevious)
         OneUiIconButton(
             icon = if (isPlaying) RollaIcons.Pause else RollaIcons.Play,
             contentDescription = if (isPlaying) "Pause" else "Play",
             onClick = onTogglePlayPause,
+            iconSize = RollaDimens.miniTransportCompactIcon,
         )
         OneUiIconButton(icon = RollaIcons.SkipNext, contentDescription = "Next track", onClick = onNext)
-        OneUiIconButton(icon = RollaIcons.Queue, contentDescription = "Queue", onClick = onQueue)
+        OneUiIconButton(
+            icon = RollaIcons.Queue,
+            contentDescription = "Queue",
+            onClick = onQueue,
+            iconSize = RollaDimens.miniTransportCompactIcon,
+        )
     }
 }

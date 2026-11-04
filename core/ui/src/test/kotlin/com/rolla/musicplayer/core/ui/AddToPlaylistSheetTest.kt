@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.assertCountEquals
@@ -14,6 +17,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onParent
 import androidx.compose.ui.unit.Dp
@@ -22,9 +26,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Playlist
+import com.rolla.musicplayer.core.testing.drawLatestDialog
 import com.rolla.musicplayer.core.testing.drawRoot
 import com.rolla.musicplayer.core.testing.isColorNear
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -101,6 +107,54 @@ class AddToPlaylistSheetTest {
         assertTrue("sheet row divider mid-row", isColorNear(divider, pixel(HOST_WIDTH / 2, 1)))
         assertTrue("rail row divider stops before the rail", isColorNear(background, pixel(railStripX, 0)))
         assertTrue("sheet row divider runs to the row's end", isColorNear(divider, pixel(railStripX, 1)))
+    }
+
+    // Phase 7 calibration (fix round 1): "New playlist" draws its hairline only when a playlist follows it; alone it is
+    // the list's last row. One composition: the sheet first holds a playlist (divider present), then none (absent).
+    // Present: the hairline's centre row under the New playlist row, 40 dp along it, is the divider colour (rendered,
+    // 3 px/dp). Absent: the entry ends at its row (nothing is laid out under it), and no divider pixel is under it. The
+    // sheet hugs the screen bottom, so the absent probe may fall below the window, where nothing can be drawn.
+    // Trivial stub (never draw it) → RED on the first assertion. Mutation: always draw it (the old entry) → RED.
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-xxhdpi")
+    fun newPlaylistEntryDrawsItsDividerOnlyAbovePlaylists() {
+        var divider = Color.Unspecified
+        var playlists by mutableStateOf(listOf(playlist(1L, "Workout")))
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                divider = MaterialTheme.colorScheme.outlineVariant
+                AddToPlaylistSheet(
+                    playlists = playlists,
+                    onPlaylistSelected = {},
+                    onCreateNewPlaylist = {},
+                    onDismissRequest = {},
+                )
+            }
+        }
+        val present = newPlaylistHairlinePixel()
+        assertTrue(
+            "with a playlist below, New playlist has its divider: ${present?.let(Integer::toHexString)}",
+            present != null && isColorNear(divider, present),
+        )
+        composeRule.runOnIdle { playlists = emptyList() }
+        val entry = composeRule.onNodeWithTag(NEW_PLAYLIST_ENTRY_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
+        entry.bottom.assertIsEqualTo(newPlaylistRow().bottom, "alone, the entry ends at its row", 0.5.dp)
+        val pixel = newPlaylistHairlinePixel()
+        assertFalse("alone, New playlist has no divider", pixel != null && isColorNear(divider, pixel))
+    }
+
+    private fun newPlaylistRow() =
+        composeRule.onNodeWithText("New playlist", useUnmergedTree = true).onParent().getUnclippedBoundsInRoot()
+
+    /** The hairline's centre-row pixel under the New playlist row, or null when that row is below the window. */
+    private fun newPlaylistHairlinePixel(): Int? {
+        val bitmap = composeRule.drawLatestDialog()
+        val row = newPlaylistRow()
+        return with(composeRule.density) {
+            val x = (row.left + RollaDimens.listTextStart + 40.dp).roundToPx()
+            val y = (row.bottom + RollaDimens.dividerThickness / 2).toPx().toInt()
+            if (y < bitmap.height) bitmap.getPixel(x, y) else null
+        }
     }
 
     private fun setSheet(playlists: List<Playlist>) {

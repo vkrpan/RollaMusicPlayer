@@ -41,6 +41,8 @@ internal data class RollaPalette(
     val onSurface: Color,
     val surfaceVariant: Color,
     val onSurfaceVariant: Color,
+    val labelSecondary: Color,
+    val eqCaption: Color,
     val surfaceContainerLowest: Color,
     val surfaceContainerLow: Color,
     val surfaceContainer: Color,
@@ -61,6 +63,8 @@ internal data class RollaPalette(
     val artworkPlaceholder: Color,
     val artworkPlaceholderLarge: Color,
     val artworkPlaceholderGlyph: Color,
+    val sheetArtworkPlaceholder: Color,
+    val dialogFieldContainer: Color,
     val folderBadgeStroke: Color,
     val folderBadgeFill: Color,
     val miniPlayerContainer: Color,
@@ -75,16 +79,23 @@ internal data class RollaPalette(
     val nowPlayingGradient: NowPlayingGradient,
 )
 
+// Dark sheets and dialogs keep the plain placeholder and the field one step above the dialog; declared once so the
+// pairs cannot drift apart (Phase 7 F2).
+private val DarkArtworkPlaceholder = Color(0xFF454547)
+private val DarkSurfaceContainerHighest = Color(0xFF333333)
+
 internal val DarkPalette = RollaPalette(
     background = Color(0xFF000000),
     onSurface = Color(0xFFFCFCFE),
     surfaceVariant = Color(0xFF2D2D2F),
     onSurfaceVariant = Color(0xFF9B9B9D),
+    labelSecondary = Color(0xFFA4A4A6), // calibrated 2026-10-31 (measured #A4A3A9): 7.19:1 on surfaceContainer
+    eqCaption = Color(0xFFE6E6E6), // calibrated 2026-10-31 (measured #E6E6E6): 16.83:1 on background
     surfaceContainerLowest = Color(0xFF000000),
     surfaceContainerLow = Color(0xFF0F0F10),
     surfaceContainer = Color(0xFF171719),
     surfaceContainerHigh = Color(0xFF2D2D2F),
-    surfaceContainerHighest = Color(0xFF333333),
+    surfaceContainerHighest = DarkSurfaceContainerHighest,
     primary = Color(0xFF2F6FF0),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFF1E3A66),
@@ -97,15 +108,17 @@ internal val DarkPalette = RollaPalette(
     accentText = Color(0xFF6094FF),
     destructiveText = Color(0xFFFF6060), // error #FF5A5A is only 4.49:1 on surfaceContainerHigh; this is 4.64:1
     tabUnselected = Color(0xFF7E7E80),
-    artworkPlaceholder = Color(0xFF454547),
+    artworkPlaceholder = DarkArtworkPlaceholder,
     artworkPlaceholderLarge = Color(0xFF3B3B3B),
     artworkPlaceholderGlyph = Color(0xFFFCFCFE),
+    sheetArtworkPlaceholder = DarkArtworkPlaceholder,
+    dialogFieldContainer = DarkSurfaceContainerHighest,
     // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
     folderBadgeStroke = Color(0xFFFFFFFF),
     // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
     folderBadgeFill = Color(0xFF000000),
     miniPlayerContainer = Color(0xFF282035),
-    miniPlayerArtPlaceholder = Color(0x2EFFFFFF), // white @ 18 % over the pill = #4F4859 (measured #504C5A)
+    miniPlayerArtPlaceholder = Color(0xFF504C5A), // calibrated 2026-10-31: the measured #504C5A, opaque
     miniPlayerArtGlyph = Color(0xFFFCFCFE),
     sliderInactiveTrack = Color(0xFF646466),
     switchThumb = Color(0xFFFCFCFE),
@@ -114,18 +127,25 @@ internal val DarkPalette = RollaPalette(
     seekTrackActive = Color(0xFFFCFCFE),
     seekTrackInactive = Color(0x5EFFFFFF), // white @ 37 %: lowest whole % reaching 3.1:1 on middle and washEnd
     nowPlayingGradient = NowPlayingGradient(
-        top = Color(0xFF000000),
+        top = Color(0xFF080808), // calibrated 2026-10-31 (measured #080808 just below the status bar)
         middle = Color(0xFF120F16),
         washStart = Color(0xFF231C2C),
         washEnd = Color(0xFF293332),
     ),
 )
 
+// Light onSurface and onSurfaceVariant, declared once: light eqCaption and labelSecondary have no light reference and
+// reuse them (Phase 7 ruling P13), so the pairs cannot drift apart.
+private val LightOnSurface = Color(0xFF111113)
+private val LightOnSurfaceVariant = Color(0xFF646467)
+
 internal val LightPalette = RollaPalette(
     background = Color(0xFFF4F4F6),
-    onSurface = Color(0xFF111113),
+    onSurface = LightOnSurface,
     surfaceVariant = Color(0xFFE8E8EA),
-    onSurfaceVariant = Color(0xFF646467),
+    onSurfaceVariant = LightOnSurfaceVariant,
+    labelSecondary = LightOnSurfaceVariant, // no light reference (5.90:1 on white)
+    eqCaption = LightOnSurface, // no light reference (17.17:1 on background)
     surfaceContainerLowest = Color(0xFFFFFFFF),
     surfaceContainerLow = Color(0xFFFAFAFB),
     surfaceContainer = Color(0xFFFFFFFF),
@@ -146,6 +166,11 @@ internal val LightPalette = RollaPalette(
     artworkPlaceholder = Color(0xFFE6E6E8),
     artworkPlaceholderLarge = Color(0xFFE9E9EB),
     artworkPlaceholderGlyph = Color(0xFF7A7A7E),
+    // Phase 7 F2: #E6E6E8 on the #E8E8EA sheet is 1.02:1; white is 1.22:1 and its glyph 4.27:1 (a grey #D5D5D8 gives
+    // only 1.20:1 and a 2.92:1 glyph).
+    sheetArtworkPlaceholder = Color(0xFFFFFFFF),
+    // Phase 7 F2: surfaceContainerHighest #EBEBED on the #E8E8EA dialog is 1.02:1; white is 1.22:1.
+    dialogFieldContainer = Color(0xFFFFFFFF),
     // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
     folderBadgeStroke = Color(0xFFFFFFFF),
     // On artwork, not a theme surface: the same in both themes (reference: white outline over black).
@@ -223,6 +248,23 @@ val ColorScheme.destructiveText: Color
     @Composable @ReadOnlyComposable
     get() = currentPalette.destructiveText
 
+/**
+ * Secondary labels on the content panel and the EQ card, where the reference is a touch lighter than
+ * onSurfaceVariant: the sort label ("Name") and the EQ band value and frequency labels. Dark #A4A4A6 (7.19:1 on
+ * surfaceContainer); light = light onSurfaceVariant. Usage: `color = MaterialTheme.colorScheme.labelSecondary`.
+ */
+val ColorScheme.labelSecondary: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.labelSecondary
+
+/**
+ * The EQ preset description under the chip grid, on the screen background. Dark #E6E6E6 (16.83:1 on background), a
+ * softer white than onSurface; light = light onSurface. Usage: `color = MaterialTheme.colorScheme.eqCaption`.
+ */
+val ColorScheme.eqCaption: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.eqCaption
+
 val ColorScheme.tabUnselected: Color
     @Composable @ReadOnlyComposable
     get() = currentPalette.tabUnselected
@@ -238,6 +280,16 @@ val ColorScheme.artworkPlaceholderLarge: Color
 val ColorScheme.artworkPlaceholderGlyph: Color
     @Composable @ReadOnlyComposable
     get() = currentPalette.artworkPlaceholderGlyph
+
+/** The artwork placeholder inside a sheet or dialog (ArtworkPlaceholder picks it there); light is white (F2). */
+val ColorScheme.sheetArtworkPlaceholder: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.sheetArtworkPlaceholder
+
+/** A text field's container inside a dialog: one step above the dialog in dark, white in light (Phase 7 F2). */
+val ColorScheme.dialogFieldContainer: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.dialogFieldContainer
 
 /** The folder badge's outline (FolderBadge). It sits on artwork, so it is white in both themes. */
 val ColorScheme.folderBadgeStroke: Color

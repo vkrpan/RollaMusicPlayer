@@ -29,10 +29,12 @@ private const val VERTICAL_ROTATION_DEGREES = 270f
  * [contentDescription] must name the band ("40 Hz gain"); without it, TalkBack announces all nine bands identically.
  * When disabled (the EQ is off) it renders at [DISABLED_CONTENT_ALPHA] (spec §8.5) and ignores input.
  *
- * The caller must bound the height (the band length, [RollaDimens.eqSliderLength]); under unbounded height, for
- * example inside verticalScroll, the slider collapses. The width is the column the caller gives it
- * ([RollaDimens.eqColumnPitch]). Direct hits land only on M3's content height, a band centered in that column, and
- * Compose's minimum-touch-target extension fills the column to its width. That is an accepted exception below
+ * The caller must bound the height; under unbounded height, for example inside verticalScroll, the slider collapses.
+ * M3 insets the track by half the thumb at each end, so the drawn track is the height minus
+ * [RollaDimens.eqThumbDiameter]: pass [RollaDimens.eqSliderLength] + [RollaDimens.eqThumbDiameter] to draw the full
+ * measured track (Phase 7). The width is the column the caller gives it (at least [RollaDimens.eqColumnPitch], Phase 7
+ * ruling P12). Direct hits land only on M3's content height, a band centered in that column, and Compose's
+ * minimum-touch-target extension fills the column to its width. That is an accepted exception below
  * [RollaDimens.minTouchTarget] (spec §5.4).
  *
  * The layout is pinned to LTR so RTL mirroring can't flip the band upside down. The pin also applies to [modifier],

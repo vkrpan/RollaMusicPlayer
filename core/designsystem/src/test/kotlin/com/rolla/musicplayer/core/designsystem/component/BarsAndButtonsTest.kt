@@ -3,9 +3,12 @@ package com.rolla.musicplayer.core.designsystem.component
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertHasClickAction
@@ -23,13 +26,17 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.labelSecondary
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -194,10 +201,16 @@ class BarsAndButtonsTest {
         assertEquals(1, searches)
     }
 
+    // The label is labelSecondary, a touch lighter than the glyph's onSurfaceVariant (Phase 7 ruling P13). Control: the
+    // two differ in the dark theme, so the colour check can fail. Mutation: label colour = onSurfaceVariant → RED.
     @Test
     fun sortHeaderShowsLabelAndTrailingContent() {
+        var labelSecondary = Color.Unspecified
+        var onSurfaceVariant = Color.Unspecified
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
+                labelSecondary = MaterialTheme.colorScheme.labelSecondary
+                onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
                 ContentPanel {
                     SortHeader(label = "Name") { Text("trailing") }
                 }
@@ -205,5 +218,9 @@ class BarsAndButtonsTest {
         }
         composeRule.onNodeWithText("Name").assertIsDisplayed()
         composeRule.onNodeWithText("trailing").assertIsDisplayed()
+        assertNotEquals("control: labelSecondary differs from onSurfaceVariant", onSurfaceVariant, labelSecondary)
+        val layouts = mutableListOf<TextLayoutResult>()
+        composeRule.onNodeWithText("Name").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals("sort label colour", labelSecondary, layouts.single().layoutInput.style.color)
     }
 }

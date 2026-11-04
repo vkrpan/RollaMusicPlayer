@@ -501,6 +501,8 @@ private fun PlaylistSongList(
                 song = song,
                 onClick = { onSongClick(song) },
                 onMoreClick = { onMoreClick(song) },
+                // No hairline under the list's last row (Phase 7 calibration).
+                showDivider = index < orderedSongs.lastIndex,
                 modifier = Modifier
                     .graphicsLayer {
                         scaleX = liftScale.value

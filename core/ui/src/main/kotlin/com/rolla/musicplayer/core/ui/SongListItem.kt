@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
+import com.rolla.musicplayer.core.designsystem.component.OneUiCheckbox
 import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
@@ -38,11 +37,12 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
  * A single song row (spec §8.1). [onLongClick] and [selectionModeActive] together drive library-style
  * multi-select: a long press is the caller cue to enter selection mode (see TracksTab / SongSelectionState),
- * [selectionModeActive] then swaps the trailing "more options" icon for a [Checkbox] mirroring
+ * [selectionModeActive] then swaps the trailing "more options" icon for a [OneUiCheckbox] mirroring
  * [selected] on every row (not just the one that started the gesture), and [onClick] is left to the
  * caller to redefine as "toggle selection" for as long as selection mode stays active. All three
  * parameters default to their single-song, non-selectable behavior.
@@ -66,8 +66,10 @@ fun SongListItem(
     selected: Boolean = false,
     selectionModeActive: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    showDivider: Boolean = true,
 ) {
-    // The hairline overlays the row's bottom edge so the row pitch stays exactly listRowHeight.
+    // The hairline overlays the row's bottom edge so the row pitch stays exactly listRowHeight. The list passes
+    // showDivider = false for its last row: One UI draws no line under a list's last row (Phase 7 calibration).
     Box(modifier = modifier) {
         SongListItemContent(
             song = song,
@@ -78,11 +80,13 @@ fun SongListItem(
             selectionModeActive = selectionModeActive,
             onLongClick = onLongClick,
         )
-        InsetDivider(
-            startInset = RollaDimens.listTextStart,
-            endInset = RollaDimens.listDividerEnd,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
+        if (showDivider) {
+            InsetDivider(
+                startInset = RollaDimens.listTextStart,
+                endInset = RollaDimens.listDividerEnd,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+        }
     }
 }
 
@@ -113,7 +117,7 @@ private fun SongListItemContent(
         Spacer(modifier = Modifier.width(RollaDimens.listThumbStart))
         SongItemLeading(song = song, trackNumber = trackNumber)
         Spacer(modifier = Modifier.width(RollaDimens.listThumbTextGap))
-        SongInfo(title = song.title, artist = song.artist, modifier = Modifier.weight(1f))
+        SongInfo(title = song.title, artist = artistDisplayName(song.artist), modifier = Modifier.weight(1f))
         SongItemTrailing(
             selectionModeActive = selectionModeActive,
             selected = selected,
@@ -138,7 +142,7 @@ private fun Modifier.selectionSemantics(selectionModeActive: Boolean, selected: 
         this
     }
 
-/** Trailing slot: a selection [Checkbox] while [selectionModeActive], else the usual more-options button. */
+/** Trailing slot: a selection [OneUiCheckbox] while [selectionModeActive], else the usual more-options button. */
 @Composable
 private fun SongItemTrailing(
     selectionModeActive: Boolean,
@@ -171,15 +175,7 @@ private fun SelectionCheckbox(selected: Boolean) {
         modifier = Modifier.size(RollaDimens.minTouchTarget).testTag(SONG_SELECTION_CHECKBOX_TAG),
         contentAlignment = Alignment.Center,
     ) {
-        Checkbox(
-            checked = selected,
-            onCheckedChange = null,
-            colors = CheckboxDefaults.colors(
-                checkedColor = MaterialTheme.colorScheme.primary,
-                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                checkmarkColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        )
+        OneUiCheckbox(checked = selected, onCheckedChange = null)
     }
 }
 

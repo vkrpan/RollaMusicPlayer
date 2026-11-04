@@ -11,8 +11,8 @@ import androidx.compose.ui.draw.clip
 import com.rolla.musicplayer.core.designsystem.theme.panelTop
 
 /**
- * The edge-to-edge surfaceContainer panel that holds each tab's content. Its top corners are rounded, and it runs to
- * the bottom of the screen (spec §7.2).
+ * The edge-to-edge surfaceContainer panel that holds each tab's content. Its top corners are rounded, and it fills the
+ * space its caller gives it: on Home that ends at the navigation bar's top (spec §7.2, Phase 7 ruling P22).
  */
 @Composable
 fun ContentPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

@@ -11,7 +11,13 @@ class TokenInvariantsTest {
     fun chipRowsLeaveRoomForFullTouchTargets() {
         // Each chip's 48 dp touch target must not overlap the next row's. This also guards chipRowLayoutGap: if it
         // fails, that token's clamp to 0 dp silently renders the chip rows further apart than measured.
-        assertTrue(RollaDimens.chipHeight + RollaDimens.chipGap >= RollaDimens.minTouchTarget)
+        // chipRowLayoutGap derives from chipRowGap since the 2026-10-31 calibration (rows 14 dp apart; columns stay
+        // chipGap apart).
+        // Mutation: chipRowGap = 7.dp (40 + 7 < 48) → RED.
+        assertTrue(
+            "chip rows ${RollaDimens.chipHeight + RollaDimens.chipRowGap} apart leave room for 48 dp touch targets",
+            RollaDimens.chipHeight + RollaDimens.chipRowGap >= RollaDimens.minTouchTarget,
+        )
     }
 
     @Test

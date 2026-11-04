@@ -143,6 +143,20 @@ class TracksTabTest {
         assertEquals("No tap in selection mode may play a song", 0, songClicks)
     }
 
+    // Phase 7 (6a deferral): before the library's first emission (songs == null) the tab shows neither the empty state
+    // nor rows; the empty state appears only once an empty library arrives. Control: the same composition then shows
+    // "No music found" (fails if the tab never showed it). Mutation: `songs.isNullOrEmpty() -> TabMessage(...)` → the
+    // first assertion → RED.
+    @Test
+    fun noEmptyStateBeforeTheLibraryFirstEmits() {
+        var library by mutableStateOf<List<Song>?>(null)
+        setTab(songsProvider = { library })
+        composeRule.onNodeWithText("No music found on this device").assertDoesNotExist()
+        composeRule.onNodeWithText(songs[0].title).assertDoesNotExist()
+        library = emptyList()
+        composeRule.onNodeWithText("No music found on this device").assertIsDisplayed()
+    }
+
     @Test
     fun emptyLibraryShowsTheEmptyState() {
         setTab(songs = emptyList())
@@ -385,7 +399,7 @@ class TracksTabTest {
     private fun setTab(
         songs: List<Song> = this.songs,
         // Read inside the composition, so a test can swap the library (a rescan) after setContent.
-        songsProvider: () -> List<Song> = { songs },
+        songsProvider: () -> List<Song>? = { songs },
         scanState: ScanState = ScanState.Done(added = 0, removed = 0),
         miniPlayerInset: Dp = 0.dp,
         hostHeight: Dp? = null,

@@ -18,6 +18,12 @@ internal class GlyphMask(val size: Int, private val bits: BooleanArray) {
 
     /** The mask mirrored about its vertical centre line. */
     fun mirrored(): GlyphMask = GlyphMask(size, BooleanArray(size * size) { i -> this[size - 1 - i % size, i / size] })
+
+    /** The drawn height in px: from the first to the last row with any pixel in the mask; 0 when the mask is empty. */
+    fun inkHeight(): Int {
+        val rows = (0 until size).filter { y -> (0 until size).any { x -> this[x, y] } }
+        return if (rows.isEmpty()) 0 else rows.last() - rows.first() + 1
+    }
 }
 
 /**

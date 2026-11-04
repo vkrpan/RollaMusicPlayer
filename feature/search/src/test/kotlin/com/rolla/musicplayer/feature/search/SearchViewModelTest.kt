@@ -20,7 +20,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -295,6 +297,88 @@ class SearchViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
+    }
+
+    // Phase 7 Task 5 (6b final fix wave residual L2): a refinement from Empty keeps Empty on screen until the new
+    // answer, so "No results" never blinks out. "zz" answers empty at once; "zzz" answers empty after
+    // REFINEMENT_DELAY_MS, so a Loading in between would last long enough to be collected. Trivial stub: never emit
+    // Loading → the control (the first query's Loading) fails. Mutation: emit Loading whenever the state is not
+    // Results (the 6b condition) → Loading appears after Empty → RED.
+    @Test
+    fun aRefinementFromEmptyKeepsShowingEmpty() = runTest(mainDispatcherRule.testDispatcher) {
+        val repository = emptyRefinementRepository()
+        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController, playlistRepository)
+        val states = mutableListOf<SearchUiState>()
+        val collectJob = launch(UnconfinedTestDispatcher(testScheduler)) { viewModel.uiState.toList(states) }
+
+        viewModel.onQueryChanged("zz")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+        assertEquals(
+            "control: a first query from Idle shows Loading, then Empty",
+            listOf(SearchUiState.Idle, SearchUiState.Loading, SearchUiState.Empty),
+            states.toList(),
+        )
+
+        viewModel.onQueryChanged("zzz")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+        advanceTimeBy(REFINEMENT_DELAY_MS)
+        runCurrent()
+
+        verify(exactly = 1) { repository.search("zzz") }
+        assertEquals(
+            "the refinement from Empty never passes through Loading",
+            listOf(SearchUiState.Idle, SearchUiState.Loading, SearchUiState.Empty),
+            states.toList(),
+        )
+        collectJob.cancel()
+    }
+
+    // Phase 7 Task 5 (6b final review Minor 7): a repository that throws is contained. The failing query shows Empty,
+    // and the pipeline keeps collecting, so the next query still gets its results. Trivial stub: no containment → the
+    // exception ends the pipeline with the state left at Loading → RED on the first assertion. Mutation: contain the
+    // error on the outer pipeline (after flatMapLatest) → the failing query shows Empty but the pipeline completes, so
+    // "good" never searches → RED on the second. Control: "good", which does not throw, gives Results.
+    @Test
+    fun aFailingSearchShowsEmptyNotCrash() = runTest(mainDispatcherRule.testDispatcher) {
+        val goodResults = searchResultsWithSong(id = "good-song")
+        val repository = mockk<SearchRepository>()
+        every { repository.observeRecentSearches() } returns flowOf(emptyList())
+        coEvery { repository.recordRecentSearch(any()) } just Runs
+        every { repository.search("broken") } throws IllegalStateException("database is closed")
+        every { repository.search("good") } returns flowOf(goodResults)
+        val viewModel = SearchViewModel(repository, SavedStateHandle(), playbackController, playlistRepository)
+        val collectJob = launch { viewModel.uiState.collect {} }
+        runCurrent()
+
+        viewModel.onQueryChanged("broken")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+        assertEquals("a failing search shows Empty, not a crash", SearchUiState.Empty, viewModel.uiState.value)
+
+        viewModel.onQueryChanged("good")
+        advanceTimeBy(DEBOUNCE_MS)
+        runCurrent()
+        assertEquals(
+            "control: the next query, which does not throw, still gets its Results",
+            SearchUiState.Results(goodResults),
+            viewModel.uiState.value,
+        )
+        collectJob.cancel()
+    }
+
+    /** "zz" answers empty at once; "zzz" answers empty after [REFINEMENT_DELAY_MS]. */
+    private fun emptyRefinementRepository(): SearchRepository {
+        val repository = mockk<SearchRepository>()
+        every { repository.observeRecentSearches() } returns flowOf(emptyList())
+        coEvery { repository.recordRecentSearch(any()) } just Runs
+        every { repository.search("zz") } returns flowOf(SearchResults.EMPTY)
+        every { repository.search("zzz") } returns flow {
+            delay(REFINEMENT_DELAY_MS)
+            emit(SearchResults.EMPTY)
+        }
+        return repository
     }
 
     /** "ro" answers [ro] at once; "rock" answers [rock] after [REFINEMENT_DELAY_MS]. */

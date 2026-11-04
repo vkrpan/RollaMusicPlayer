@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -119,11 +119,13 @@ internal fun FolderDetailContent(
                     modifier = Modifier.fillMaxSize().testTag(FOLDER_SONG_LIST_TEST_TAG),
                     contentPadding = PaddingValues(bottom = homeListBottomPadding()),
                 ) {
-                    items(items = songs, key = { song -> song.id }) { song ->
+                    itemsIndexed(items = songs, key = { _, song -> song.id }) { index, song ->
                         SongListItem(
                             song = song,
                             onClick = { onSongClick(song) },
                             onMoreClick = { optionsSong = song },
+                            // No hairline under the list's last row (Phase 7 calibration).
+                            showDivider = index < songs.lastIndex,
                         )
                     }
                 }

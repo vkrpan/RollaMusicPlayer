@@ -22,6 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
 
 /** Each glyph is drawn into a 96 × 96 px box: 4 px per unit of the 24-unit viewport. */
 private const val ICON_PX = 96
@@ -31,6 +32,9 @@ private const val PARITY_MIN_IOU = 0.95
 private const val PLAY_PAUSE_MAX_IOU = 0.6
 private const val RING_SELF_MIRROR_MAX_IOU = 0.9
 private const val MIRRORED_NUMERALS_MAX_IOU = 0.8
+
+/** ±10 % of play's drawn height: about ±1.8 dp at 18 dp, inside the calibration's ±2 dp. */
+private const val HEIGHT_RATIO_TOLERANCE = 0.1
 
 /** The numeral box of the ±15 glyphs (ruling 5): viewport x 8–16, y 9–16. */
 private val NUMERAL_BOX_X = 8 * PX_PER_UNIT until 16 * PX_PER_UNIT
@@ -123,6 +127,26 @@ class WidgetIconParityTest {
             "numerals: forward vs back inside the numeral box must be >= $PARITY_MIN_IOU; $both",
             same >= PARITY_MIN_IOU,
         )
+    }
+
+    // Phase 7 calibration: in the 28 dp control box the ±15 glyphs draw about as tall as play (the reference's play and
+    // the measured target are 18 dp; ours drew 21.3 dp). The drawn height is the span of mask rows with any ink.
+    // Trivial stub (an empty drawable) → height 0 → RED. Control: play itself has ink. Mutation: drop the group's 0.84
+    // scale from widget_ic_skip_back_15.xml → ratio ≈ 1.15 → RED.
+    @Test
+    fun skipFifteenGlyphsDrawAsTallAsPlay() {
+        val play = widgetMask(R.drawable.widget_ic_play).inkHeight()
+        assertTrue("control: widget_ic_play has ink ($play px)", play > 0)
+        listOf(
+            "widget_ic_skip_back_15" to R.drawable.widget_ic_skip_back_15,
+            "widget_ic_skip_forward_15" to R.drawable.widget_ic_skip_forward_15,
+        ).forEach { (name, id) ->
+            val ratio = widgetMask(id).inkHeight().toDouble() / play
+            assertTrue(
+                "$name height / widget_ic_play height = ${ratio.fmt()}, must be within $HEIGHT_RATIO_TOLERANCE of 1",
+                abs(ratio - 1) <= HEIGHT_RATIO_TOLERANCE,
+            )
+        }
     }
 
     private fun showRollaIcons() {

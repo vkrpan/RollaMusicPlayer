@@ -85,6 +85,24 @@ Naming conventions:
 - Detail route is **`SongDetail(val songId: Long)`** → screen `SongDetailScreen`, callback `onSongClick`.
 - Entities map to these models via `toDomain()` / `toEntity()`; entities may be named `SongEntity`, etc.
 - A folder's identity is its `path`. Routes and list keys use the path; `name` is display-only.
+- An artist's identity is its raw `name` (Phase 4a ruling 12). `Artist.artworkUri` is the cover of the artist's
+  alphabetically first album and is display-only.
+
+## UI label exception ("Tracks" on screen, `Song` in code)
+
+User-facing strings say **"Tracks"**: the Home tab, counts ("12 tracks"), sheet and button copy ("Shuffle all
+tracks"). Code identifiers, the model, routes, tests and logs stay `Song` (`songs`, `songId`, `SongListItem`). This is
+a copy rule only (user decision 2026-10-06, spec §2); never rename code to match the label, and never put "Songs" in
+the UI.
+
+## Display rule: unknown artists
+
+MediaStore stores a missing artist as the literal `<unknown>` (`MediaStore.UNKNOWN_STRING`). Every place that *shows*
+an artist name passes it through `artistDisplayName(raw: String): String` (`:core:model`, `ArtistNames.kt`), which
+returns `"Unknown"` for a blank name or `"<unknown>"` and the raw name otherwise. Data, keys and routes keep the raw
+value (`ArtistDetail(artistName = "<unknown>")`), so tapping an "Unknown" row still opens the right artist. Playback
+metadata carries the display name, with the raw name in the media item's extras (`MediaMetadata.rawArtist()`). The tag
+editor is the exception: it shows the file's own tags.
 
 ## Rename map (model `Track` → `Song`)
 

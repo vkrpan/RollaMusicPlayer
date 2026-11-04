@@ -1,9 +1,11 @@
 package com.rolla.musicplayer.home
 
 import android.app.Application
+import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,13 +24,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
@@ -37,6 +42,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -44,7 +50,12 @@ import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.ui.SongSelectionState
@@ -83,6 +94,11 @@ class HomeScreenTest {
 
     // Ruling 8: Home's access state, fed to HomeScreen by both helpers. Tests flip it with runOnIdle (one setContent).
     private var accessGranted by mutableStateOf(true)
+
+    // setHome's composition view, so a test can dispatch its own window insets (Robolectric reports none), and the
+    // list bottom padding the Tracks page reads inside the panel.
+    private lateinit var view: View
+    private var pageListBottomPadding = Dp.Unspecified
 
     // Captured inside the theme by setHome: songTitle's line height, and labelLarge's, which is M3's default menu-item
     // text style (MenuTokens.ListItemLabelTextFont). The Home menu test tells the two apart by rendered text height.
@@ -133,6 +149,60 @@ class HomeScreenTest {
         composeRule.onNodeWithText("page-PLAYLISTS").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Create playlist").assertIsDisplayed().performClick()
         assertEquals("+ must request the create dialog once", 1, createPlaylistClicks)
+    }
+
+    // Ruling P22: Home's panel ends at the navigation bar's top (the black background shows behind the bar, as on the
+    // reference), and its lists pad for the pill alone. The test sends a 48 dp navigation bar. Control: the panel
+    // content starts below the tab row and the root reaches the window bottom. Mutations: drop the pager's bottom
+    // navigationBars inset → the panel reaches the root bottom → RED; drop the LocalNavigationBarPadded provider → the
+    // page's list padding includes the bar (48 dp) → RED.
+    @Test
+    fun panelEndsAtTheNavigationBarTopAndListsPadForThePillAlone() {
+        setHome()
+        val navigationBar = 48.dp
+        sendNavigationBar(navigationBar)
+        val root = composeRule.onRoot().getBoundsInRoot()
+        val page = composeRule.onNodeWithTag("${PAGE_TAG_PREFIX}TRACKS").getBoundsInRoot()
+        assertTrue("control: the panel content starts below the tab row (${page.top})", page.top > 0.dp)
+        page.bottom.assertIsEqualTo(root.bottom - navigationBar, "panel bottom", 0.5.dp)
+        composeRule.runOnIdle {
+            assertEquals("list bottom padding inside the panel (dp)", 0f, pageListBottomPadding.value, 0.01f)
+        }
+    }
+
+    // Ruling P26: the permission prompt, which the gate draws in place of the tabs and pager (pagerContainer), also
+    // ends at the navigation bar's top, so spec §7.4's "Home's content ends at the navigation bar" holds with access
+    // denied. Control: the prompt starts below the header (fails if the container drew nothing). Mutations: keep the
+    // inset on the pager only → the prompt reaches the root bottom → RED; drop the provider around pagerContainer →
+    // the prompt's list padding includes the bar → RED.
+    @Test
+    fun permissionPromptAlsoEndsAtTheNavigationBarTop() {
+        var promptListBottomPadding = Dp.Unspecified
+        setHomeWithPrompt { promptListBottomPadding = it }
+        val navigationBar = 48.dp
+        sendNavigationBar(navigationBar)
+        val root = composeRule.onRoot().getBoundsInRoot()
+        val prompt = composeRule.onNodeWithTag(PROMPT_TAG).getBoundsInRoot()
+        assertTrue("control: the prompt starts below the header (${prompt.top})", prompt.top > 0.dp)
+        prompt.bottom.assertIsEqualTo(root.bottom - navigationBar, "prompt bottom", 0.5.dp)
+        composeRule.runOnIdle {
+            assertEquals("list bottom padding inside the prompt (dp)", 0f, promptListBottomPadding.value, 0.01f)
+        }
+    }
+
+    // Phase 7 calibration: the + draws in the larger header icon box (28 dp, ≈ 18 dp glyph, as measured); Search
+    // keeps iconSize. The unmerged Icon node's bounds are the glyph box. Control: Search's box is iconSize, so the two
+    // differ.
+    // Mutation: drop iconSize = headerActionIconLarge from the + button (24 dp) → RED.
+    @Test
+    fun addIconUsesTheLargeHeaderIconBox() {
+        setHome()
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.waitForIdle()
+        val add = composeRule.onNodeWithContentDescription("Create playlist", useUnmergedTree = true).getBoundsInRoot()
+        val search = composeRule.onNodeWithContentDescription("Search", useUnmergedTree = true).getBoundsInRoot()
+        (search.right - search.left).assertIsEqualTo(RollaDimens.iconSize, "control: Search glyph box", 0.5.dp)
+        (add.right - add.left).assertIsEqualTo(RollaDimens.headerActionIconLarge, "+ glyph box", 0.5.dp)
     }
 
     // Ruling 8: after a restore with access denied, + would open a dialog PlaylistsTab never composes (a dead control).
@@ -430,8 +500,46 @@ class HomeScreenTest {
     private fun descriptionCount(description: String): Int =
         composeRule.onAllNodesWithContentDescription(description).fetchSemanticsNodes().size
 
+    // LongMethod: the production HomeScreen's full parameter list plus the captured theme and padding values.
+    @Suppress("LongMethod")
+    /** Home with access denied: the container draws a full-size [PROMPT_TAG] box and reports its list padding. */
+    private fun setHomeWithPrompt(onPromptListBottomPadding: (Dp) -> Unit) {
+        composeRule.setContent {
+            view = LocalView.current
+            RollaMusicPlayerTheme(darkTheme = true) {
+                HomeScreen(
+                    pagerState = rememberHomePagerState(),
+                    selection = rememberSongSelectionState(),
+                    onSearchClick = {},
+                    onSettingsClick = {},
+                    onCreatePlaylistClick = {},
+                    onEditTagsForSelection = {},
+                    accessGranted = false,
+                    pagerContainer = {
+                        onPromptListBottomPadding(homeListBottomPadding())
+                        Box(Modifier.fillMaxSize().testTag(PROMPT_TAG))
+                    },
+                ) { }
+            }
+        }
+    }
+
+    /** Sends a bottom navigation bar of [height] to the composition's view, where Compose's insets listener sees it. */
+    private fun sendNavigationBar(height: Dp) {
+        composeRule.runOnIdle {
+            val px = with(composeRule.density) { height.roundToPx() }
+            ViewCompat.dispatchApplyWindowInsets(
+                view,
+                WindowInsetsCompat.Builder()
+                    .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, px))
+                    .build(),
+            )
+        }
+    }
+
     private fun setHome() {
         composeRule.setContent {
+            view = LocalView.current
             RollaMusicPlayerTheme(darkTheme = true) {
                 with(LocalDensity.current) {
                     songTitleLineHeight = MaterialTheme.typography.songTitle.lineHeight.toDp()
@@ -447,19 +555,26 @@ class HomeScreenTest {
                     onCreatePlaylistClick = { createPlaylistClicks++ },
                     onEditTagsForSelection = { editTagsClicks++ },
                     accessGranted = accessGranted,
-                ) { tab ->
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
-                        if (tab == HomeTab.TRACKS) {
-                            Button(onClick = { selection.toggle("x") }) { Text("select") }
-                        }
-                    }
-                }
+                ) { tab -> TaggedPage(tab) }
+            }
+        }
+    }
+
+    /** A page tagged with its tab; Tracks reports its list padding and has a button that starts a selection. */
+    @Composable
+    private fun TaggedPage(tab: HomeTab) {
+        if (tab == HomeTab.TRACKS) pageListBottomPadding = homeListBottomPadding()
+        Column(modifier = Modifier.fillMaxSize().testTag("$PAGE_TAG_PREFIX${tab.name}")) {
+            Text("page-${tab.name}", modifier = Modifier.fillMaxWidth())
+            if (tab == HomeTab.TRACKS) {
+                Button(onClick = { selection.toggle("x") }) { Text("select") }
             }
         }
     }
 
     private companion object {
+        const val PROMPT_TAG = "permission_prompt"
+        const val PAGE_TAG_PREFIX = "panel-content-"
         const val LIST_TAG = "rows"
         const val CREATE_DIALOG = "create-dialog"
         const val ROW_COUNT = 40

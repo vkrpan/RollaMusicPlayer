@@ -16,7 +16,6 @@ import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.equalizer.EqualizerSessionManager
 import com.rolla.musicplayer.core.model.ShuffleMode
-import com.rolla.musicplayer.core.model.Song
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -109,20 +108,7 @@ class PlaybackService : MediaLibraryService() {
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
             playbackTracker.onMediaItemTransition()
-            val song = mediaItem?.let { item ->
-                Song(
-                    id = item.mediaId,
-                    title = item.mediaMetadata.title?.toString().orEmpty(),
-                    artist = item.mediaMetadata.artist?.toString().orEmpty(),
-                    album = item.mediaMetadata.albumTitle?.toString().orEmpty(),
-                    albumId = 0L,
-                    durationMs = 0L,
-                    trackNumber = null,
-                    year = null,
-                    contentUri = item.localConfiguration?.uri?.toString().orEmpty(),
-                    artworkUri = item.mediaMetadata.artworkUri?.toString().orEmpty(),
-                )
-            }
+            val song = mediaItem?.toPlaybackSong()
             playbackStateHolder.setCurrentSong(song)
             playbackStateHolder.setDurationMs(player.duration.coerceAtLeast(0L))
             // Push-update seam for :feature:widget et al (see PlaybackUpdateHook) -- dispatched

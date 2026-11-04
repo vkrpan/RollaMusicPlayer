@@ -2,10 +2,12 @@ package com.rolla.musicplayer.core.designsystem.component
 
 import android.view.ViewConfiguration
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -33,12 +35,15 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.down
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.moveBy
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.up
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -171,6 +176,108 @@ class FastScrollRailTest {
         }
         assertEquals(listOf("T", "T"), selected)
         assertEquals(2, haptics.ticks)
+    }
+
+    // Phase 7 Task 6 (Phase 5 T4 M4). A drag selects the letter under the finger's down point first, not the letter at
+    // the point where the move crossed the touch slop. Each slot is one touch slop tall (Robolectric: 16 dp), so the
+    // slop point of a drag from M's centre lies in N's slot. The drag moves 2 slops down in quarter-slop steps.
+    // Mutation: select at onDragStart's offset (the slop-crossing point, the Phase 5 code) → the drag's first
+    // selection is N → RED. Control: a tap on M selects M.
+    @Test
+    fun dragSelectsTheLetterUnderTheDownPoint() {
+        val selected = mutableListOf<String>()
+        val touchSlop = ViewConfiguration.get(composeRule.activity).scaledTouchSlop.toFloat()
+        val slot = with(composeRule.density) { touchSlop.toDp() }
+        setRail(height = slot * sections.size) { selected += it.label }
+        val mCentre = (sections.indexOfFirst { it.label == "M" } + 0.5f) / sections.size
+        rail().performTouchInput { click(Offset(centerX, height * mCentre)) }
+        assertEquals("control: a tap on M selects M", listOf("M"), selected)
+        rail().performTouchInput {
+            down(Offset(centerX, height * mCentre))
+            repeat(DRAG_STEPS) { moveBy(Offset(0f, touchSlop / QUARTER)) }
+            up()
+        }
+        assertTrue("the drag selected nothing: $selected", selected.size > 1)
+        assertEquals("the drag's first selection must be the down point's letter in $selected", "M", selected[1])
+    }
+
+    // Phase 7 Task 6 (Phase 5 T4 M7). On a 96 dp rail (fastScrollMinRailHeight) at fontScale 2 the 26 dp letter line
+    // is far taller than a 3.6 dp slot, so "#" centred on slot 0 would poke 11 dp above the pill. Shown labels are kept
+    // inside the pill: no ink row of the letter column lies above the pill's top or below its bottom. The rail sits
+    // inside a band of the theme background, so ink outside the pill is visible. At this size the rail shows every
+    // 9th label at fontScale 2 (#, I, R) and every 5th at 1.0 (#, E, J, O, T, Y): "Z" is never shown there. So a third
+    // case is a TALL_RAIL (364 dp = 14 slots of 26 dp at fontScale 2), which shows every 2nd label, "Z" included, in
+    // 13.5 dp slots: "Z" centred on its slot would reach half its 26 dp line below the pill. Mutations: (a)
+    // wrapContentHeight(unbounded = true) without an inset (the Phase 5 code) → "#"'s ink starts above the pill → RED;
+    // (b) drop only the bottom clamp → "Z"'s ink ends below the pill in the tall case → RED (fix round 1).
+    // Controls: "#" has ink; fontScale 1.0 also stays inside; the derivation shows "Z" in the tall case.
+    @Config(sdk = [30], qualifiers = "+xxhdpi") // view.draw renders reliably at SDK 30 (OneUiTabRowTest precedent)
+    @Test
+    fun endLabelsStayInsideTheRail() {
+        var fontScale by mutableStateOf(2f)
+        var railHeight by mutableStateOf(RollaDimens.fastScrollMinRailHeight)
+        val band = setBandedRail(fontScale = { fontScale }, railHeight = { railHeight })
+        assertInkInsideThePill(band, "fontScale 2")
+        fontScale = 1f
+        composeRule.waitForIdle()
+        assertInkInsideThePill(band, "control: fontScale 1")
+
+        fontScale = 2f
+        railHeight = TALL_RAIL
+        composeRule.waitForIdle()
+        val letterSlot = maxOf(RollaDimens.fastScrollLetterSlot, band.lineHeight)
+        val step = fastScrollLabelStep(slots = (TALL_RAIL / letterSlot).toInt())
+        assertEquals("control: the tall rail shows Z (step $step)", 0, sections.lastIndex % step)
+        assertInkInsideThePill(band, "tall rail, fontScale 2")
+    }
+
+    /** The colours and the scaled letter line height that [setBandedRail] read from the theme. */
+    private class BandedRail {
+        var track = Color.Unspecified
+        var ink = Color.Unspecified
+        var lineHeight = 0.dp
+    }
+
+    /** A rail of [railHeight] at [fontScale], inside an END_BAND of theme background above and below it. */
+    private fun setBandedRail(fontScale: () -> Float, railHeight: () -> Dp): BandedRail {
+        val band = BandedRail()
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                band.track = MaterialTheme.colorScheme.fastScrollTrack
+                band.ink = MaterialTheme.colorScheme.fastScrollIndex
+                val scaled = Density(LocalDensity.current.density, fontScale())
+                band.lineHeight = with(scaled) { MaterialTheme.typography.fastScrollLetter.lineHeight.toDp() }
+                Box(Modifier.background(MaterialTheme.colorScheme.background).padding(vertical = END_BAND)) {
+                    CompositionLocalProvider(LocalDensity provides scaled) {
+                        FastScrollRail(sections, onSectionSelected = {}, modifier = Modifier.height(railHeight()))
+                    }
+                }
+            }
+        }
+        return band
+    }
+
+    /** Draws the window and checks that the rail's letter column has ink near its top, all of it inside the pill. */
+    private fun assertInkInsideThePill(banded: BandedRail, case: String) {
+        val bitmap = composeRule.drawRoot()
+        val bounds = rail().fetchSemanticsNode().boundsInRoot
+        val band = with(composeRule.density) { END_BAND.toPx() }
+        val columnRight = bounds.left + with(composeRule.density) { RollaDimens.fastScrollWidth.toPx() }
+        val rows = ((bounds.top - band).toInt() until (bounds.bottom + band).toInt()).filter { y ->
+            (bounds.left.toInt() until columnRight.toInt()).any { x ->
+                isInk(bitmap.getPixel(x, y), banded.ink, banded.track)
+            }
+        }
+        val topLabelReach = bounds.top + bounds.height / 3f
+        assertTrue("$case: \"#\" has ink near the pill's top (rows $rows)", rows.any { it < topLabelReach })
+        assertTrue(
+            "$case: the first ink row ${rows.first()} lies above the pill's top ${bounds.top}",
+            rows.first() >= bounds.top.toInt(),
+        )
+        assertTrue(
+            "$case: the last ink row ${rows.last()} lies below the pill's bottom ${bounds.bottom}",
+            rows.last() < ceil(bounds.bottom).toInt(),
+        )
     }
 
     // Fix round 1, I1. At fontScale 2 the letter line (fastScrollLetter's 13 sp line height, doubled) is taller than a
@@ -384,9 +491,10 @@ class FastScrollRailTest {
     // Final fix wave I1: the crash guard. A 150 dp container with a 100 dp bottom padding leaves 50 dp, less than
     // fastScrollMinRailHeight (landscape with the pill showing), so the top-inset cap would be 150 − 100 − 96 = −46 dp,
     // and a negative padding throws. The cap's floor of 0 dp keeps the rail at the container's top. Mutation: drop
-    // `.coerceAtLeast(0.dp)` from railRoom → Modifier.padding throws IllegalArgumentException ("Padding must be
-    // non-negative") → RED. Here the exception is the defect itself (the live crash), not a side effect of the
-    // mutation. Control: the rail exists, and its bottom honours railBottomPadding.
+    // `.coerceAtLeast(0)` from railRoom → since Phase 7 (railInsets, a layout modifier) the rail is placed 46 dp above
+    // the container: "expected:<0.0> but was:<-46.0>" → RED. (Under the Phase 5 padding code the same mutation threw
+    // IllegalArgumentException, "Padding must be non-negative".) Control: the rail exists, and its bottom honours
+    // railBottomPadding.
     @Test
     fun aContainerShorterThanTheMinimumRailDoesNotCrash() {
         setList(names, railBottomPadding = 100.dp, railTopPadding = 0.dp, containerHeight = 150.dp)
@@ -439,5 +547,17 @@ class FastScrollRailTest {
         }
         composeRule.runOnIdle { assertEquals(1, pagerState.currentPage) }
         assertTrue("swipe selected $selected", selected.isEmpty())
+    }
+
+    private companion object {
+        /** Quarter-slop moves: 8 of them drag 2 slops. */
+        const val QUARTER = 4f
+        const val DRAG_STEPS = 8
+
+        /** Background above and below the rail in the render test, taller than any label's overflow. */
+        val END_BAND = 32.dp
+
+        /** 14 slots of the 26 dp fontScale-2 letter line: the rail shows every 2nd label, "Z" included. */
+        val TALL_RAIL = 364.dp
     }
 }

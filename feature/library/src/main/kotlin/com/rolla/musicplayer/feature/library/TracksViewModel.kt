@@ -28,11 +28,12 @@ class TracksViewModel @Inject constructor(
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
-    val songs: StateFlow<List<Song>> = songRepository.observeSongs()
+    /** The indexed library; null until its first emission, so a cold start never flashes the empty state. */
+    val songs: StateFlow<List<Song>?> = songRepository.observeSongs()
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList(),
+            initialValue = null,
         )
 
     /** User-created playlists, exposed for the shared "Add to playlist" bottom sheet. */
@@ -53,7 +54,7 @@ class TracksViewModel @Inject constructor(
 
     /** Plays the whole library as the queue, starting at the tapped [song] (ruling 5). */
     fun play(song: Song) {
-        playbackController.playFrom(songs.value, song)
+        playbackController.playFrom(songs.value.orEmpty(), song)
     }
 
     /**
@@ -61,12 +62,12 @@ class TracksViewModel @Inject constructor(
      * WhileSubscribed and TracksTab collects it while visible, so its value is current when the button is tapped.
      */
     fun playAll() {
-        playbackController.playAllInOrder(songs.value)
+        playbackController.playAllInOrder(songs.value.orEmpty())
     }
 
     /** Shuffles the whole library from a random start track (spec §12). A no-op for an empty library. */
     fun shuffleAll() {
-        playbackController.shuffleAll(songs.value, random)
+        playbackController.shuffleAll(songs.value.orEmpty(), random)
     }
 
     /** Adds an already-tapped song to an existing playlist, via the shared "Add to playlist" sheet. */

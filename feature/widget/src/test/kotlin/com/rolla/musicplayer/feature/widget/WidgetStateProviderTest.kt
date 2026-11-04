@@ -38,6 +38,17 @@ class WidgetStateProviderTest {
         assertEquals("content://media/local/art/1", state.artworkPath)
     }
 
+    // Phase 7 ruling 3. Trivial stub: artist = song.artist (raw) → "<unknown>" → RED. Mutation: drop artistDisplayName
+    // from toWidgetState → RED. Control: a real artist keeps its name, so a constant "Unknown" also fails.
+    @Test
+    fun `current shows MediaStore's unknown artist as Unknown`() {
+        playbackStateHolder.setCurrentSong(testSong().copy(artist = "<unknown>"))
+        assertEquals("the widget shows MediaStore's <unknown> artist as Unknown", "Unknown", provider.current().artist)
+
+        playbackStateHolder.setCurrentSong(testSong().copy(artist = "Sade"))
+        assertEquals("control: the widget shows a real artist's name", "Sade", provider.current().artist)
+    }
+
     @Test
     fun `current returns defaults when no song is playing`() {
         val state = provider.current()

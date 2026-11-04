@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -81,8 +81,13 @@ private fun ArtistList(artists: List<Artist>, onArtistClick: (String) -> Unit, m
         ) {
             // Keyed by name, the GROUP BY key and so unique; never by the synthetic FNV id, whose collision would
             // crash the list (ruling 12). "Queen" and "queen" are two artists with two keys.
-            items(items = artists, key = { artist -> artist.name }) { artist ->
-                ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
+            itemsIndexed(items = artists, key = { _, artist -> artist.name }) { index, artist ->
+                ArtistRow(
+                    artist = artist,
+                    onClick = { onArtistClick(artist.name) },
+                    // No hairline under the list's last row (Phase 7 calibration).
+                    showDivider = index < artists.lastIndex,
+                )
             }
         }
     }

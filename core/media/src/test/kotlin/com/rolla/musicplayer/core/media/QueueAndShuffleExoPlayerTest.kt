@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ShuffleOrder.DefaultShuffleOrder
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.model.Song
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -47,6 +48,39 @@ class QueueAndShuffleExoPlayerTest {
         assertEquals(listOf(0, 1, 2, 3, 4), queue.items.map { it.index })
         assertEquals(2, queue.currentIndex)
         assertEquals("T2", queue.items[2].title)
+    }
+
+    // Phase 7 ruling P8: QueueItem.artist is data, so it is the raw name even though the metadata shows "Unknown"
+    // (QueueSheet maps it for display). Trivial stub: artist = "" → RED. Control: the metadata of the same item shows
+    // "Unknown", and a real name stays itself. Mutation: Queue reads metadata.artist instead of rawArtist() → RED.
+    @Test
+    fun queueItemsCarryTheRawArtist() {
+        val songs = listOf("<unknown>", "Sade").mapIndexed { index, artist ->
+            Song(
+                id = "$index",
+                title = "T$index",
+                artist = artist,
+                album = "",
+                albumId = 0L,
+                durationMs = 0L,
+                trackNumber = null,
+                year = null,
+                contentUri = "content://media/external/audio/media/$index",
+                artworkUri = "",
+            )
+        }
+        player.setMediaItems(songs.map { it.toMediaItem() }, 0, C.TIME_UNSET)
+        idle()
+        assertEquals(
+            "control: the player's metadata shows Unknown",
+            "Unknown",
+            player.currentMediaItem?.mediaMetadata?.artist,
+        )
+        assertEquals(
+            "queue items carry the raw artist names",
+            listOf("<unknown>", "Sade"),
+            player.queueState().items.map { it.artist },
+        )
     }
 
     // Mutation: StartFirstShuffleEnforcer.onMediaItemTransition ignores PLAYLIST_CHANGED → start item not first → RED.

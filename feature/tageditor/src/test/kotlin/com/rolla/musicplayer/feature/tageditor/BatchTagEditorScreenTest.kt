@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
 import androidx.compose.ui.test.isNotEnabled
@@ -16,16 +17,21 @@ import androidx.compose.ui.test.isOff
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
 
 /** The batch tag editor on the One UI kit (Phase 6b ruling 6) and its "tracks" copy (ruling 7). */
 @RunWith(AndroidJUnit4::class)
@@ -89,6 +95,46 @@ class BatchTagEditorScreenTest {
             .assert(hasText("Rock")) { "the switched-on Genre field keeps its value" }
     }
 
+    // Phase 7 Task 5 (6b Task 4 review M4): the apply switch stays centred on its field's text box when an error
+    // message shows under the field. The text box is the field's container: it starts at the field's top, and its
+    // height is a field without supporting text (Title, the control row). Trivial stub: the switch pinned to the row's
+    // top → both rows miss by half the container's spare height (5 dp here) → RED on the control. Mutation: centre the
+    // switch on the whole field (the 6b Row(CenterVertically)) → the Year row's switch drops by half the error message
+    // → RED. Control: the Title row, with no error, shows the same.
+    @Test
+    fun switchStaysCentredOnAnErrorRow() {
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) { Screen(state = yearErrorState()) }
+        }
+        composeRule.onNodeWithText(YEAR_ERROR, useUnmergedTree = true)
+            .assertExists("the Year row shows its error message")
+
+        val titleField = composeRule.onNode(fieldNode("Title")).getUnclippedBoundsInRoot()
+        val textBoxHeight = titleField.bottom - titleField.top
+        val titleOffset = switchCentre("Title") - (titleField.top + textBoxHeight / 2)
+        assertTrue(
+            "control: the Title switch is centred on its field (off by $titleOffset)",
+            abs(titleOffset.value) <= 1f,
+        )
+
+        val yearField = composeRule.onNode(fieldNode("Year")).getUnclippedBoundsInRoot()
+        assertTrue(
+            "the Year field is taller than its text box: its error shows under it",
+            yearField.bottom - yearField.top > textBoxHeight + 1.dp,
+        )
+        val yearOffset = switchCentre("Year") - (yearField.top + textBoxHeight / 2)
+        assertTrue(
+            "the Year switch is centred on the field's text box, not on the box plus the error (off by $yearOffset)",
+            abs(yearOffset.value) <= 1f,
+        )
+    }
+
+    private fun switchCentre(label: String): Dp {
+        val bounds = composeRule.onNodeWithContentDescription("Apply $label to every selected track")
+            .getUnclippedBoundsInRoot()
+        return (bounds.top + bounds.bottom) / 2
+    }
+
     @Composable
     private fun Screen(
         state: BatchTagEditorUiState,
@@ -112,7 +158,23 @@ class BatchTagEditorScreenTest {
          * The Genre text field (its label and an editable value), not its apply switch. EditableText, not SetText: a
          * disabled field drops its SetText action.
          */
-        val GENRE_FIELD = hasText("Genre") and SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText)
+        val GENRE_FIELD = fieldNode("Genre")
+
+        const val YEAR_ERROR = "Year must be blank or up to 4 digits."
+
+        /** The [label] text field, as [GENRE_FIELD] matches Genre's. */
+        fun fieldNode(label: String) =
+            hasText(label) and SemanticsMatcher.keyIsDefined(SemanticsProperties.EditableText)
+
+        /** Two selected tracks: Title applied with no error, Year applied with an invalid value and its error. */
+        fun yearErrorState(): BatchTagEditorUiState = BatchTagEditorUiState(
+            songCount = 2,
+            fields = BatchTagFields(
+                title = BatchFieldState(value = "Song", applied = true),
+                year = BatchFieldState(value = "20x1", applied = true),
+            ),
+            yearError = YEAR_ERROR,
+        )
 
         /** Two selected tracks with only Genre holding a value ("Rock"), switched on or off. */
         fun genreState(applied: Boolean): BatchTagEditorUiState = BatchTagEditorUiState(

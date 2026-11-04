@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -137,13 +138,22 @@ private fun PlaylistsList(
     // A fixed inset: the rail does not grow as the cards scroll away. Phase 7 calibrates it against the reference.
     // Saved, so a list restored past the cards (pager, rotation) keeps the inset before the cards are measured again.
     var featureCardsHeightPx by rememberSaveable { mutableIntStateOf(0) }
-    val railTopPadding = with(LocalDensity.current) { featureCardsHeightPx.toDp() }
+    // The list's measured height (0 until the first layout, which hides the rail for that frame).
+    var listHeightPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val railTopPadding = with(density) { featureCardsHeightPx.toDp() }
+    val railBottomPadding = homeListBottomPadding()
+    // Phase 7: where the space between the card row and the pill is shorter than the minimum rail (a short or a
+    // landscape screen), the rail is hidden, rather than drawn as a sliver or capped up over the cards' end.
+    val railFits = with(density) { listHeightPx.toDp() } - railTopPadding - railBottomPadding >=
+        RollaDimens.fastScrollMinRailHeight
     FastScrollContainer(
         listState = listState,
-        sections = sections,
+        sections = if (railFits) sections else emptyList(),
         itemOffset = 1,
+        railBottomPadding = railBottomPadding,
         railTopPadding = railTopPadding,
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize().onSizeChanged { listHeightPx = it.height },
     ) {
         LazyColumn(
             state = listState,
@@ -160,8 +170,13 @@ private fun PlaylistsList(
             if (userPlaylists.isEmpty()) {
                 item(key = "empty-user-playlists") { EmptyUserPlaylistsState() }
             } else {
-                items(items = userPlaylists, key = { it.id }) { playlist ->
-                    PlaylistRow(playlist = playlist, onClick = { onPlaylistClick(playlist.id) })
+                itemsIndexed(items = userPlaylists, key = { _, playlist -> playlist.id }) { index, playlist ->
+                    PlaylistRow(
+                        playlist = playlist,
+                        onClick = { onPlaylistClick(playlist.id) },
+                        // No hairline under the list's last row (Phase 7 calibration).
+                        showDivider = index < userPlaylists.lastIndex,
+                    )
                 }
             }
         }

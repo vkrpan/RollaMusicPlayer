@@ -16,6 +16,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
@@ -50,22 +52,25 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.EqVerticalSlider
 import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
 import com.rolla.musicplayer.core.designsystem.component.OneUiDialog
+import com.rolla.musicplayer.core.designsystem.component.OneUiDialogField
 import com.rolla.musicplayer.core.designsystem.component.OneUiSwitch
 import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
-import com.rolla.musicplayer.core.designsystem.component.OneUiTextField
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
 import com.rolla.musicplayer.core.designsystem.motion.rollaSpringOrSnap
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.caption
+import com.rolla.musicplayer.core.designsystem.theme.eqCaption
 import com.rolla.musicplayer.core.designsystem.theme.eqFrequency
 import com.rolla.musicplayer.core.designsystem.theme.eqGridLine
 import com.rolla.musicplayer.core.designsystem.theme.eqValue
+import com.rolla.musicplayer.core.designsystem.theme.labelSecondary
 import com.rolla.musicplayer.core.designsystem.theme.settingTitle
 import com.rolla.musicplayer.core.media.equalizer.BUILT_IN_EQUALIZER_PRESETS
 import com.rolla.musicplayer.core.media.equalizer.TARGET_FREQUENCIES_HZ
@@ -216,11 +221,12 @@ private fun EqualizerContent(
             modifier = Modifier.fillMaxWidth(),
         )
         Spacer(Modifier.height(RollaDimens.eqCardTop))
+        // The caption starts eqCaptionStart from the screen edge, in the softer eqCaption white (Phase 7 calibration).
         Text(
             text = presetCaption(uiState.selectedPresetId),
             style = MaterialTheme.typography.caption,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(horizontal = RollaDimens.chipGridStart),
+            color = MaterialTheme.colorScheme.eqCaption,
+            modifier = Modifier.padding(horizontal = RollaDimens.eqCaptionStart),
         )
         if (uiState.selectedPresetId == null) {
             SaveAsPresetButton(
@@ -251,7 +257,8 @@ private fun EnableCard(enabled: Boolean, onSetEnabled: (Boolean) -> Unit, modifi
                 .testTag(EQ_ENABLE_ROW_TAG)
                 .toggleable(value = enabled, role = Role.Switch, onValueChange = onSetEnabled)
                 .heightIn(min = RollaDimens.minTouchTarget)
-                .padding(horizontal = RollaDimens.settingsRowPadding),
+                // The switch ends settingsTrailingEnd inside the card, as on the settings cards (Phase 7).
+                .padding(start = RollaDimens.settingsRowPadding, end = RollaDimens.settingsTrailingEnd),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -266,12 +273,17 @@ private fun EnableCard(enabled: Boolean, onSetEnabled: (Boolean) -> Unit, modifi
 }
 
 /**
- * The edge-to-edge slider card: faint [eqGridLine] horizontals behind nine band columns centered as a group, with the
- * response curve layered under the sliders while one is being dragged. All nine sliders share one interaction source,
- * so "a slider is being dragged" is a single collected state (ruling 10).
+ * The edge-to-edge slider card: faint [eqGridLine] horizontals behind nine band columns, with the response curve
+ * layered under the sliders while one is being dragged. All nine sliders share one interaction source, so "a slider is
+ * being dragged" is a single collected state (ruling 10).
  *
- * The card's inner vertical padding borrows [RollaDimens.settingsRowPadding] (the One UI card inner padding); the
- * reference does not measure the EQ card's own (Phase 7 calibrates).
+ * The columns spread so the first and last centres sit [RollaDimens.eqColumnEdgeInset] from the card's (the screen's)
+ * edges, never closer than [RollaDimens.eqColumnPitch] apart ([eqColumnPitchFor], Phase 7 ruling P12). Each column's
+ * slider and labels are one pitch wide.
+ *
+ * The card's top padding borrows [RollaDimens.settingsRowPadding] (the One UI card inner padding; the measured card top
+ * to value label passes). Its bottom is [RollaDimens.eqCardBottomPadding] below the frequency labels' baseline, where
+ * the digits end, as measured (Phase 7 calibration).
  */
 // The card's gain state, range and callback are distinct inputs; one flat card/grid/curve/row layout.
 @Suppress("LongMethod", "LongParameterList")
@@ -296,47 +308,85 @@ private fun EqualizerSlidersCard(
     val gainLabels = TARGET_FREQUENCIES_HZ.indices.map { band -> gainLabel(gainsMillibel.values.getOrElse(band) { 0 }) }
 
     Surface(
-        modifier = modifier,
+        modifier = modifier.testTag(EQ_SLIDER_CARD_TAG),
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = MaterialTheme.shapes.large,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = RollaDimens.settingsRowPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            BandLabelRow(labels = gainLabels, style = MaterialTheme.typography.eqValue)
-            // The slider band: exactly eqSliderLength tall, so the grid and the curve are framed on the sliders alone
-            // (never on the labels, whose height follows the font scale) and 0 dB sits on its vertical center.
-            Box(
+        BoxWithConstraints {
+            val pitch = eqColumnPitchFor(cardWidth = maxWidth, columnCount = TARGET_FREQUENCIES_HZ.size)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(RollaDimens.eqSliderLength)
-                    .drawBehind { drawEqGrid(gridColor) },
-                contentAlignment = Alignment.Center,
+                    .padding(top = RollaDimens.settingsRowPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box {
-                    ResponseCurveOverlay(
-                        visible = isDragging,
-                        gainsMillibel = gainsMillibel,
-                        minGainMillibel = minGainMillibel,
-                        maxGainMillibel = maxGainMillibel,
-                        modifier = Modifier.matchParentSize(),
-                    )
-                    EqualizerBandsRow(
-                        enabled = enabled,
-                        gainsMillibel = gainsMillibel,
-                        valueRange = valueRange,
-                        sliderInteractions = sliderInteractions,
-                        isDragging = isDragging,
-                        onBandGainChange = onBandGainChange,
-                    )
+                // The track starts eqValueLabelTrackGap below the value labels' baseline (ruling P20); the band's own
+                // half-thumb inset above the track is part of that gap, so the row pads only the rest.
+                BandLabelRow(
+                    labels = gainLabels,
+                    pitch = pitch,
+                    style = MaterialTheme.typography.eqValue,
+                    modifier = Modifier.paddingFromBaseline(bottom = ValueLabelBaselineToBand),
+                )
+                // The slider band: the sliders' own height, so the grid and the curve are framed on the sliders alone
+                // (never on the labels, whose height follows the font scale) and 0 dB sits on its vertical center.
+                // A slider insets its track by half its thumb at each end, so the band is one thumb taller than
+                // eqSliderLength: the drawn track is the full eqSliderLength, and the thumb travels all of it.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(EqSliderBandHeight)
+                        .drawBehind { drawEqGrid(gridColor) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box {
+                        ResponseCurveOverlay(
+                            visible = isDragging,
+                            gainsMillibel = gainsMillibel,
+                            minGainMillibel = minGainMillibel,
+                            maxGainMillibel = maxGainMillibel,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                        EqualizerBandsRow(
+                            enabled = enabled,
+                            gainsMillibel = gainsMillibel,
+                            valueRange = valueRange,
+                            pitch = pitch,
+                            sliderInteractions = sliderInteractions,
+                            isDragging = isDragging,
+                            onBandGainChange = onBandGainChange,
+                        )
+                    }
                 }
+                BandLabelRow(
+                    labels = FREQUENCY_LABELS,
+                    pitch = pitch,
+                    style = MaterialTheme.typography.eqFrequency,
+                    modifier = Modifier.paddingFromBaseline(bottom = RollaDimens.eqCardBottomPadding),
+                )
             }
-            BandLabelRow(labels = FREQUENCY_LABELS, style = MaterialTheme.typography.eqFrequency)
         }
     }
+}
+
+/** Test tag on the slider card's Surface. */
+internal const val EQ_SLIDER_CARD_TAG = "eq_slider_card"
+
+/** The band's height: the slider's track ([RollaDimens.eqSliderLength]) plus half a thumb at each end. */
+private val EqSliderBandHeight = RollaDimens.eqSliderLength + RollaDimens.eqThumbDiameter
+
+/** The value labels' baseline to the band's top: the measured gap less the track's half-thumb inset in the band. */
+private val ValueLabelBaselineToBand = RollaDimens.eqValueLabelTrackGap - RollaDimens.eqThumbDiameter / 2
+
+/**
+ * The column pitch for [columnCount] columns on a card [cardWidth] wide (Phase 7 ruling P12): the first and last
+ * column centres sit [RollaDimens.eqColumnEdgeInset] from the card's edges, and the pitch never drops below
+ * [RollaDimens.eqColumnPitch] (the spec §5.4 touch-width floor). On the 360 dp reference that is 28.75 dp.
+ */
+internal fun eqColumnPitchFor(cardWidth: Dp, columnCount: Int): Dp {
+    if (columnCount < 2) return RollaDimens.eqColumnPitch
+    val spread = (cardWidth - RollaDimens.eqColumnEdgeInset * 2) / (columnCount - 1)
+    return spread.coerceAtLeast(RollaDimens.eqColumnPitch)
 }
 
 /**
@@ -398,12 +448,13 @@ private fun EqualizerBandsRow(
     enabled: Boolean,
     gainsMillibel: BandGains,
     valueRange: ClosedFloatingPointRange<Float>,
+    pitch: Dp,
     sliderInteractions: MutableInteractionSource,
     isDragging: Boolean,
     onBandGainChange: (Int, Short) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // Nine fixed eqColumnPitch columns, centered as a group (spec §8.5). They fit a 360 dp screen without scrolling.
+    // Nine [pitch]-wide columns, centered as a group (spec §8.5, ruling P12); each slider's touch width is its pitch.
     Row(modifier = modifier, horizontalArrangement = Arrangement.Center) {
         TARGET_FREQUENCIES_HZ.indices.forEach { band ->
             BandGainSlider(
@@ -415,22 +466,22 @@ private fun EqualizerBandsRow(
                 contentDescription = "${SPOKEN_FREQUENCY_LABELS[band]} gain",
                 onGainChange = { gain -> onBandGainChange(band, gain) },
                 modifier = Modifier
-                    .width(RollaDimens.eqColumnPitch)
-                    .height(RollaDimens.eqSliderLength),
+                    .width(pitch)
+                    .height(EqSliderBandHeight),
             )
         }
     }
 }
 
 /**
- * One row of nine per-band labels (gain values above the sliders, frequencies below), each centered in an
- * eqColumnPitch cell so it lines up with its slider; the row is centered as a group, exactly like the slider row.
+ * One row of nine per-band labels (gain values above the sliders, frequencies below), each centered in a [pitch]-wide
+ * cell so it lines up with its slider; the row is centered as a group, exactly like the slider row.
  */
 @Composable
-private fun BandLabelRow(labels: List<String>, style: TextStyle, modifier: Modifier = Modifier) {
+private fun BandLabelRow(labels: List<String>, pitch: Dp, style: TextStyle, modifier: Modifier = Modifier) {
     Row(modifier = modifier, horizontalArrangement = Arrangement.Center) {
         labels.forEach { label ->
-            Box(modifier = Modifier.width(RollaDimens.eqColumnPitch), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.width(pitch), contentAlignment = Alignment.Center) {
                 BandLabel(text = label, style = style)
             }
         }
@@ -439,15 +490,16 @@ private fun BandLabelRow(labels: List<String>, style: TextStyle, modifier: Modif
 
 /**
  * The gain value above and the frequency below each band. Single-line and measured at its own width, centered on the
- * 28.7 dp column rather than clipped to it: "1.25k" is about as wide as the column at 1.0 font scale, and clipping
- * would cut the unit letter. Neighboring short labels leave room for the overhang.
+ * column (28.7 dp at its narrowest) rather than clipped to it: "1.25k" is about as wide as the narrowest column at 1.0
+ * font scale, and clipping would cut the unit letter. Neighboring short labels leave room for the overhang. The colour
+ * is labelSecondary, a touch lighter than onSurfaceVariant, as measured (Phase 7 ruling P13).
  */
 @Composable
 private fun BandLabel(text: String, style: TextStyle) {
     Text(
         text = text,
         style = style,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.colorScheme.labelSecondary,
         maxLines = 1,
         softWrap = false,
         modifier = Modifier.wrapContentWidth(unbounded = true),
@@ -521,12 +573,7 @@ internal fun SavePresetDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit
         onDismissRequest = onDismiss,
         title = "Save as preset",
         text = {
-            OneUiTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "Preset name",
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-            )
+            OneUiDialogField(value = name, onValueChange = { name = it }, label = "Preset name")
         },
         confirmButton = {
             OneUiTextButton(text = "Save", onClick = { onConfirm(name.trim()) }, enabled = !isNameBlank)

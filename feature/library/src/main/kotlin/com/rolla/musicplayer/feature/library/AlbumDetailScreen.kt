@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,6 +30,7 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 import com.rolla.musicplayer.core.ui.DetailArtworkHeader
 import com.rolla.musicplayer.core.ui.SongListItem
 import com.rolla.musicplayer.core.ui.SongOptionsHost
@@ -107,7 +108,7 @@ internal fun AlbumDetailContent(
                     item(key = "hero", contentType = "hero") {
                         DetailArtworkHeader(
                             artworkUri = album.artworkUri,
-                            subtitle = "${album.artist} · ${tracksCountLabel(uiState.songs.size)}",
+                            subtitle = "${artistDisplayName(album.artist)} · ${tracksCountLabel(uiState.songs.size)}",
                         )
                     }
                     item(key = "sort", contentType = "sort") {
@@ -130,12 +131,18 @@ internal fun AlbumDetailContent(
                     if (uiState.songs.isEmpty()) {
                         item(key = "empty", contentType = "empty") { TabMessage("No tracks in this album") }
                     } else {
-                        items(items = uiState.songs, key = { song -> song.id }, contentType = { "song" }) { song ->
+                        itemsIndexed(
+                            items = uiState.songs,
+                            key = { _, song -> song.id },
+                            contentType = { _, _ -> "song" },
+                        ) { index, song ->
                             SongListItem(
                                 song = song,
                                 onClick = { onSongClick(song) },
                                 trackNumber = song.trackNumber,
                                 onMoreClick = { optionsSong = song },
+                                // No hairline under the list's last row (Phase 7 calibration).
+                                showDivider = index < uiState.songs.lastIndex,
                             )
                         }
                     }

@@ -17,6 +17,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeRight
@@ -27,8 +28,10 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
+import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
 import com.rolla.musicplayer.core.testing.assertColorNear
 import com.rolla.musicplayer.core.testing.drawRoot
+import com.rolla.musicplayer.core.testing.isColorNear
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -173,6 +176,79 @@ class SettingsRowsTest {
         assertColorNear(container, bitmap.getPixel((row.right - inset + 1).toInt(), y))
     }
 
+    // Phase 7 calibration: the slider track starts and ends settingsSliderInset (41 dp, ruling P22) inside the card,
+    // which is the reference's 51 dp from the screen edge (the card is inset settingsCardInset). Along the slider's
+    // centre row, the first primary pixel from the card's start is the active track's start (1.0x of 0.5–2.0x is a
+    // third along, so the thumb is clear of it) and the last sliderInactiveTrack pixel its end. The screen-edge
+    // assertion pins the measured 51 dp itself, so a token that measures it from the wrong edge cannot pass (P22: 31 dp
+    // did). Control: the card's own colour sits between the card edge and the track. Mutations: drop the slider's
+    // extra padding (the old layout, track 29 dp inside the card) → RED; settingsSliderInset back to 31 dp → RED.
+    // LongMethod: one composition, one rendered row, and its card-relative and screen-relative checks.
+    @Suppress("LongMethod")
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-xxhdpi")
+    fun sliderTrackRunsSettingsSliderInsetInsideTheCard() {
+        var colors = emptyList<Color>()
+        setRows(cardTag = CARD_TAG) {
+            val scheme = MaterialTheme.colorScheme
+            colors = listOf(scheme.primary, scheme.sliderInactiveTrack, scheme.surfaceContainer)
+            SettingsSliderRow(
+                label = "Playback speed",
+                value = 1f,
+                valueRange = 0.5f..2f,
+                valueLabel = { "1.0x" },
+                onValueChangeFinished = {},
+            )
+        }
+        val (active, inactive, container) = colors
+        val bitmap = composeRule.drawRoot()
+        val card = cardSurface()
+        val slider = composeRule.onNodeWithContentDescription("Playback speed").getBoundsInRoot()
+        with(composeRule.density) {
+            val y = ((slider.top + slider.bottom) / 2).roundToPx()
+            val xs = card.left.roundToPx() until card.right.roundToPx()
+            val start = xs.first { isColorNear(active, bitmap.getPixel(it, y)) }
+            val end = xs.last { isColorNear(inactive, bitmap.getPixel(it, y)) }
+            assertColorNear(container, bitmap.getPixel((card.left + 8.dp).roundToPx(), y))
+            val inset = RollaDimens.settingsSliderInset.value
+            assertEquals("track start inside the card (dp)", inset, (start.toDp() - card.left).value, 1f)
+            assertEquals("track end inside the card (dp)", inset, (card.right - (end + 1).toDp()).value, 1f)
+            val screenLeft = composeRule.onRoot().getBoundsInRoot().left
+            assertEquals(
+                "track start from the screen edge (dp), the reference's 51 dp",
+                REFERENCE_SLIDER_TRACK_START.value,
+                (start.toDp() - screenLeft).value,
+                1f,
+            )
+        }
+    }
+
+    // Phase 7 calibration: a toggle row's switch ends settingsTrailingEnd (22 dp) inside the card, while row text keeps
+    // settingsRowPadding. Along the row's centre line, the last sliderInactiveTrack pixel (the off switch's track)
+    // is the switch's end. Control: the label still starts settingsRowPadding in. Mutation: the old settingsRowPadding
+    // end padding (switch 19 dp in) → RED.
+    @Test
+    @Config(qualifiers = "w360dp-h640dp-xxhdpi")
+    fun switchEndsSettingsTrailingEndInsideTheCard() {
+        var offTrack = Color.Unspecified
+        setRows(cardTag = CARD_TAG) {
+            offTrack = MaterialTheme.colorScheme.sliderInactiveTrack
+            SettingsToggleRow(label = "Skip silence", checked = false, onCheckedChange = {})
+        }
+        val bitmap = composeRule.drawRoot()
+        val card = cardSurface()
+        (bounds("Skip silence").left - card.left)
+            .assertIsEqualTo(RollaDimens.settingsRowPadding, "control: row text start", tolerance = 0.5.dp)
+        with(composeRule.density) {
+            val y = ((card.top + card.bottom) / 2).roundToPx()
+            val end = (card.left.roundToPx() until card.right.roundToPx()).last {
+                isColorNear(offTrack, bitmap.getPixel(it, y))
+            }
+            val endInset = (card.right - (end + 1).toDp()).value
+            assertEquals("switch end inside the card (dp)", RollaDimens.settingsTrailingEnd.value, endInset, 1f)
+        }
+    }
+
     private fun setRows(
         withHeader: Boolean = false,
         cardTag: String? = null,
@@ -188,6 +264,13 @@ class SettingsRowsTest {
         }
     }
 
+    /** The card's drawn surface: the tagged modifier sits outside SettingsSectionCard's settingsCardInset padding. */
+    private fun cardSurface(): DpRect {
+        val outer = composeRule.onNodeWithTag(CARD_TAG).getBoundsInRoot()
+        val inset = RollaDimens.settingsCardInset
+        return DpRect(outer.left + inset, outer.top, outer.right - inset, outer.bottom)
+    }
+
     // Unmerged: a row merges its texts, so the merged tree would answer every text with the whole row's bounds.
     private fun bounds(text: String): DpRect =
         composeRule.onNodeWithText(text, useUnmergedTree = true).getBoundsInRoot()
@@ -197,5 +280,8 @@ class SettingsRowsTest {
     private companion object {
         const val CARD_TAG = "card"
         const val ROW_HOST_TAG = "rowHost"
+
+        // The reference's settings slider track start from the screen edge (calibration-diffs.md, Settings: 50.7 dp).
+        val REFERENCE_SLIDER_TRACK_START = 51.dp
     }
 }

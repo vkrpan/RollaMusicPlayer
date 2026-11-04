@@ -13,7 +13,7 @@ private const val OPEN_PLAYER_TIMEOUT_MS = 5_000L
 
 /**
  * Generates the Baseline Profile for RollaMusicPlayer by driving its hottest journey:
- * cold start -> Home's Tracks list settling + scroll -> open a song -> Now Playing.
+ * cold start -> Home's Tracks list settling + scroll -> tab swipes and an A–Z rail jump -> open a song -> Now Playing.
  *
  * Run later (no device attached in this environment -- see baselineprofile/build.gradle.kts for
  * the managed-device vs connected-device wiring):
@@ -41,8 +41,12 @@ class BaselineProfileGenerator {
             val list = waitForSongList()
             flingSongList(list)
 
+            // Journey step 1b (Phase 7): the other tabs' first pages, then one A–Z rail jump on Tracks.
+            swipeHomeTabs()
+            jumpWithRail()
+
             // Journey step 2: open a song, expand the mini-player into Now Playing.
-            list?.children?.firstOrNull()?.click()
+            tapFirstTrack()
             device.wait(Until.hasObject(By.descContains("Open player")), OPEN_PLAYER_TIMEOUT_MS)
             device.findObject(By.descContains("Open player"))?.click()
             device.wait(Until.hasObject(By.desc("Playback position")), OPEN_PLAYER_TIMEOUT_MS)

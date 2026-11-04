@@ -9,19 +9,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Album
+import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
  * Model-aware row for an [Album] (spec §8.1): the 48 dp rounded-square album art (or a note placeholder), the title
  * and "Artist, N tracks". The anatomy is [ListRowScaffold]'s; there is no trailing overflow, and [onClick] opens the
- * album.
+ * album. The list passes [showDivider] = false for its last row.
  */
 @Composable
-fun AlbumRow(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun AlbumRow(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
     ListRowScaffold(
         title = album.title,
-        subtitle = "${album.artist}, ${tracksCountLabel(album.songCount)}",
+        subtitle = "${artistDisplayName(album.artist)}, ${tracksCountLabel(album.songCount)}",
         onClick = onClick,
         modifier = modifier,
+        showDivider = showDivider,
     ) {
         // Decorative within the merged row: the row's texts already name the album.
         ArtworkThumbnail(album.artworkUri, null)

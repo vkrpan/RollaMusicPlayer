@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -17,6 +18,13 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.artworkPlaceholder
 import com.rolla.musicplayer.core.designsystem.theme.artworkPlaceholderGlyph
 import com.rolla.musicplayer.core.designsystem.theme.artworkPlaceholderLarge
+import com.rolla.musicplayer.core.designsystem.theme.sheetArtworkPlaceholder
+
+/**
+ * True inside a OneUiBottomSheet or OneUiDialog, whose surfaceContainerHigh would swallow the plain light placeholder
+ * (1.02:1, Phase 7 F2); ArtworkPlaceholder then draws sheetArtworkPlaceholder.
+ */
+internal val LocalInRaisedSurface = staticCompositionLocalOf { false }
 
 /**
  * Missing-artwork stand-in: a gray rounded box with a centered [glyph] (a note by default; artist rows pass a person).
@@ -32,6 +40,8 @@ fun ArtworkPlaceholder(
 ) {
     val container = if (large) {
         MaterialTheme.colorScheme.artworkPlaceholderLarge
+    } else if (LocalInRaisedSurface.current) {
+        MaterialTheme.colorScheme.sheetArtworkPlaceholder
     } else {
         MaterialTheme.colorScheme.artworkPlaceholder
     }

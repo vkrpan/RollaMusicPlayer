@@ -22,16 +22,20 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
  * - the 48 dp [thumbnail] at [RollaDimens.listThumbStart]
  * - [title] and [subtitle] at [RollaDimens.listTextStart], ending [RollaDimens.listTrailingEnd] before the row's end
  *   (the A–Z rail space)
- * - a hairline from the text column to the rail
+ * - a hairline from the text column to the rail, unless [showDivider] is false (the list's last row: One UI draws no
+ *   line under it, Phase 7 calibration)
  *
  * The whole row is one merged clickable node.
  */
+// LongParameterList: the row's two texts, its click, modifier, divider flag and thumbnail slot are each one input.
+@Suppress("LongParameterList")
 @Composable
 internal fun ListRowScaffold(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    showDivider: Boolean = true,
     thumbnail: @Composable () -> Unit,
 ) {
     // The hairline overlays the row's bottom edge so the row pitch stays exactly listRowHeight.
@@ -49,10 +53,12 @@ internal fun ListRowScaffold(
             Spacer(modifier = Modifier.width(RollaDimens.listThumbTextGap))
             RowTexts(title = title, subtitle = subtitle, modifier = Modifier.weight(1f))
         }
-        InsetDivider(
-            startInset = RollaDimens.listTextStart,
-            endInset = RollaDimens.listDividerEnd,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
+        if (showDivider) {
+            InsetDivider(
+                startInset = RollaDimens.listTextStart,
+                endInset = RollaDimens.listDividerEnd,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+        }
     }
 }

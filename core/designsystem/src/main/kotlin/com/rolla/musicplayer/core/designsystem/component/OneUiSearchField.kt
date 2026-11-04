@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
@@ -60,10 +61,7 @@ fun OneUiSearchField(
     BasicTextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = modifier
-            .heightIn(min = RollaDimens.minTouchTarget)
-            .clip(CircleShape)
-            .background(colors.surfaceContainerHigh),
+        modifier = modifier.searchFieldPill(),
         textStyle = textStyle.copy(color = colors.onSurface),
         singleLine = true,
         cursorBrush = SolidColor(colors.accentText),
@@ -80,6 +78,47 @@ fun OneUiSearchField(
         },
     )
 }
+
+/**
+ * The same search field over a [TextFieldValue], so the caller owns the cursor (Phase 7 Task 5): the Search screen
+ * starts it at the end of a restored query instead of before it. Clear reports an empty value.
+ */
+@Composable
+fun OneUiSearchField(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    onSearch: () -> Unit = {},
+) {
+    val colors = MaterialTheme.colorScheme
+    val textStyle = MaterialTheme.typography.bodyLarge
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier.searchFieldPill(),
+        textStyle = textStyle.copy(color = colors.onSurface),
+        singleLine = true,
+        cursorBrush = SolidColor(colors.accentText),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+        decorationBox = { innerTextField ->
+            SearchFieldDecoration(
+                query = value.text,
+                placeholder = placeholder,
+                textStyle = textStyle,
+                onClear = { onValueChange(TextFieldValue("")) },
+                innerTextField = innerTextField,
+            )
+        },
+    )
+}
+
+/** The pill both overloads draw: at least [RollaDimens.minTouchTarget] tall, CircleShape, surfaceContainerHigh. */
+@Composable
+private fun Modifier.searchFieldPill(): Modifier = heightIn(min = RollaDimens.minTouchTarget)
+    .clip(CircleShape)
+    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
 
 /** Search glyph · query (or placeholder) · Clear button; the end keeps [RollaDimens.searchFieldStart] when empty. */
 @Composable

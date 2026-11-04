@@ -137,6 +137,9 @@ androidx-benchmark-macro-junit4 = { group = "androidx.benchmark",        name = 
 androidx-uiautomator            = { group = "androidx.test.uiautomator", name = "uiautomator",                  version.ref = "uiautomator" }
 androidx-profileinstaller       = { group = "androidx.profileinstaller", name = "profileinstaller",             version.ref = "profileinstaller" }
 
+# Build logic (compileOnly in build-logic/convention: RollaStaticAnalysisPlugin references DetektExtension)
+detekt-gradle-plugin            = { group = "io.gitlab.arturbosch.detekt", name = "detekt-gradle-plugin",       version.ref = "detekt" }
+
 [plugins]
 android-application            = { id = "com.android.application",     version.ref = "agp" }
 android-library                = { id = "com.android.library",         version.ref = "agp" }

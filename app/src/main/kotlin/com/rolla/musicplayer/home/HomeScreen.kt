@@ -10,13 +10,19 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -31,6 +37,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.ContentPanel
+import com.rolla.musicplayer.core.designsystem.component.LocalNavigationBarPadded
 import com.rolla.musicplayer.core.designsystem.component.OneUiDetailTopBar
 import com.rolla.musicplayer.core.designsystem.component.OneUiDropdownMenu
 import com.rolla.musicplayer.core.designsystem.component.OneUiIconButton
@@ -168,7 +175,8 @@ internal fun editTagsForSelection(selection: SongSelectionState, onEditTags: (Li
  * tab row and the pager, whose pages render [pageContent] inside a [ContentPanel]. While selecting, back clears the
  * selection and both tab clicks and swipes are disabled. While [accessGranted] is false (the gate shows its prompt
  * instead of the pages), the header hides + and losing access clears the selection and calls [onAccessLost]. The
- * header owns the status-bar inset; the pages' lists pad for the navigation bar themselves.
+ * header owns the status-bar inset; the area below it (pages or prompt) ends at the navigation bar's top, so the pages'
+ * lists pad for the mini-player pill alone (ruling P26).
  */
 // Hoisted pager / selection state, four header events, the access flag and its loss callback, and two content slots.
 @Suppress("LongParameterList")
@@ -211,11 +219,23 @@ internal fun HomeScreen(
                 onSettingsClick = onSettingsClick,
             )
         }
-        Box(modifier = Modifier.weight(1f)) {
+        HomeBelowHeader(modifier = Modifier.weight(1f)) {
             pagerContainer {
                 HomeTabsAndPager(pagerState = pagerState, selection = selection, pageContent = pageContent)
             }
         }
+    }
+}
+
+/**
+ * Everything below the header, the pages or the permission prompt, ends at the navigation bar's top, so the black
+ * background shows behind the bar, as on the reference (rulings P22, P26). Lists inside pad for the pill alone
+ * (LocalNavigationBarPadded); the pill itself is placed by the app shell's MiniPlayerHost above the bar.
+ */
+@Composable
+private fun HomeBelowHeader(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier = modifier.windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))) {
+        CompositionLocalProvider(LocalNavigationBarPadded provides true, content = content)
     }
 }
 
@@ -248,10 +268,12 @@ private fun HomeHeader(
             enter = if (reducedMotion) fadeIn(animationSpec = snap()) else fadeIn(),
             exit = if (reducedMotion) fadeOut(animationSpec = snap()) else fadeOut(),
         ) {
+            // The + draws larger than the header's other glyphs on the reference (Phase 7 calibration).
             OneUiIconButton(
                 icon = RollaIcons.Add,
                 contentDescription = "Create playlist",
                 onClick = onCreatePlaylistClick,
+                iconSize = RollaDimens.headerActionIconLarge,
             )
         }
         OneUiIconButton(icon = RollaIcons.Search, contentDescription = "Search", onClick = onSearchClick)
@@ -276,6 +298,8 @@ private fun OverflowMenu(onSettingsClick: () -> Unit, modifier: Modifier = Modif
     }
 }
 
+// LongMethod: the tab row, the gap and the pager with its inset, drag lock and panel, in one flat column.
+@Suppress("LongMethod")
 @Composable
 private fun HomeTabsAndPager(
     pagerState: PagerState,

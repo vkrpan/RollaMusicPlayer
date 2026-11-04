@@ -35,6 +35,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
 import com.rolla.musicplayer.core.designsystem.component.OneUiSlider
 import com.rolla.musicplayer.core.designsystem.component.OneUiSwitch
@@ -112,7 +114,8 @@ fun SettingsToggleRow(
         modifier = modifier
             .fillMaxWidth()
             .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange)
-            .settingsRowLayout(),
+            // The switch ends settingsTrailingEnd inside the card, a little further in than row text (Phase 7).
+            .settingsRowLayout(end = RollaDimens.settingsTrailingEnd),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SettingsRowText(label = label, subLabel = subLabel, modifier = Modifier.weight(1f))
@@ -227,20 +230,34 @@ fun SettingsSliderRow(
             },
             valueRange = valueRange,
             steps = steps,
+            // The track runs settingsSliderInset inside the card at both ends (Phase 7). The row already pads
+            // settingsRowPadding, and the slider itself insets its track by half its thumb, so this adds the rest.
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = SliderExtraInset)
                 .semantics { contentDescription = label },
         )
     }
 }
 
+/** The slider's own padding inside the row, so its track starts settingsSliderInset from the card edge. */
+private val SliderExtraInset =
+    (RollaDimens.settingsSliderInset - RollaDimens.settingsRowPadding - RollaDimens.settingsSliderThumb / 2)
+        .coerceAtLeast(0.dp)
+
 /**
  * Every row's layout: at least the single-line row height (above the 48 dp touch floor), then settingsRowPadding at
- * the sides and settingsRowVerticalPadding above and below the content.
+ * the start, [end] at the end (settingsRowPadding, or settingsTrailingEnd for a row with a trailing control) and
+ * settingsRowVerticalPadding above and below the content.
  */
-internal fun Modifier.settingsRowLayout(): Modifier = this
+internal fun Modifier.settingsRowLayout(end: Dp = RollaDimens.settingsRowPadding): Modifier = this
     .heightIn(min = RollaDimens.singleLineRowHeight)
-    .padding(horizontal = RollaDimens.settingsRowPadding, vertical = RollaDimens.settingsRowVerticalPadding)
+    .padding(
+        start = RollaDimens.settingsRowPadding,
+        top = RollaDimens.settingsRowVerticalPadding,
+        end = end,
+        bottom = RollaDimens.settingsRowVerticalPadding,
+    )
 
 /**
  * A read-only block of prose inside a [SettingsSectionCard] (About, Privacy), padded like a row (settingsRowPadding at

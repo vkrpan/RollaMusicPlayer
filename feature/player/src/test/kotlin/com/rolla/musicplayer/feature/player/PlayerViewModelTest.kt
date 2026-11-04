@@ -646,6 +646,23 @@ class PlayerViewModelTest {
         }
     }
 
+    // Phase 7 ruling P1: "Go to artist" routes ArtistDetail(artistName), and artists are keyed by the raw name, so a
+    // now-playing song whose MediaStore artist is <unknown> must target the raw "<unknown>", never the display name.
+    // Trivial stub: artistName = null → RED. Mutation: artistName = artistDisplayName(song.artist) → "Unknown" → RED.
+    @Test
+    fun `go to artist targets the raw unknown artist, not its display name`() = runTest {
+        currentSongFlow.value = playbackSong(id = "42", artist = "<unknown>")
+        every { songRepository.observeSong("42") } returns
+            flowOf(librarySong(id = "42", albumId = 7L, artist = "<unknown>"))
+        viewModel.overflowTargets.test {
+            assertEquals(
+                "Go to artist is keyed by MediaStore's raw <unknown>",
+                "<unknown>",
+                expectMostRecentItem().artistName,
+            )
+        }
+    }
+
     // Review Focus 3: the tag editor would close at once with "Track not found.", so Edit tags disables with Go to
     // album.
     // Mutations: (a) fall back to the playback Song's albumId 0L → albumId 0 instead of null → RED; (b) take songId

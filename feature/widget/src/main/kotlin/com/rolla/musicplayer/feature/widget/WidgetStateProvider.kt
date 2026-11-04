@@ -2,6 +2,7 @@ package com.rolla.musicplayer.feature.widget
 
 import com.rolla.musicplayer.core.media.PlaybackStateHolder
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -56,7 +57,8 @@ class WidgetStateProviderImpl @Inject constructor(
         song ?: return MusicWidgetState()
         return MusicWidgetState(
             title = song.title,
-            artist = song.artist,
+            // Display only (ruling 3): the holder's Song keeps MediaStore's raw name.
+            artist = artistDisplayName(song.artist),
             isPlaying = isPlaying,
             positionMs = positionMs,
             durationMs = durationMs,

@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.height
 import androidx.compose.ui.unit.width
@@ -87,6 +88,17 @@ class MiniPlayerTest {
         )
     }
 
+    // Phase 7 calibration: Play and Queue draw in the compact icon box; previous and next keep iconSize. The unmerged
+    // Icon node's bounds are the glyph box. Control: previous is iconSize, so the two boxes differ.
+    // Mutations: drop iconSize from the Play button (24 dp) → RED; drop it from the Queue button → RED.
+    @Test
+    fun playAndQueueUseTheCompactIconBox() {
+        setMiniPlayer()
+        iconWidth("Previous track").assertIsEqualTo(RollaDimens.iconSize, "previous glyph box", tolerance = 0.5.dp)
+        iconWidth("Play").assertIsEqualTo(RollaDimens.miniTransportCompactIcon, "play glyph box", tolerance = 0.5.dp)
+        iconWidth("Queue").assertIsEqualTo(RollaDimens.miniTransportCompactIcon, "queue glyph box", tolerance = 0.5.dp)
+    }
+
     // Mutation: leave the Queue button onClick as {} → RED.
     @Test
     fun queueButtonCallsOnQueue() {
@@ -103,6 +115,10 @@ class MiniPlayerTest {
         setMiniPlayer()
         composeRule.onNodeWithContentDescription("Now playing: Song title by Artist. Open player.").assertExists()
     }
+
+    /** The width of the unmerged Icon node that carries [description]: the glyph's box. */
+    private fun iconWidth(description: String): Dp =
+        composeRule.onNodeWithContentDescription(description, useUnmergedTree = true).getBoundsInRoot().width
 
     // UnusedContentLambdaTargetStateParameter: the Unit target state only mints the AnimatedVisibilityScope.
     @Suppress("UnusedContentLambdaTargetStateParameter")

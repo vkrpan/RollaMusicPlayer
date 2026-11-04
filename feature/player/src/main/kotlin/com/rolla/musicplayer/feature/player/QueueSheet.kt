@@ -37,6 +37,7 @@ import com.rolla.musicplayer.core.designsystem.theme.emptyState
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.media.QueueItem
 import com.rolla.musicplayer.core.media.QueueState
+import com.rolla.musicplayer.core.model.artistDisplayName
 import com.rolla.musicplayer.core.ui.ArtworkThumbnail
 
 const val QUEUE_LIST_TAG = "queue_list"
@@ -130,7 +131,7 @@ private fun QueueRowText(item: QueueItem, titleColor: Color, modifier: Modifier 
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            item.artist,
+            artistDisplayName(item.artist),
             style = MaterialTheme.typography.artistName,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

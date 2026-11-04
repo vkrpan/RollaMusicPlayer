@@ -22,7 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +39,8 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -197,9 +199,10 @@ fun SearchScreen(
  * The list the options sheet checks its track against (6a ruling 10):
  * - Results: the result tracks, so a track that leaves them closes the sheet.
  * - Empty: no tracks, so a tag edit that leaves the query matching nothing closes it too.
- * - Idle and Loading: null, which means "do not track". Returning after more than 5 s in the background restarts the
- *   WhileSubscribed search, which passes through Loading. The open sheet, or a half-typed playlist name, must survive
- *   that.
+ * - Idle and Loading: null, which means "do not track": neither says what the query matches. Loading only shows for a
+ *   first query typed from Idle. A refinement, or the WhileSubscribed search restarting after more than 5 s in the
+ *   background, keeps the previous Results or Empty on screen until the new answer arrives, so an open sheet (or a
+ *   half-typed playlist name) is never closed by a reload.
  */
 private fun sheetTrackedSongs(uiState: SearchUiState): List<Song>? = when (uiState) {
     is SearchUiState.Results -> uiState.results.songs
@@ -207,7 +210,14 @@ private fun sheetTrackedSongs(uiState: SearchUiState): List<Song>? = when (uiSta
     SearchUiState.Idle, SearchUiState.Loading -> null
 }
 
-/** Navigate up at [RollaDimens.topBarEdge], then the search pill, ending [RollaDimens.screenEdge] from the edge. */
+/**
+ * Navigate up at [RollaDimens.topBarEdge], then the search pill, ending [RollaDimens.screenEdge] from the edge.
+ *
+ * The field's text is always [query], the ViewModel's; only the cursor and the IME composition are held here
+ * (Phase 7 Task 5, Review Focus 4). They start at the end of the query each time the screen enters composition, so
+ * coming back to Search with "jazz" puts the cursor after it. When [query] changes from outside the field (a recent
+ * search tapped), the cursor moves to the end of the new text.
+ */
 @Composable
 private fun SearchBar(
     query: String,
@@ -216,6 +226,8 @@ private fun SearchBar(
     onSearch: () -> Unit,
     focusRequester: FocusRequester,
 ) {
+    var fieldState by remember { mutableStateOf(TextFieldValue(query, TextRange(query.length))) }
+    val fieldValue = if (fieldState.text == query) fieldState else TextFieldValue(query, TextRange(query.length))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -226,8 +238,11 @@ private fun SearchBar(
     ) {
         OneUiIconButton(icon = RollaIcons.ChevronBack, contentDescription = "Navigate up", onClick = onNavigateUp)
         OneUiSearchField(
-            query = query,
-            onQueryChange = onQueryChanged,
+            value = fieldValue,
+            onValueChange = { newValue ->
+                fieldState = newValue
+                if (newValue.text != fieldValue.text) onQueryChanged(newValue.text)
+            },
             placeholder = "Search your library",
             modifier = Modifier.weight(1f).focusRequester(focusRequester),
             onSearch = onSearch,
@@ -323,7 +338,8 @@ private const val CONTENT_TYPE_ARTIST = "artist"
  * name ([searchArtistKey], Phase 4a ruling 12). A track tap plays the results from it (Phase 3 gate decision 5);
  * its ⋮ opens the options sheet. The list pads its bottom by [homeListBottomPadding] (ruling 3).
  */
-@Suppress("LongParameterList")
+// LongMethod: three flat sections, each a header plus an indexed row list (the index drops the last row's divider).
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun SearchResultsList(
     results: SearchResults,
@@ -339,20 +355,46 @@ private fun SearchResultsList(
     ) {
         if (results.songs.isNotEmpty()) {
             item(key = "header-songs", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Tracks") }
-            items(results.songs, key = { song -> "song-${song.id}" }, contentType = { CONTENT_TYPE_SONG }) { song ->
-                SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onSongMoreClick(song) })
+            itemsIndexed(
+                results.songs,
+                key = { _, song -> "song-${song.id}" },
+                contentType = { _, _ -> CONTENT_TYPE_SONG },
+            ) { index, song ->
+                SongListItem(
+                    song = song,
+                    onClick = { onSongClick(song) },
+                    onMoreClick = { onSongMoreClick(song) },
+                    // Each section is a list of its own: no hairline under its last row (Phase 7 calibration).
+                    showDivider = index < results.songs.lastIndex,
+                )
             }
         }
         if (results.albums.isNotEmpty()) {
             item(key = "header-albums", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Albums") }
-            items(results.albums, key = { "album-${it.id}" }, contentType = { CONTENT_TYPE_ALBUM }) { album ->
-                AlbumRow(album = album, onClick = { onAlbumClick(album.id) })
+            itemsIndexed(
+                results.albums,
+                key = { _, album -> "album-${album.id}" },
+                contentType = { _, _ -> CONTENT_TYPE_ALBUM },
+            ) { index, album ->
+                AlbumRow(
+                    album = album,
+                    onClick = { onAlbumClick(album.id) },
+                    showDivider = index < results.albums.lastIndex,
+                )
             }
         }
         if (results.artists.isNotEmpty()) {
             item(key = "header-artists", contentType = CONTENT_TYPE_HEADER) { SearchSectionHeader(text = "Artists") }
-            items(results.artists, key = ::searchArtistKey, contentType = { CONTENT_TYPE_ARTIST }) { artist ->
-                ArtistRow(artist = artist, onClick = { onArtistClick(artist.name) })
+            itemsIndexed(
+                results.artists,
+                key = { _, artist -> searchArtistKey(artist) },
+                contentType = { _, _ -> CONTENT_TYPE_ARTIST },
+            ) { index, artist ->
+                ArtistRow(
+                    artist = artist,
+                    onClick = { onArtistClick(artist.name) },
+                    showDivider = index < results.artists.lastIndex,
+                )
             }
         }
     }

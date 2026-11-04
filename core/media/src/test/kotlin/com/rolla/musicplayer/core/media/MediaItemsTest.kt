@@ -38,6 +38,45 @@ class MediaItemsTest {
         assertEquals("content://media/external/audio/albumart/7", item.mediaMetadata.artworkUri.toString())
     }
 
+    // Phase 7 ruling P8: the notification and the System UI card read MediaMetadata.artist, so it carries the display
+    // name, while the Song the service rebuilds (Now Playing's "Go to artist" key) gets the raw name back from the
+    // extra.
+    // Trivial stubs: no mapping → "Unknown" display assertion RED; no extra read → raw assertion RED. Control: "Sade"
+    // stays "Sade" both ways, so a constant "Unknown" or "<unknown>" also fails.
+    // Mutations: (1) toPlaybackSong reads mediaMetadata.artist instead of rawArtist() → raw assertion RED;
+    // (2) setArtist(artist) without artistDisplayName → display assertion RED.
+    @Test
+    fun unknownArtistShowsUnknownInTheMetadataAndRebuildsRaw() {
+        val unknown = song.copy(artist = "<unknown>").toMediaItem()
+        assertEquals("the metadata shows MediaStore's <unknown> as Unknown", "Unknown", unknown.mediaMetadata.artist)
+        assertEquals("the rebuilt Song keeps the raw <unknown>", "<unknown>", unknown.toPlaybackSong().artist)
+
+        val sade = song.copy(artist = "Sade").toMediaItem()
+        assertEquals("control: the metadata shows a real artist's name", "Sade", sade.mediaMetadata.artist)
+        assertEquals("control: the rebuilt Song keeps a real artist's name", "Sade", sade.toPlaybackSong().artist)
+    }
+
+    // The raw-name extra survives asPlayableLeaf (the System UI card's resumption items), and the rebuild keeps the
+    // rest of the item. Mutation: toPlaybackSong drops the title → RED.
+    @Test
+    fun toPlaybackSong_rebuildsTheItemsFields() {
+        val rebuilt = song.copy(artist = "<unknown>").toMediaItem().asPlayableLeaf().toPlaybackSong()
+        assertEquals("the leaf's rebuilt Song keeps the raw <unknown>", "<unknown>", rebuilt.artist)
+        assertEquals("the rebuilt Song keeps the id", "42", rebuilt.id)
+        assertEquals("the rebuilt Song keeps the title", "Title", rebuilt.title)
+        assertEquals("the rebuilt Song keeps the album", "Album", rebuilt.album)
+        assertEquals(
+            "the rebuilt Song keeps the content uri",
+            "content://media/external/audio/media/42",
+            rebuilt.contentUri,
+        )
+        assertEquals(
+            "the rebuilt Song keeps the artwork uri",
+            "content://media/external/audio/albumart/7",
+            rebuilt.artworkUri,
+        )
+    }
+
     // Mutation: drop `.ifEmpty { null }` → an empty Uri instead of null → RED.
     @Test
     fun toMediaItem_withoutArtwork_hasNoArtworkUri() {

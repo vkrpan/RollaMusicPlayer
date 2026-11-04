@@ -65,7 +65,8 @@ private fun PromptBody(message: String, buttonText: String, onClick: () -> Unit)
         modifier = Modifier.size(RollaDimens.featureCardSize),
         shape = MaterialTheme.shapes.featureCard,
         large = true,
-        glyphSize = RollaDimens.npArtGlyph,
+        // The box is a featureCardSize card, so its note is the feature card's (Phase 7 Task 3a review).
+        glyphSize = RollaDimens.featureCardGlyph,
     )
     Spacer(modifier = Modifier.height(RollaDimens.settingsSectionGap))
     Text(

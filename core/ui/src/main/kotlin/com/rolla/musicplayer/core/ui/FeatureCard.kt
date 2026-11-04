@@ -96,10 +96,11 @@ private fun FeatureCardArt(artworkUris: List<String>, modifier: Modifier = Modif
     val shape = MaterialTheme.shapes.featureCard
     val uris = remember(artworkUris) { artworkUris.filter { it.isNotBlank() } }
     Box(modifier = modifier.size(RollaDimens.featureCardSize).clip(shape)) {
+        // artworkPlaceholder, not the darker artworkPlaceholderLarge: the reference card is #454547 (Phase 7 ruling
+        // P13). The collage's cell placeholders and backdrops below use the same colour, so the card reads as one.
         ArtworkPlaceholder(
             modifier = Modifier.matchParentSize(),
             shape = shape,
-            large = true,
             glyphSize = RollaDimens.featureCardGlyph,
         )
         when {
@@ -128,7 +129,6 @@ private fun Collage(uris: List<String>, modifier: Modifier = Modifier) {
                         ArtworkPlaceholder(
                             modifier = cellModifier.testTag(FEATURE_CARD_ART_CELL_PLACEHOLDER_TAG),
                             shape = RectangleShape,
-                            large = true,
                         )
                     }
                 }
@@ -148,7 +148,6 @@ private fun CollageImageCell(uri: String, modifier: Modifier = Modifier) {
         ArtworkPlaceholder(
             modifier = Modifier.matchParentSize().testTag(FEATURE_CARD_ART_IMAGE_BACKDROP_TAG),
             shape = RectangleShape,
-            large = true,
         )
         CroppedArtwork(uri, Modifier.matchParentSize())
     }

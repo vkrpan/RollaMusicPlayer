@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -69,7 +70,7 @@ class TracksViewModelTest {
                 artworkUri = "content://media/external/audio/albumart/10",
             ),
         )
-        val received = mutableListOf<List<Song>>()
+        val received = mutableListOf<List<Song>?>()
 
         // Subscribing starts the WhileSubscribed upstream from fakeRepository.
         val collectJob = launch { viewModel.songs.collect { received.add(it) } }
@@ -83,6 +84,18 @@ class TracksViewModelTest {
             received.last(),
         )
         collectJob.cancel()
+    }
+
+    // Phase 7 (6a deferral): the cold-start "No music found" flash. Until the library's first emission the tab must
+    // know nothing, not an empty library. Control: once the repository emits its (empty) library, songs is that empty
+    // list (fails if songs stayed null forever). Mutation: seed stateIn with emptyList() → the first assertion → RED.
+    @Test
+    fun `songs are null until the library first emits`() = runTest {
+        assertNull(viewModel.songs.value)
+        val job = launch { viewModel.songs.collect {} }
+        advanceUntilIdle()
+        assertEquals(emptyList<Song>(), viewModel.songs.value)
+        job.cancel()
     }
 
     // ── play ──────────────────────────────────────────────────────────────────

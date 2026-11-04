@@ -1,6 +1,7 @@
 package com.rolla.musicplayer
 
 import android.graphics.Color
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -128,17 +129,31 @@ private fun RollaAppRoot(activity: ComponentActivity) {
 @Composable
 private fun ResolvedEdgeToEdgeEffect(activity: ComponentActivity, darkTheme: Boolean) {
     DisposableEffect(darkTheme) {
-        activity.enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(
-                Color.TRANSPARENT,
-                Color.TRANSPARENT,
-            ) { darkTheme },
-            navigationBarStyle = SystemBarStyle.auto(
-                NavigationBarLightScrim,
-                NavigationBarDarkScrim,
-            ) { darkTheme },
-        )
+        activity.applyRollaEdgeToEdge(darkTheme)
         onDispose {}
+    }
+}
+
+/**
+ * Edge to edge with bar icons resolved from [darkTheme] (see [ResolvedEdgeToEdgeEffect]) and, on API 29+, a fully
+ * transparent navigation bar (Phase 7 ruling P14): SystemBarStyle.auto makes the bar transparent there but leaves the
+ * system's contrast scrim on, which the device comparison measured as a grey band (#161920 over true black) the One UI
+ * reference does not have. Turning the enforcement off lets the screen behind show through. The light theme keeps dark
+ * navigation-bar icons, because auto still sets the bar's light appearance from [darkTheme].
+ */
+internal fun ComponentActivity.applyRollaEdgeToEdge(darkTheme: Boolean) {
+    enableEdgeToEdge(
+        statusBarStyle = SystemBarStyle.auto(
+            Color.TRANSPARENT,
+            Color.TRANSPARENT,
+        ) { darkTheme },
+        navigationBarStyle = SystemBarStyle.auto(
+            NavigationBarLightScrim,
+            NavigationBarDarkScrim,
+        ) { darkTheme },
+    )
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        window.isNavigationBarContrastEnforced = false
     }
 }
 
@@ -206,7 +221,8 @@ private fun RollaNavHost() {
  *
  * No destination is wrapped in an outer bottom padding (Phase 6b ruling 9); each owns its bottom insets:
  * - Home, Search and the detail screens (PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail and FolderDetail)
- *   pad their lists by homeListBottomPadding (the pill plus the navigation bar) and scroll under the pill.
+ *   pad their lists by homeListBottomPadding and scroll under the pill. On Search and the detail screens that is the
+ *   pill plus the navigation bar; Home's area below its header ends at the bar, so there it is the pill alone.
  * - Equaliser, the tag editors, Settings, About, Licenses and Privacy hide the pill
  *   (MiniPlayerVisibility.routesWithoutMiniPlayer), so LocalMiniPlayerInset is 0 there; their Scaffolds own the
  *   navigation-bar inset.

@@ -13,13 +13,16 @@ import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.DpRect
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import coil.Coil
 import coil.ImageLoader
 import coil.intercept.Interceptor
 import coil.request.ErrorResult
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.miniPlayerArtGlyph
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerArtPlaceholder
 import com.rolla.musicplayer.core.designsystem.theme.miniPlayerContainer
 import com.rolla.musicplayer.core.model.Song
@@ -53,6 +56,7 @@ class MiniPlayerArtPixelTest {
 
     private var placeholder = Color.Unspecified
     private var container = Color.Unspecified
+    private var glyph = Color.Unspecified
 
     @After
     fun restore() {
@@ -70,15 +74,29 @@ class MiniPlayerArtPixelTest {
         assertTrue("loading art shows the pill: $pixels", pixels.all { isColorNear(container, it) })
     }
 
-    // A song whose artwork cannot be loaded still shows the grey disc. Mutation: onState sets
+    // A song whose artwork cannot be loaded still shows the grey disc. The probe is a band left of the note's box
+    // (Phase 7: the note now shows on a failed load too, inside the old centre-quarter probe). Mutation: onState sets
     // `showPlaceholder = artworkUri.isEmpty()` (drops the Error case) → RED.
     @Test
     fun failedArtworkDrawsThePlaceholder() {
         setPill(Interceptor { chain -> ErrorResult(null, chain.request, IllegalStateException("no art")) })
-        val pixels = artCentre()
-        // The placeholder token is translucent: the disc is it composited over the pill.
+        val pixels = artBandLeftOfTheNote()
+        // Composited over the pill: the light placeholder token is translucent (the dark one is opaque since Phase 7).
         val disc = placeholder.compositeOver(container)
         assertTrue("failed art shows the placeholder: $pixels", pixels.all { isColorNear(disc, it) })
+    }
+
+    // Phase 7 calibration: the note belongs to the grey disc, so a failed load shows it too, not only an empty uri.
+    // Control: the note's box also holds disc pixels around the glyph, so a box painted all glyph-white cannot pass.
+    // Trivial stub (never draw the note) → no glyph pixel → RED. Mutation: the old `if (artworkUri.isEmpty())`
+    // condition (this song has a uri) → RED.
+    @Test
+    fun failedArtworkShowsTheNote() {
+        setPill(Interceptor { chain -> ErrorResult(null, chain.request, IllegalStateException("no art")) })
+        val pixels = noteBox()
+        val disc = placeholder.compositeOver(container)
+        assertTrue("control: the note box shows the disc around the glyph", pixels.any { isColorNear(disc, it) })
+        assertTrue("failed art shows the note glyph", pixels.any { isColorNear(glyph, it) })
     }
 
     // UnusedContentLambdaTargetStateParameter: the Unit target state only mints the AnimatedVisibilityScope.
@@ -93,6 +111,7 @@ class MiniPlayerArtPixelTest {
             RollaMusicPlayerTheme(darkTheme = true) {
                 placeholder = MaterialTheme.colorScheme.miniPlayerArtPlaceholder
                 container = MaterialTheme.colorScheme.miniPlayerContainer
+                glyph = MaterialTheme.colorScheme.miniPlayerArtGlyph
                 SharedTransitionLayout {
                     AnimatedContent(targetState = Unit, label = "miniPlayerArtPixelTest") {
                         MiniPlayer(
@@ -120,6 +139,28 @@ class MiniPlayerArtPixelTest {
         val quarterH = (art.bottom - art.top) / 4
         val centre = DpRect(art.left + quarterW, art.top + quarterH, art.right - quarterW, art.bottom - quarterH)
         return composeRule.pixelsIn(bitmap, centre)
+    }
+
+    /**
+     * A band of the disc left of the note's centred [RollaDimens.miniPlayerArtGlyph] box: 6 dp to 1 dp before the box,
+     * 10 dp tall about the centre, well inside the circle.
+     */
+    private fun artBandLeftOfTheNote(): List<Int> {
+        val bitmap = composeRule.captureWindow()
+        val art = composeRule.onNodeWithTag(MINI_PLAYER_ART_TAG, useUnmergedTree = true).getBoundsInRoot()
+        val noteLeft = art.left + (RollaDimens.miniPlayerArt - RollaDimens.miniPlayerArtGlyph) / 2
+        val centreY = (art.top + art.bottom) / 2
+        val band = DpRect(noteLeft - 6.dp, centreY - 5.dp, noteLeft - 1.dp, centreY + 5.dp)
+        return composeRule.pixelsIn(bitmap, band)
+    }
+
+    /** The note's [RollaDimens.miniPlayerArtGlyph] box, centred in the art disc. */
+    private fun noteBox(): List<Int> {
+        val bitmap = composeRule.captureWindow()
+        val art = composeRule.onNodeWithTag(MINI_PLAYER_ART_TAG, useUnmergedTree = true).getBoundsInRoot()
+        val inset = (RollaDimens.miniPlayerArt - RollaDimens.miniPlayerArtGlyph) / 2
+        val box = DpRect(art.left + inset, art.top + inset, art.right - inset, art.bottom - inset)
+        return composeRule.pixelsIn(bitmap, box)
     }
 
     private companion object {

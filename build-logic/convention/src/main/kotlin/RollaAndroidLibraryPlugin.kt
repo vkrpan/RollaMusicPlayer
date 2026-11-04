@@ -9,6 +9,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension
 class RollaAndroidLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
+            disableTestClassDataSharing()
             with(pluginManager) {
                 apply("com.android.library")
                 apply("org.jetbrains.kotlin.android")
@@ -28,6 +29,9 @@ class RollaAndroidLibraryPlugin : Plugin<Project> {
             extensions.configure<KotlinAndroidProjectExtension> {
                 compilerOptions {
                     jvmTarget.set(JvmTarget.JVM_17)
+                    // Kotlin 2.2's future default: an annotation on a constructor property (Hilt's @Inject qualifiers)
+                    // applies to the parameter and the property, which silences the KT-73255 warning (Phase 5 T2 M1).
+                    freeCompilerArgs.add("-Xannotation-default-target=param-property")
                 }
             }
         }

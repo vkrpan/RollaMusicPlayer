@@ -13,13 +13,17 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
@@ -56,11 +60,12 @@ private const val SEARCH_DEBOUNCE_MS = 300L
  * [kotlinx.coroutines.flow.debounce] timeout) so clearing the field snaps back to
  * [SearchUiState.Idle] immediately instead of leaving stale results on screen for the debounce
  * window. [SearchUiState.Loading] is emitted via `onStart` the moment a non-blank query enters
- * flight, before [SearchRepository.search] has produced anything, unless results are already on
- * screen: a refinement goes straight from one [SearchUiState.Results] to the next, so the results
- * list stays composed. A single `yield()` right after a Loading emission guarantees it is a real,
- * observable state rather than a value StateFlow's conflation could overwrite before any collector
- * ever sees it (see [searchFlow]).
+ * flight, before [SearchRepository.search] has produced anything, unless an answer is already on
+ * screen: a refinement goes straight from one [SearchUiState.Results] or [SearchUiState.Empty] to
+ * the next, so the results list stays composed and "No results" never blinks out. A search that
+ * throws shows [SearchUiState.Empty] and the pipeline keeps serving later queries. A single
+ * `yield()` right after a Loading emission guarantees it is a real, observable state rather than a
+ * value StateFlow's conflation could overwrite before any collector ever sees it (see [searchFlow]).
  *
  * [SearchRepository.search] already runs its DB query and domain mapping on `Dispatchers.IO` (see
  * its implementation's `flowOn`), so no dispatcher hop is added here -- everything in this
@@ -175,20 +180,24 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private fun searchFlow(text: String) = if (text.isBlank()) {
+    private fun searchFlow(text: String): Flow<SearchUiState> = if (text.isBlank()) {
         flowOf(SearchUiState.Idle)
     } else {
-        searchRepository.search(text)
+        // flow { } so a repository that throws while building its flow is contained by the catch below too.
+        flow { emitAll(searchRepository.search(text)) }
             .map { results -> results.toUiState() }
             .onStart {
                 // By the time this query is in flight at all, it has survived debounce/distinctUntilChanged and is
                 // committed to being searched, so it goes into history now. A pipeline restart re-recording the same
                 // query is harmless: the repository dedupes to front.
                 recordRecentSearchInBackground(text)
-                // A refinement keeps the previous results on screen until the new ones arrive: going Results ->
+                // A refinement keeps the previous answer on screen until the new one arrives. Going Results ->
                 // Loading -> Results would take the results list out of composition (its scroll state and row
-                // subcompositions disposed) and leave a blank panel frame on every committed query (6b perf audit).
-                if (uiState.value !is SearchUiState.Results) {
+                // subcompositions disposed) and leave a blank panel frame on every committed query (6b perf audit);
+                // Empty -> Loading -> Empty would blink "No results" out for a frame (Phase 7 Task 5). So only a
+                // first query, typed from Idle, shows Loading.
+                val current = uiState.value
+                if (current !is SearchUiState.Results && current != SearchUiState.Empty) {
                     emit(SearchUiState.Loading)
                     // StateFlow never suspends its producer on a value write, so without ceding the
                     // dispatcher here, a repository that resolves synchronously (as an in-memory fake
@@ -198,6 +207,13 @@ class SearchViewModel @Inject constructor(
                     // real, collectible state rather than an instantaneous, unobservable one.
                     yield()
                 }
+            }
+            // A failing search (Room closed, a corrupt index) shows Empty for this query instead of crashing the
+            // process through viewModelScope; caught inside flatMapLatest, so the pipeline keeps serving the next
+            // query (6b final review Minor 7). Errors other than Exceptions still propagate.
+            .catch { e ->
+                if (e !is Exception) throw e
+                emit(SearchUiState.Empty)
             }
     }
 

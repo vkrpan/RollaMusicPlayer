@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -178,8 +178,14 @@ private fun FavouritesList(
             modifier = Modifier.fillMaxSize().testTag(FAVOURITES_LIST_TEST_TAG),
             contentPadding = PaddingValues(bottom = homeListBottomPadding()),
         ) {
-            items(items = songs, key = { song -> song.id }) { song ->
-                SongListItem(song = song, onClick = { onSongClick(song) }, onMoreClick = { onMoreClick(song) })
+            itemsIndexed(items = songs, key = { _, song -> song.id }) { index, song ->
+                SongListItem(
+                    song = song,
+                    onClick = { onSongClick(song) },
+                    onMoreClick = { onMoreClick(song) },
+                    // No hairline under the list's last row (Phase 7 calibration).
+                    showDivider = index < songs.lastIndex,
+                )
             }
         }
     }

@@ -8,7 +8,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -174,7 +173,7 @@ private fun BatchTagEditorContent(
 ) {
     // No separate count line above the card: the top bar carries the count (Phase 6b ruling 6).
     TagEditorScrollColumn(modifier = modifier) {
-        Column(verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap)) {
+        Column(verticalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap)) {
             BatchTagFieldsCard(
                 fields = uiState.fields,
                 yearError = uiState.yearError,
@@ -284,7 +283,7 @@ private fun BatchTagFieldsCard(
 }
 
 /**
- * One batch-editable field: its [OneUiTextField] (weight 1), then an apply [OneUiSwitch] in a
+ * One batch-editable field: its [OneUiTextField], then (as its trailing control) an apply [OneUiSwitch] in a
  * [RollaDimens.minTouchTarget] box that owns the toggle (Role.Switch, "Apply <label> to every selected track"). The
  * field is disabled whenever [BatchFieldState.applied] is false, so a switched-off field visibly will not be written.
  * Toggling never clears [BatchFieldState.value] -- the ViewModel guarantees that (see [BatchTagFields] KDoc); this
@@ -303,22 +302,21 @@ private fun BatchTagRow(
     isError: Boolean = false,
     supportingText: String? = null,
 ) {
-    Row(
+    // The switch is the field's trailing control, so the kit centres it on the field's text box even while an error
+    // message shows under the field (6b Task 4 review M4).
+    OneUiTextField(
+        value = state.value,
+        onValueChange = onValueChange,
+        label = label,
         modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OneUiTextField(
-            value = state.value,
-            onValueChange = onValueChange,
-            label = label,
-            modifier = Modifier.weight(1f),
-            enabled = enabled && state.applied,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            isError = isError,
-            supportingText = supportingText,
-        )
-        ApplySwitch(label = label, applied = state.applied, enabled = enabled, onAppliedChange = onAppliedChange)
-    }
+        enabled = enabled && state.applied,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        isError = isError,
+        supportingText = supportingText,
+        trailingControl = {
+            ApplySwitch(label = label, applied = state.applied, enabled = enabled, onAppliedChange = onAppliedChange)
+        },
+    )
 }
 
 /**
@@ -362,7 +360,7 @@ private fun BatchSaveProgress(progress: BatchProgress, modifier: Modifier = Modi
     val fraction = if (progress.total > 0) progress.done / progress.total.toFloat() else 0f
     Column(
         modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+        verticalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap),
     ) {
         LinearProgressIndicator(
             progress = { fraction },

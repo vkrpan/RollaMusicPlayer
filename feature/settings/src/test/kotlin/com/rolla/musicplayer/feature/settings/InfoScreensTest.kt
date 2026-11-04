@@ -47,6 +47,20 @@ class InfoScreensTest {
         assertEquals("Privacy never says RollaMusicPlayer", 0, substringCount("RollaMusicPlayer"))
     }
 
+    // Spec §2: the UI says "Equaliser". Trivial stub: the old copy "equalizer presets" → RED on both assertions.
+    // Mutation: restore "equalizer presets" in PRIVACY_NO_COLLECTION → RED. Control: the positive "equaliser presets"
+    // assertion shows the sentence renders, so the absence check is not vacuous.
+    @Test
+    fun privacySaysEqualiserPresets() {
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                PrivacyRoute(onNavigateUp = {})
+            }
+        }
+        assertEquals("Privacy says equaliser presets", 1, substringCount("equaliser presets"))
+        assertEquals("Privacy never says equalizer", 0, substringCount("equalizer"))
+    }
+
     private fun textCount(text: String): Int =
         composeRule.onAllNodesWithText(text, useUnmergedTree = true).fetchSemanticsNodes().size
 

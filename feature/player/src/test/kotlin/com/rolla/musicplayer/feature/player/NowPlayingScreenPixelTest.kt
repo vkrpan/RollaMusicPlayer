@@ -7,12 +7,14 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.testing.HardwarePixelCopyRule
 import com.rolla.musicplayer.core.testing.captureWindow
 import com.rolla.musicplayer.core.testing.isColorNear
 import com.rolla.musicplayer.core.testing.pixelsIn
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -21,6 +23,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+
+// Red channel cuts along the seek track's centre row: the active track is near white (#FCFCFE); the inactive track is
+// white @ 37 % over the gradient (red ≈ 100); the gradient itself stays below about 45.
+private const val ACTIVE_TRACK_RED = 0.8f
+private const val TRACK_RED = 0.25f
 
 // Pixel checks of the Now Playing tint rules (constraints: never primary as a glyph tint on Now Playing). xxhdpi makes
 // the 1.6-unit line strokes several pixels wide, so each glyph has fully covered pixels that carry its exact tint.
@@ -68,6 +75,30 @@ class NowPlayingScreenPixelTest {
         val pixels = composeRule.pixelsIn(bitmap, bounds)
         assertTrue("heart has no onSurface pixel", pixels.any { isColorNear(colors.onSurface, it) })
         assertFalse("heart has a primary pixel", pixels.any { isColorNear(colors.primary, it) })
+    }
+
+    // Phase 7 calibration: the seek track runs from npSeekInset to npSeekInset from the end (it was inset a further
+    // half thumb). Halfway through the song the thumb sits mid-screen, so the track's start is the active
+    // (seekTrackActive, near white) run and its end the inactive (white @ 37 %) run, both clear of the thumb. Along the
+    // track's centre row the first bright pixel from the left is the track start, and the last pixel brighter than the
+    // gradient is its end.
+    // Control: the gradient left of the track start is dark. Mutation: the seek Box padded by npSeekInset (the old
+    // layout, track at 37 dp) → RED.
+    @Test
+    fun seekTrackSpansNpSeekInsetToNpSeekInsetFromTheEnd() {
+        composeRule.setNowPlayingScreen(positionMs = NOW_PLAYING_TEST_SONG.durationMs / 2)
+        val bitmap = composeRule.captureWindow()
+        val bar = composeRule.onNodeWithContentDescription("Playback position").getBoundsInRoot()
+        with(composeRule.density) {
+            val y = ((bar.top + bar.bottom) / 2).roundToPx()
+            val row = (0 until bitmap.width).map { x -> Color(bitmap.getPixel(x, y)) }
+            val start = row.indexOfFirst { it.red > ACTIVE_TRACK_RED }
+            val end = row.indexOfLast { it.red > TRACK_RED }
+            assertTrue("control: the gradient at x 4 dp is dark", row[4.dp.roundToPx()].red < TRACK_RED)
+            val endInset = (bitmap.width - 1 - end).toDp()
+            assertEquals("track start (dp)", RollaDimens.npSeekInset.value, start.toDp().value, 1f)
+            assertEquals("track end from the end (dp)", RollaDimens.npSeekInset.value, endInset.value, 1f)
+        }
     }
 
     // Play is a bare glyph: inside the 64 dp circle but outside the 40 dp glyph (6 dp below the box top, centred), the

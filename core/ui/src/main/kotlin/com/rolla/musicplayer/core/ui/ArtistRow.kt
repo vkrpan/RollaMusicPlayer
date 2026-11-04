@@ -12,18 +12,22 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Artist
+import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
  * Model-aware row for an [Artist] (spec §8.1): a circular 48 dp avatar (the artist's representative cover, or a Person
  * placeholder), the name and "N albums, M tracks". The anatomy is [ListRowScaffold]'s; [onClick] opens the artist.
+ * The list passes [showDivider] = false for its last row.
  */
 @Composable
-fun ArtistRow(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun ArtistRow(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
     ListRowScaffold(
-        title = artist.name,
+        // Display only (ruling 3): the row's click and the list key keep the raw name.
+        title = artistDisplayName(artist.name),
         subtitle = "${albumsCountLabel(artist.albumCount)}, ${tracksCountLabel(artist.songCount)}",
         onClick = onClick,
         modifier = modifier,
+        showDivider = showDivider,
     ) {
         ArtworkThumbnail(
             artworkUri = artist.artworkUri,

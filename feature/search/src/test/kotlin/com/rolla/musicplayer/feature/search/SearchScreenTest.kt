@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.search
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,11 +9,13 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +24,9 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextInputSelection
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -205,6 +211,64 @@ class SearchScreenTest {
         composeRule.onNode(hasSetTextAction()).performImeAction()
 
         assertEquals("IME Search hides the keyboard once", 1, keyboard.hides)
+    }
+
+    // Phase 7 Task 5, Review Focus 4: coming back to Search with a query puts the cursor after it, wherever it was
+    // before. The query is the ViewModel's, so the host keeps it outside the composition (it survives the recreation)
+    // and feeds every edit back into it. Trivial stub: a field that ignores input → no "jazzx" → RED. Mutations: the
+    // plain-String OneUiSearchField (its cursor starts at 0) → "xjazz" → RED on the first control; the field state in
+    // rememberSaveable(stateSaver = TextFieldValue.Saver) (restores the old cursor) → TextRange(0) after re-entry → RED
+    // on the last assertion. Controls: typing "x" appends at the end, and the cursor really moves to 0 before re-entry.
+    @OptIn(ExperimentalTestApi::class) // performTextInputSelection
+    @Test
+    fun reEntryPutsTheCursorAtTheEnd() {
+        var query by mutableStateOf("jazz")
+        val restorationTester = StateRestorationTester(composeRule)
+        restorationTester.setContent { IdleSearchScreen(query = query, onQueryChanged = { query = it }) }
+        val field = composeRule.onNode(hasSetTextAction())
+        field.performTextInput("x")
+        composeRule.runOnIdle {
+            assertEquals("control: typing x before re-entry appends it after the query", "jazzx", query)
+        }
+        field.performTextInputSelection(TextRange(0))
+        assertEquals("control: the cursor moves to the start before re-entry", TextRange(0), fieldSelection())
+
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        assertEquals(
+            "re-entering Search puts the cursor after \"jazzx\", not where it was",
+            TextRange("jazzx".length),
+            fieldSelection(),
+        )
+    }
+
+    private fun fieldSelection(): TextRange =
+        composeRule.onNode(hasSetTextAction()).fetchSemanticsNode().config[SemanticsProperties.TextSelectionRange]
+
+    /** The Idle screen on [query], reporting edits to [onQueryChanged]; for hosts that are not [setContent]. */
+    @Composable
+    private fun IdleSearchScreen(query: String, onQueryChanged: (String) -> Unit) {
+        RollaMusicPlayerTheme(darkTheme = true) {
+            CompositionLocalProvider(LocalSoftwareKeyboardController provides NoOpKeyboardController) {
+                SearchScreen(
+                    query = query,
+                    uiState = SearchUiState.Idle,
+                    recentSearches = emptyList(),
+                    userPlaylists = emptyList(),
+                    onQueryChanged = onQueryChanged,
+                    onNavigateUp = {},
+                    onSongClick = {},
+                    onAlbumClick = {},
+                    onArtistClick = {},
+                    onRecentSearchClick = {},
+                    onClearRecentSearches = {},
+                    onRemoveRecentSearch = {},
+                    onAddSongToPlaylist = { _, _ -> },
+                    onCreatePlaylistAndAddSong = { _, _ -> },
+                    onEditTagsClick = {},
+                )
+            }
+        }
     }
 
     // Defaulted test-host knobs: each test overrides only the inputs it probes.

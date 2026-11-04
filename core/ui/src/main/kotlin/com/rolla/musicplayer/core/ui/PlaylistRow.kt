@@ -45,19 +45,23 @@ fun PlaylistRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     reserveRailSpace: Boolean = true,
+    showDivider: Boolean = true,
 ) {
-    // The hairline overlays the row's bottom edge so the row pitch stays exactly singleLineRowHeight.
+    // The hairline overlays the row's bottom edge so the row pitch stays exactly singleLineRowHeight. The list passes
+    // showDivider = false for its last row: One UI draws no line under a list's last row (Phase 7 calibration).
     Box(modifier = modifier) {
         PlaylistRowContent(
             playlist = playlist,
             onClick = onClick,
             trailingEnd = if (reserveRailSpace) RollaDimens.listTrailingEnd else RollaDimens.listThumbStart,
         )
-        InsetDivider(
-            startInset = RollaDimens.listTextStart,
-            endInset = if (reserveRailSpace) RollaDimens.listDividerEnd else 0.dp,
-            modifier = Modifier.align(Alignment.BottomStart),
-        )
+        if (showDivider) {
+            InsetDivider(
+                startInset = RollaDimens.listTextStart,
+                endInset = if (reserveRailSpace) RollaDimens.listDividerEnd else 0.dp,
+                modifier = Modifier.align(Alignment.BottomStart),
+            )
+        }
     }
 }
 

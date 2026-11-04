@@ -109,13 +109,17 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 | `accentText` | `#6094FF` | `#1F5FE0` | Blue value and link text (settings values, the slider value, active queue item). The measured `#5B8FFD` is nudged to `#6094FF`, because the measured value only reaches 4.45:1 on `#2D2D2F` sheets. Dark is 6.12:1 on `#171719` and 4.70:1 on `#2D2D2F`. Light is 5.57:1 on white and 4.55:1 on `#E8E8EA`. **Never use `primary` for text.** |
 | `destructiveText` | `#FF6060` | `#BA1A1A` | Destructive text and icons: "Delete" in dialogs, "Remove from playlist" in the options sheet. Dark `error` (`#FF5A5A`) only reaches 4.49:1 on `#2D2D2F` sheets and dialogs, so it is nudged like `accentText`. Dark is 4.64:1 on `#2D2D2F`, light 5.28:1. `error` stays the non-text colour. **Never use `error` for text** (amended 2026-10-18, Phase 6a ruling P2). |
 | `tabUnselected` | `#7E7E80` | `#646467` | Unselected tab labels. 5.18:1 on black, 5.37:1 on `#F4F4F6`. |
+| `labelSecondary` | `#A4A4A6` | `#646467` (= light `onSurfaceVariant`) | Secondary labels on the panel and the EQ card: the sort label, the EQ band value and frequency labels. Dark 7.19:1 on `#171719`; light 5.90:1 on white. (calibrated 2026-10-31; Phase 7 ruling P13; measured `#A4A3A9`) |
+| `eqCaption` | `#E6E6E6` | `#111113` (= light `onSurface`) | The EQ preset caption on the screen background. Dark 16.83:1 on `#000000`; light 17.17:1 on `#F4F4F6`. (calibrated 2026-10-31; Phase 7 ruling P13) |
 | `artworkPlaceholder` | `#454547` | `#E6E6E8` | List thumbnails, feature cards, folder thumbs |
 | `artworkPlaceholderLarge` | `#3B3B3B` | `#E9E9EB` | Now Playing artwork placeholder |
 | `artworkPlaceholderGlyph` | `#FCFCFE` | `#7A7A7E` | The note glyph on placeholders. Dark: 9.34:1. Light: 3.43:1 (white on light gray would only reach 1.4:1). |
+| `sheetArtworkPlaceholder` | `= artworkPlaceholder` (`#454547`) | `#FFFFFF` | The placeholder inside a sheet or dialog: `OneUiBottomSheet` and `OneUiDialog` provide it to `ArtworkPlaceholder`. Light `#E6E6E8` on the `#E8E8EA` sheet was 1.02:1; white is 1.22:1 and its glyph 4.27:1 (Phase 7 F2). |
+| `dialogFieldContainer` | `= surfaceContainerHighest` (`#333333`) | `#FFFFFF` | The name field in dialogs (`OneUiDialogField`). Light `#EBEBED` on the `#E8E8EA` dialog was 1.02:1; white is 1.22:1 (Phase 7 F2). |
 | `folderBadgeStroke` / `folderBadgeFill` | `#FFFFFF` / `#000000` | same | The `FolderBadge` outline and its fill on folder thumbnails. The same in both themes, because the badge sits on artwork, not a theme surface (amended 2026-10-12, Phase 4b ruling 5). |
 | `miniPlayerContainer` | `#282035` | `#E9E4F2` | Mini-player pill |
-| `miniPlayerArtPlaceholder` | `#FFFFFF` at 18 % alpha | `#000000` at 10 % alpha | Art circle over the pill |
-| `miniPlayerArtGlyph` | `#FCFCFE` | `#707074` | Note glyph on the mini-player art circle. 8.53:1 dark and 3.16:1 light over the composited circle. White would only reach 1.6:1 in light (Phase 1 audit). |
+| `miniPlayerArtPlaceholder` | `#504C5A` (opaque) | `#000000` at 10 % alpha | Art circle over the pill. Dark was white at 18 % alpha (`#4F4859` over the pill); it is now the measured `#504C5A`, opaque. (calibrated 2026-10-31) |
+| `miniPlayerArtGlyph` | `#FCFCFE` | `#707074` | Note glyph on the mini-player art circle. 8.12:1 dark on `#504C5A` (calibrated 2026-10-31; was 8.53:1) and 3.16:1 light over the composited circle. White would only reach 1.6:1 in light (Phase 1 audit). |
 | `sliderInactiveTrack` | **`#646466`** | `#8A8A8E` | EQ, seek-free sliders, settings slider, switch-off track. Raised from the measured `#5F5F61` so it clears the 3:1 non-text floor (3.03:1 on `#171719`). It still matches the measured switch-off track `#646368`. |
 | `switchThumb` | `#FCFCFE` | `#FFFFFF` | One UI switch thumb. ≥3:1 on both the on and off tracks. |
 | `fastScrollTrack` | `#333333` | `#F0F0F2` | A–Z rail |
@@ -123,7 +127,7 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 | `eqGridLine` | `#1D1D1F` | `#EEEEF0` | Faint horizontal EQ grid |
 | `seekTrackActive` | `#FCFCFE` | `#111113` | Now Playing seekbar active part and thumb |
 | `seekTrackInactive` | `#FFFFFF` at **37 %** | `#000000` at **44 %** | Now Playing seekbar remainder. Raised from 30 % / 25 % (2.6–2.7:1 / 1.8:1 on the gradient) to clear 3:1 over both `middle` and `washEnd` (Phase 1 audit). |
-| `nowPlayingGradient` | top `#000000` → `#120F16` at 55 % height. Bottom wash: left `#231C2C`, right `#293332`. | top `#FFFFFF` → `#F7F5FA` at 55 %. Bottom wash: left `#EFE9F5`, right `#E9F1EF`. | Exposed as a small data class with a `Modifier.nowPlayingBackground()` helper (§6) |
+| `nowPlayingGradient` | top `#080808` (calibrated 2026-10-31; was `#000000`) → `#120F16` at 55 % height. Bottom wash: left `#231C2C`, right `#293332`. | top `#FFFFFF` → `#F7F5FA` at 55 %. Bottom wash: left `#EFE9F5`, right `#E9F1EF`. | Exposed as a small data class with a `Modifier.nowPlayingBackground()` helper (§6). The reference's darker right side and its stronger mid-bottom wash are accepted deviations of the decorative shape (Phase 7 ruling P11 g, Δ ≤ 13 per channel). |
 | `widget*` | see §13 | — | Glance cannot read Compose tokens. The widget keeps its own mapped `ColorProvider`s. |
 
 `miniPlayerContainer` must be re-audited. Text on the pill is `onSurface` in both themes: dark `#FCFCFE` on `#282035` is 14.6:1, and light `#111113` on `#E9E4F2` is about 15:1.
@@ -132,7 +136,8 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 
 The font family is `FontFamily.Default`. The material roles are reset to One UI sizes, and every semantic style below is
 defined explicitly in `Type.kt` (not as an alias of a role) so call sites read `MaterialTheme.typography.<name>`.
-Color is always applied at the call site. The sizes are **provisional** until calibration (§14).
+Color is always applied at the call site. The sizes were calibrated on the device in Phase 7 (§14); rows marked
+"(calibrated 2026-10-31)" record the change.
 
 | Semantic style | Size (sp) | Weight | Line height | Default color | Where |
 |---|---|---|---|---|---|
@@ -140,7 +145,7 @@ Color is always applied at the call site. The sizes are **provisional** until ca
 | `screenTitle` | 22 | Bold | 28 | onSurface | Pushed screens (Equaliser, Settings, details) |
 | `tabSelected` | 23 | Normal | 30 | onSurface | Selected tab |
 | `tabUnselected` | 14 | Normal | 20 | tabUnselected | Other tabs. The tab row lerps between the two styles. |
-| `sortLabel` | 14 | Medium | 20 | onSurfaceVariant | Sort header "Name" |
+| `sortLabel` | 14 | Medium | 20 | labelSecondary (was onSurfaceVariant; Phase 7) | Sort header "Name" |
 | `songTitle` | 17 | Normal | 22 | onSurface | All list row titles |
 | `artistName` | 13 | Normal | 18 | onSurfaceVariant | All list row subtitles |
 | `rowTrailing` | 13 | Normal | 18 | onSurfaceVariant | "0 tracks" trailing counts |
@@ -154,9 +159,9 @@ Color is always applied at the call site. The sizes are **provisional** until ca
 | `settingValue` | 14 | Normal | 19 | accentText | Blue value under a label |
 | `settingSubtitle` | 14 | Normal | 19 | onSurfaceVariant | Gray sub-label |
 | `chipLabel` | 17 | Bold | 22 | onPrimary / onSurface | EQ preset chips |
-| `caption` | 14 | Normal | 20 | onSurface | EQ preset description |
-| `eqValue` | 14 | Normal | 18 | onSurfaceVariant | Band value above each slider |
-| `eqFrequency` | 12 | Normal | 16 | onSurfaceVariant | Band frequency below each slider |
+| `caption` | 14 | Normal | 20 | eqCaption (was onSurface; Phase 7) | EQ preset description |
+| `eqValue` | 14 | Normal | 18 | labelSecondary (was onSurfaceVariant; Phase 7) | Band value above each slider |
+| `eqFrequency` | 12 | Normal | 16 | labelSecondary (was onSurfaceVariant; Phase 7) | Band frequency below each slider |
 | `featureCardLabel` | 14 | Normal | 19 | onSurface | Playlist feature card label (centered) |
 | `featureCardCount` | 12 | Normal | 16 | onSurfaceVariant | Feature card count (centered) |
 | `fastScrollLetter` | 11 | Normal | 13 | fastScrollIndex | A–Z letters |
@@ -181,14 +186,15 @@ M3 base roles: `headlineMedium` = 22/Bold, `headlineSmall` = 21/Normal, `titleLa
 
 ### 5.4 Dimensions
 
-A new `Dimens.kt` defines `object RollaDimens`. All sizes are provisional until calibration. Screens read these and
+A new `Dimens.kt` defines `object RollaDimens`. The sizes were calibrated in Phase 7 (§14; rows marked "(calibrated
+2026-10-31)" changed). Screens read these and
 never declare private `dp` literals for anything this table covers.
 
 | Name | Value | Name | Value |
 |---|---|---|---|
 | `screenEdge` | 24 dp | `headerTitleStart` | 24 dp |
-| `headerHeight` | 64 dp | `tabRowHeight` | 56 dp |
-| `tabSpacing` | 28 dp | `panelTopGap` | 12 dp |
+| `headerHeight` | 64 dp | `tabRowHeight` | 48 dp, still the tab's touch height (was 56 dp) (calibrated 2026-10-31) |
+| `tabSpacing` | 22 dp (was 28 dp) (calibrated 2026-10-31) | `panelTopGap` | 10 dp: panel top ≈ 122 dp below the status bar (ref 120.3), tab → panel ≈ 26 dp (ref 26.3) (was 12 dp, then 8 dp; device re-measure, Phase 7 ruling P22) |
 | `panelRadius` | 26 dp | `sortHeaderHeight` | 56 dp |
 | `sortHeaderStart` | 19 dp (box start: measured 22 dp glyph start − 3 dp glyph inset in the 24 dp icon box) | `circleButtonSize` | 34 dp |
 | `circleButtonGap` | 14 dp | `circleButtonEnd` | 15 dp |
@@ -197,35 +203,48 @@ never declare private `dp` literals for anything this table covers.
 | `listRowHeight` | 70 dp | `singleLineRowHeight` | 56 dp |
 | `dividerThickness` | 1 dp | `overflowGlyph` | 20 dp |
 | `fastScrollWidth` | 22 dp | `fastScrollEnd` | 8 dp |
-| `miniPlayerHeight` | 60 dp | `miniPlayerSideMargin` | 4 dp |
+| `miniPlayerHeight` | 60 dp | `miniPlayerSideMargin` | 0 dp: the pill runs edge to edge (was 4 dp) (calibrated 2026-10-31) |
 | `miniPlayerArt` | 38 dp | `miniPlayerArtStart` | 11 dp |
-| `npArtSize` | 168 dp | `npArtTop` | 130 dp below the top of the screen content |
+| `npArtSize` | 168 dp | `miniPlayerArtGlyph` | 16 dp: the note box on the mini-player's placeholder art, draws ≈ 11.5 dp against the measured 11.7 dp; shown whenever the placeholder is, a failed load too (Phase 7 ruling P19) |
 | `npSeekThickness` | 3 dp | `npSeekThumb` | 16 dp |
 | `npSeekInset` | 29 dp | `npPlayGlyph` | 40 dp (inside a 64 dp touch target) |
-| `npTransportGlyph` | 26 dp | `npActionGlyph` | 26 dp |
+| `npTransportGlyph` | 22 dp: shuffle and play-order (was 26 dp) (calibrated 2026-10-31) | `npActionGlyph` | 23 dp: Queue and the heart (was 26 dp) (calibrated 2026-10-31) |
+| `npSkipGlyph` | 24 dp: the transport's previous and next, which draw ≈ 17.3 dp wide (ref 17.7; at 22 dp they drew 15.3) (Phase 7 ruling P22) | `npActionAddGlyph` | 28 dp: the action row's +, which draws ≈ 18.3 dp (ref 18.5; at 23 dp it drew 15) (Phase 7 ruling P22) |
 | `eqCardTop` | 16 dp below the top bar | `eqSliderTrack` | 3 dp |
 | `eqSliderLength` | 237 dp | `eqThumbDiameter` | 13 dp |
-| `sliderThumbRing` (both the EQ and settings sliders) | 2 dp | `eqColumnPitch` | 28.7 dp (measured, fixed; the 9 columns are centered as a group in the card) |
+| `sliderThumbRing` (both the EQ and settings sliders) | 2 dp | `eqColumnPitch` | 28.7 dp: the minimum pitch (measured on the 360 dp reference). Since Phase 7 ruling P12 the columns spread so the first and last centres sit `eqColumnEdgeInset` from the screen edges, pitch = (width − 2 × 65 dp) / 8, never below 28.7 dp (was: fixed, the 9 columns centred as a group) |
 | `eqGridPitch` | 24 dp | `chipHeight` | 40 dp |
-| `chipGap` | 17 dp | `chipGridStart` | 24 dp |
+| `chipGap` | 17 dp (between columns) | `chipGridStart` | 28 dp (was 24 dp) (calibrated 2026-10-31) |
 | `settingsCardInset` | 10 dp | `settingsRowPadding` | 19 dp |
 | `settingsDividerInset` | 16 dp | `settingsSliderTrack` | 14 dp |
 | `settingsSliderThumb` | 20 dp | `switchTrackWidth` | 35 dp |
-| `switchTrackHeight` | 17 dp | `switchThumb` | 15 dp + `switchThumbInset` 1 dp (measured ≈16 dp; 16 + 2 × 1 would not fit the 17 dp track) |
+| `switchTrackHeight` | 20 dp (was 17 dp; the re-measure found 60 px, not 50) (calibrated 2026-10-31) | `switchThumb` | 16 dp + `switchThumbInset` 2 dp (was 15 dp + 1 dp) (calibrated 2026-10-31) |
+| `checkboxSize` | 20 dp, round (`OneUiCheckbox`, Phase 7) | `checkboxStroke` / `checkboxGlyph` | 2 dp unchecked ring / 14 dp check mark |
 | `featureCardSize` | 143 dp | `featureCardGap` | 17 dp |
-| `featureCardGlyph` | 44 dp | `minTouchTarget` | 48 dp |
+| `featureCardGlyph` | 61 dp: `MusicNote` draws 0.717 of its box, so ≈ 43.7 dp (was 44 dp) (calibrated 2026-10-31) | `minTouchTarget` | 48 dp |
 | `listOverflowEnd` | 26 dp (end of the ⋮ 48 dp box; reaches 4 dp into the rail strip) | `listTrailingEnd` | 43 dp (trailing text end) |
 | `listDividerEnd` | = `fastScrollWidth` + `fastScrollEnd` (30 dp) | `featureCardLabelGap` | 8 dp (unmeasured; Phase 7) |
 | `featureCardRowStart` | = `listThumbStart` (unmeasured; Phase 7) | `folderBadge` | 20 dp (icon box; measured glyph ~14 × 11 dp at 3.0 px/dp; Phase 4b ruling 5) |
 | `folderBadgeInset` | 2 dp (box inset from the thumbnail's bottom-end corner; Phase 4b ruling 5) | `fastScrollLetterSlot` | 16 dp (rail height one label needs, §10; Phase 5 ruling 10) |
 | `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | `detailArtworkSize` | = `npArtSize` (168 dp): the AlbumDetail/ArtistDetail hero artwork (amended 2026-10-18, Phase 6a ruling 5) |
-| `dragLiftElevation` | 6 dp: the shadow a PlaylistDetail row lifts to while dragged (moved from a private constant; amended 2026-10-18, Phase 6a Task 7) | | |
+| `dragLiftElevation` | 6 dp: the shadow a PlaylistDetail row lifts to while dragged (moved from a private constant; amended 2026-10-18, Phase 6a Task 7) | `editorFieldGap` | 8 dp: the tag editors' gap between card items, the side-by-side Year and Track number, and the Save/Cancel pills (unmeasured, no reference; it borrowed `settingsHeaderGap` until Phase 7 Task 5) |
+| `fieldSupportingTextGap` | 4 dp: Material 3's gap between a field's container and its supporting text (internal in M3 1.3), which `OneUiTextField` reads to centre a `trailingControl` on the container (Phase 7 Task 5) | | |
 | `widgetCardRadius` | 24 dp (the widget card; matches the launcher's system widget radius) | `widgetCardPaddingStart` | 10 dp (the reference artwork inset) |
 | `widgetCardPaddingEnd` | 10 dp (the reference end inset of the last control) | `widgetArt` | 69 dp |
-| `widgetArtRadius` | 12 dp | `widgetArtGap` | 10 dp (artwork to the text column) |
-| `widgetArtGlyph` | 44 dp (the note box; `MusicNote` spans 15.2 of 24 units, so the note draws 28 dp tall) | `widgetControlGlyph` | 28 dp (the transport glyph box; `Play` spans 15.2 of 24 units, so it draws about 18 dp, 17.7 dp against the measured 18 dp) |
+| `widgetArtRadius` | 15 dp (was 12 dp) (calibrated 2026-10-31) | `widgetArtGap` | 10 dp (artwork to the text column) |
+| `widgetArtGlyph` | 42 dp (the note box; draws ≈ 30.1 × 23.8 dp against the measured 28.3 × 25.7 dp, both within ±2; was 44 dp, then 40 dp, which drew 22.7 dp wide) (device re-measure, Phase 7 ruling P22) | `widgetControlGlyph` | 28 dp (the transport glyph box; `Play` spans 15.2 of 24 units, so it draws about 18 dp, 17.7 dp against the measured 18 dp) |
 | `widgetProgressHeight` | 3 dp | `widgetTitleSize` | 16 sp |
 | `widgetArtistSize` | 13 sp | | |
+| `topBarEdge` | 11 dp: the top bars' horizontal padding (was 4 dp) (calibrated 2026-10-31) | `detailTitleGap` | 0 dp: back chevron box to the detail title (was 6 dp) (calibrated 2026-10-31) |
+| `headerActionIconLarge` | 28 dp: the Playlists header + icon box, draws ≈ 18 dp (calibrated 2026-10-31) | `placeholderGlyph` | 20 dp: the note box on list thumbnails, draws ≈ 14.4 dp (was 24 dp) (calibrated 2026-10-31) |
+| `miniPlayerArtTextGap` | 5 dp (was 12 dp) (calibrated 2026-10-31) | `miniPlayerEnd` | 8 dp: grew by the side margin's 4 dp, so the transport keeps its screen-edge distance (was 4 dp) (calibrated 2026-10-31) |
+| `miniTransportCompactIcon` | 19 dp: the mini-player Play and Queue icon boxes; previous and next keep `iconSize` (calibrated 2026-10-31) | `npArtGlyph` | 72 dp: the note box on the 168 dp artwork, draws ≈ 51.6 dp (was 60 dp) (calibrated 2026-10-31) |
+| `npArtTopGap` | 95 dp below the top of the window content (below the status bar); replaces `npArtTop` (130 dp from the screen top, status bar included), removed in Phase 7 Task 3b (calibrated 2026-10-31) | `npControlEdgeInset` | 19 dp: the action row's and the transport's end 48 dp boxes from the screen edges (centres at 43 dp) (calibrated 2026-10-31) |
+| `npTransportInnerCentre` | 111 dp: previous and next centres from the nearer screen edge (calibrated 2026-10-31) | `eqColumnEdgeInset` | 65 dp: the first and last EQ column centres from the screen edges (Phase 7 ruling P12) (calibrated 2026-10-31) |
+| `eqCaptionStart` | 52 dp: the EQ preset caption's start from the screen edge (calibrated 2026-10-31) | `eqCardBottomPadding` | 44 dp: the frequency labels' baseline (the digits' bottom) to the slider card's bottom (calibrated 2026-10-31) |
+| `eqValueLabelTrackGap` | 14.7 dp: the value labels' baseline (the digits' bottom) to the top of the slider track; the slider's half-thumb track inset counts inside it (Phase 7 ruling P20) | | |
+| `chipRowGap` | 14 dp: the visual gap between chip rows (was `chipGap`, 17 dp) (calibrated 2026-10-31) | `settingsSectionGap` | 13 dp: above each settings section header and below the last card (was 24 dp) (calibrated 2026-10-31) |
+| `settingsTrailingEnd` | 22 dp: a settings row's end padding for its trailing control (the switch ends 32 dp from the screen edge) (calibrated 2026-10-31) | `settingsSliderInset` | 41 dp: the settings slider track's start and end inside the card, so the track starts 51 dp from the screen edge (the card is inset `settingsCardInset` 10 dp; the first value, 31 dp, measured the 51 dp from the card instead of the screen) (Phase 7 ruling P22) |
 
 (Amended 2026-10-22, Phase 6c ruling 4.) The eleven `widget*` entries size the home-screen widget (§13). The widget's
 control cells reuse `minTouchTarget` for their height, and its colours are not tokens: they are the widget's own palette
@@ -239,8 +258,8 @@ whole row is the target).
 reproduced by derived tokens in `RollaDimens`. Lay controls out with these; never use the visual values directly:
 `sortHeaderEnd` = `circleButtonEnd` − (48 − `circleButtonSize`)/2 (the end padding before the last circle button's box);
 `circleButtonLayoutGap` = `circleButtonGap` − (48 − `circleButtonSize`) (`spacedBy` between circle buttons); and
-`chipRowLayoutGap` = `chipGap` − (48 − `chipHeight`) (the vertical spacing between chip rows; horizontal spacing stays
-`chipGap` because chips are wider than 48 dp). Each one is clamped at 0, and `TokenInvariantsTest` guards the clamps.
+`chipRowLayoutGap` = `chipRowGap` − (48 − `chipHeight`) = 6 dp (the vertical spacing between chip rows; horizontal spacing stays
+`chipGap` because chips are wider than 48 dp; calibrated 2026-10-31, was `chipGap` − 8 = 9 dp). Each one is clamped at 0, and `TokenInvariantsTest` guards the clamps.
 
 There are **two documented exceptions**, where the reference layout leaves less than 48 dp of horizontal room:
 
@@ -308,7 +327,8 @@ indicative; the plan may refine names, but not responsibilities.
 @Composable fun OneUiTabRow(titles: List<String>, pagerState: PagerState, onTabClick: (Int) -> Unit,
                             modifier: Modifier = Modifier)
 
-// Edge-to-edge surfaceContainer with panelRadius on the top corners only; extends to the bottom of the screen
+// Edge-to-edge surfaceContainer with panelRadius on the top corners only; fills its caller's space (on Home, down to the
+// navigation bar's top: §7.4, Phase 7 ruling P22)
 @Composable fun ContentPanel(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit)
 
 // "⇅ Name" static label + optional trailing slot (circle buttons)
@@ -342,9 +362,16 @@ indicative; the plan may refine names, but not responsibilities.
                                  contentDescription: String, modifier: Modifier = Modifier,
                                  onValueChangeFinished: (() -> Unit)? = null)
 
-// One UI switch: 35×17 dp pill track (primary when on, sliderInactiveTrack when off), 16 dp white thumb, spring motion.
+// One UI switch: 35×20 dp pill track (primary when on, sliderInactiveTrack when off), 16 dp white thumb with a 2 dp
+// inset, spring motion (calibrated 2026-10-31; was 35×17).
 // Role.Switch semantics. Use inside toggleable rows with onCheckedChange = null.
 @Composable fun OneUiSwitch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier)
+
+// Round 20 dp checkbox (added Phase 7, 6b ruling P4): a primary disc with an onPrimary check when checked, a 2 dp
+// onSurfaceVariant ring when not (outline is only 2.60:1 on the panel). onCheckedChange = null when a row owns the click
+// (SongListItem's selection mode); with a handler it is Role.Checkbox with a 48 dp target. No direct M3 Checkbox outside
+// the kit.
+@Composable fun OneUiCheckbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier)
 
 // EQ preset chip: 40 dp pill, chipLabel; selected = primary/onPrimary, unselected = surfaceContainerHigh/onSurface.
 // Color animates with a spring (reduced-motion aware, like today).
@@ -387,12 +414,24 @@ fun Modifier.nowPlayingBackground(gradient: NowPlayingGradient): Modifier
                                containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
                                singleLine: Boolean = true, enabled: Boolean = true,
                                keyboardOptions: KeyboardOptions = KeyboardOptions.Default, isError: Boolean = false,
-                               supportingText: String? = null)
+                               supportingText: String? = null, trailingControl: (@Composable () -> Unit)? = null)
+// trailingControl (added 2026-10-27, Phase 7 Task 5) sits outside the field at its end, vertically centred on the
+// container even while supporting text shows under it (the batch editor's apply switch)
+
+// The name field of a dialog (playlist name, preset name; added Phase 7 F2/F3): a OneUiTextField on
+// dialogFieldContainer. When it opens empty it takes focus one frame after the dialog shows, so the keyboard opens
+// without a tap; with a name (Rename) it waits for the user's tap, which places the cursor (Phase 7 ruling P37).
+@Composable fun OneUiDialogField(value: String, onValueChange: (String) -> Unit, label: String,
+                                 modifier: Modifier = Modifier)
 
 // Search field (added 2026-10-21, Phase 6b ruling 1): a minTouchTarget-tall CircleShape pill on surfaceContainerHigh,
 // a leading Search glyph and placeholder in onSurfaceVariant, a trailing Close button ("Clear search") only while the
 // query is not empty, an accentText cursor, IME action Search calling onSearch
 @Composable fun OneUiSearchField(query: String, onQueryChange: (String) -> Unit, placeholder: String,
+                                 modifier: Modifier = Modifier, onSearch: () -> Unit = {})
+// The same over a TextFieldValue, so the caller owns the cursor (added 2026-10-27, Phase 7 Task 5: Search starts it at
+// the end of a restored query)
+@Composable fun OneUiSearchField(value: TextFieldValue, onValueChange: (TextFieldValue) -> Unit, placeholder: String,
                                  modifier: Modifier = Modifier, onSearch: () -> Unit = {})
 
 // Pill button (added 2026-10-21, Phase 6b ruling 1): CircleShape, at least minTouchTarget tall, labelLarge label.
@@ -475,8 +514,9 @@ The settings rows in `:feature:settings` (`SettingsSectionHeader`, `SettingsSect
 
 ### 7.4 Insets
 
-- Home: the header sits below the status bar (`statusBarsPadding`). The panel reaches the bottom edge, drawing behind the nav bar, and lists
-  pad for it.
+- Home: the header sits below the status bar (`statusBarsPadding`). (Amended in Phase 7, ruling P22.) The panel ends at the navigation
+  bar's top (the pager takes the bottom `navigationBars` inset), so the black background shows behind the bar, as on the reference.
+  Inside it `LocalNavigationBarPadded` is true, so `homeListBottomPadding()` is the pill alone; the pill's own position is unchanged.
 - Pushed screens: `OneUiDetailTopBar` owns the status-bar inset.
 - The "single owner" rule from the edge-to-edge work stays: no screen consumes the same inset twice.
 
@@ -490,13 +530,14 @@ All values come from §5 tokens and §6 components. "Row" means `SongListItem` a
   - Layout: row height `listRowHeight`, a 48 dp `small`-shape thumbnail at `listThumbStart` (`ArtworkPlaceholder` when there is no art), and text starting at `listTextStart`.
   - Text: `songTitle` and `artistName`, one line each, ellipsized.
   - Trailing: a gray ⋮ (`RollaIcons.More`, `onSurfaceVariant`, 48 dp target).
-  - Divider: an `InsetDivider` from `listTextStart` to the rail.
+  - Divider: an `InsetDivider` from `listTextStart` to the rail, between rows only: a list's last row has none
+    (`showDivider = false`; Phase 7 calibration). The same holds for every row below that draws a divider.
   - The selected-state highlight and track-number mode keep working.
 - **`PlaylistRow`:** a `singleLineRowHeight` row with a thumbnail, `songTitle` name, and a trailing count "N tracks" (`rowTrailing`).
 - **`AlbumRow` / `ArtistRow`:** restyled to the same anatomy. `ArtistRow` uses a circular 48 dp avatar and the subtitle
   "N albums, M tracks".
-- **`FeatureCard`** (new): a 143 dp `featureCard`-shape box (art, a 2×2 collage, or a placeholder with a 44 dp note), then the centered
-  `featureCardLabel` and `featureCardCount`.
+- **`FeatureCard`** (new): a 143 dp `featureCard`-shape box (art, a 2×2 collage, or an `artworkPlaceholder` placeholder with a
+  `featureCardGlyph` note; Phase 7 ruling P13), then the centered `featureCardLabel` and `featureCardCount`.
 - **`AlbumCard`:** used by the Albums grid. A square `featureCard`-shape art box, then a left-aligned `featureCardLabel` title (one
   line) and a `featureCardCount` artist (one line).
 - **`FolderRow`** (new): a 48 dp thumbnail showing the first song's art (or a placeholder) with a `FolderBadge` in the bottom-end corner,
@@ -520,9 +561,11 @@ Scanning and empty states render inside the panel in `emptyState` style.
 
 - **Container:** a `miniPlayerContainer` pill, `miniPlayerHeight` tall, with `miniPlayerSideMargin` on each side.
 - **Content, left to right:**
-  - A 38 dp circular art at `miniPlayerArtStart` (`miniPlayerArtPlaceholder` with a `miniPlayerArtGlyph` note when there is no art).
+  - A 38 dp circular art at `miniPlayerArtStart` (`miniPlayerArtPlaceholder` with a `miniPlayerArtGlyph` note in a
+    `RollaDimens.miniPlayerArtGlyph` box when there is no art or it fails to load; Phase 7 ruling P19).
   - Title in `miniPlayerTitle` with a marquee (`Modifier.basicMarquee`, off under reduced motion), and the artist in `miniPlayerSubtitle` (white).
   - Transport, each a 48 dp target: solid `SkipPrevious`, `Play`/`Pause`, `SkipNext`, and line `Queue`, which opens the queue sheet (§11).
+    `Play`/`Pause` and `Queue` draw in a `miniTransportCompactIcon` box, the others in `iconSize` (Phase 7 calibration).
 - **Behavior kept:** body tap opens Now Playing, plus the semantics merging and the shared-element artwork.
 
 ### 8.4 Now Playing
@@ -531,12 +574,16 @@ Scanning and empty states render inside the panel in `emptyState` style.
 - **Top bar:** `ChevronDown` (collapse) on the left. On the right: `Volume` (opens the system volume panel, §12), `EqualizerBars` (opens Equaliser) and ⋮
   (a menu: Edit tags · Go to album · Go to artist · Settings, §12).
 - **Artwork:** `npArtSize`, `extraLarge` shape, centered, with the shared-element source/target kept. `ArtworkPlaceholder(large = true)`
-  with a 60 dp note when there is no art.
+  with an `npArtGlyph` note when there is no art. Its top sits `npArtTopGap` below the top of the window content, below the status
+  bar (Phase 7 calibration).
 - **Text:** title in `nowPlayingTitle`, centered, one line with a marquee; artist in `nowPlayingArtist`, centered, white.
-- **Action row:** spread to the edges (`npSeekInset` padding). `Queue` (opens the sheet), `Heart`/`HeartFilled` (favorite toggle; `accentText` is not used, the filled heart stays white) and `Add` (add to playlist).
+- **Action row:** spread to the edges, its end 48 dp boxes `npControlEdgeInset` from the screen edges (Phase 7 calibration). `Queue` (opens the sheet), `Heart`/`HeartFilled` (favorite toggle; `accentText` is not used, the filled heart stays white) and `Add` (add to playlist), in `npActionGlyph` boxes.
 - **Seekbar:** a custom thin bar. Track `npSeekThickness` (`seekTrackActive` / `seekTrackInactive`), a white circular thumb `npSeekThumb`, and the same drag/seek
-  semantics as today (position ticks scoped to the seekbar only). Time labels go below at both ends in `metadata` white.
-- **Transport row:** spaced evenly.
+  semantics as today (position ticks scoped to the seekbar only). The track runs from `npSeekInset` to `npSeekInset` from the end and the thumb centre
+  travels all of it (Phase 7 calibration). Time labels go below at both ends in `metadata` white, starting and ending `npSeekInset` from the edges.
+- **Transport row:** not spaced evenly (Phase 7 calibration): shuffle's and repeat's 48 dp boxes sit `npControlEdgeInset` from the edges, previous and
+  next are centred `npTransportInnerCentre` from the nearer edge, and play is centred. On a screen too narrow for that without overlap, the five
+  spread evenly. The glyph boxes are `npTransportGlyph`.
   - `Shuffle`: `onSurface` when off (as in the reference, which shows the default playback state), `accentText` when on, with
     `stateDescription` "Shuffle on" or "Shuffle off".
   - `SkipPrevious` (solid).
@@ -551,16 +598,21 @@ Scanning and empty states render inside the panel in `emptyState` style.
 - **Enable card:** a small `surfaceContainer` card (`large`, inset `settingsCardInset`) with a toggleable row: "Equaliser" plus a `OneUiSwitch`.
 - **Slider card:** an edge-to-edge `surfaceContainer` card with `large` corners.
   - Faint `eqGridLine` horizontals every `eqGridPitch` across the slider area.
-  - Nine `EqVerticalSlider`s at `eqColumnPitch`.
-  - `eqValue` labels above each slider (dB with no unit; "0", "+3", "-2").
-  - `eqFrequency` labels below: **40 · 80 · 160 · 315 · 630 · 1.25k · 2.5k · 5k · 10k**. These are the app's real bands; only the "Hz" suffix is dropped.
+  - Nine `EqVerticalSlider`s, one pitch wide each: the first and last column centres sit `eqColumnEdgeInset` from the screen edges, pitch
+    = (width − 2 × `eqColumnEdgeInset`) / 8, never below `eqColumnPitch` (Phase 7 ruling P12). Each slider draws the full `eqSliderLength`
+    track (it is `eqSliderLength` + `eqThumbDiameter` tall), and its thumb travels all of it.
+  - `eqValue` labels above each slider (dB with no unit; "0", "+3", "-2"), in `labelSecondary`; the track's top sits
+    `eqValueLabelTrackGap` below their baseline (Phase 7 ruling P20).
+  - `eqFrequency` labels below: **40 · 80 · 160 · 315 · 630 · 1.25k · 2.5k · 5k · 10k**, in `labelSecondary`. These are the app's real bands; only the "Hz" suffix is dropped.
+    The card ends `eqCardBottomPadding` below their baseline (Phase 7 calibration).
   - The gains-driven response curve stays, drawn inside the card behind the sliders. Its stroke is `primary` at 35 % alpha, it is visible only while
     a slider is being dragged, and it fades in and out (reduced-motion: no fade).
   - When the EQ is disabled, sliders and chips render at 38 % alpha and are not interactive.
 - **Preset grid:** a 2-column grid of `PillChip`s (columns `chipGap` apart; rows `chipRowLayoutGap` apart, because each chip
-  occupies a 48 dp touch height, which gives the measured `chipGap` visually; inset `chipGridStart`) in built-in order: Balanced, Bass boost, Smooth, Dynamic,
+  occupies a 48 dp touch height, which gives the measured `chipRowGap` (14 dp) visually; inset `chipGridStart`) in built-in order: Balanced, Bass boost, Smooth, Dynamic,
   Clear, Treble boost, Custom, then any saved user presets.
-- **Below the grid:** a `caption` with the preset description, then a `TextButton("Save as preset")` in `accentText`, which keeps the existing dialog.
+- **Below the grid:** a `caption` in `eqCaption` with the preset description, starting `eqCaptionStart` from the screen edge (Phase 7
+  calibration), then a `TextButton("Save as preset")` in `accentText`, which keeps the existing dialog.
 
 ### 8.6 Settings
 
@@ -569,7 +621,8 @@ Scanning and empty states render inside the panel in `emptyState` style.
   (`surfaceContainer`, `large`, inset `settingsCardInset`).
 - **Rows:**
   - Text: `settingTitle` labels, with the value below in `settingValue` (blue) for value rows, or `settingSubtitle` (gray) for sub-labels.
-  - Controls: toggle rows end with a `OneUiSwitch`. Slider rows show the label, a centered blue value ("1.0x") and a `OneUiSlider`.
+  - Controls: toggle rows end with a `OneUiSwitch`, `settingsTrailingEnd` from the card's end. Slider rows show the label, a centered blue value
+    ("1.0x") and a `OneUiSlider` whose track runs `settingsSliderInset` inside the card at both ends (Phase 7 calibration).
   - Dividers: `InsetDivider` with `settingsDividerInset` on both sides between rows.
   - Navigation rows: no trailing chevron. One UI shows none in the reference; the whole row is clickable.
 - **Content:** the existing sections and rows only (Appearance · Playback · Library · Privacy · About), with the same behavior.
@@ -701,16 +754,20 @@ rejected: Room's verifier doesn't know them, and their order doesn't group by th
   font scale if that is taller (Phase 5 ruling 10). When fewer than 27 slots fit, the rail shows every k-th label, where k is the
   smallest value that fits. Every label keeps an equal slot of the rail's height, so a shown letter sits where a tap selects it, and
   dropped letters are still reachable by drag. A shown letter is measured at its natural height and is never clipped to its slot.
+  The first and last shown labels are clamped inside the rail's pill, so "#" and "Z" never overhang its ends (Phase 7 Task 6).
   This matches the condensed Playlists rail in the reference.
 - **Extent:** the rail runs from the top of the list (below the sort header) to `homeListBottomPadding()` above the bottom, ending
   at the pill (Phase 5 ruling 8; Phase 7 calibrates against the reference's ≈15 dp gap). On Playlists it starts below the
   feature-card row (its measured height, saved across restores), so it does not cover the cards. A top inset is capped so the rail
-  keeps `fastScrollMinRailHeight`. In a container too short for both (Playlists in landscape) the rail therefore overlaps the card
-  row's end. The cap never goes below 0 dp, so a container shorter than `railBottomPadding + fastScrollMinRailHeight` keeps a shorter rail
-  instead of failing (amended 2026-10-17, Phase 5).
+  keeps `fastScrollMinRailHeight`. The cap never goes below 0 dp, so a container shorter than `railBottomPadding +
+  fastScrollMinRailHeight` keeps a shorter rail instead of failing (amended 2026-10-17, Phase 5). On Playlists, when the space
+  below the card row (`listHeight − railTopPadding − railBottomPadding`) is under `fastScrollMinRailHeight`, the rail is hidden
+  instead of overlapping the cards (Phase 7 Task 6; this replaces the Phase 5 overlap in landscape).
 - **Interaction:** tap or vertical drag on the rail calls `listState.scrollToItem(section.firstIndex)` (plus the header offset). A
   `HapticFeedbackType.TextHandleMove` tick fires on each section change. No bubble. Tap and drag are separate detectors, so a
-  horizontal swipe that starts on the rail still pages the Home pager (Phase 5 ruling 11). Each new tap or drag counts as a change.
+  horizontal swipe that starts on the rail still pages the Home pager (Phase 5 ruling 11). A drag selects the letter under the
+  finger's down point first, not the point where the touch slop was crossed (Phase 7 Task 6). Each new tap or drag counts as a
+  change.
 - **Accessibility:** the rail is one semantics node, "Fast scroll, letter index", with custom actions per populated section (for example "Jump to M")
   and `traversalIndex` after the list. TalkBack users can ignore it.
 - **Where it appears:** Tracks, Favourites, Playlists (user rows only), Artists and Folders. It is hidden when the list fits on one screen.
@@ -757,7 +814,7 @@ night `ColorProvider`s use the same scheme.
     rounded-rectangle drawable on every API, and `cornerRadius` also clips the card on API 31+.
   - Tapping the card outside the controls opens the app ("Open Rolla Music").
 - **Layout:**
-  - A 69 dp rounded (12 dp) artwork box on the left (`#363636` placeholder with a white note). (Amended 2026-10-22, Phase 6c
+  - A 69 dp rounded (`widgetArtRadius`, 15 dp since the Phase 7 calibration; was 12 dp) artwork box on the left (`#363636` placeholder with a white note). (Amended 2026-10-22, Phase 6c
     ruling 6.) The box's background is a rounded drawable on every API, so the placeholder is rounded everywhere (the
     placeholder was device-checked on the Motorola edge 70, API 36). By design a real artwork bitmap is clipped round by
     `cornerRadius` on API 31+ only and drawn square below API 31. Neither was checked on a device (no track in the test
@@ -813,9 +870,9 @@ night `ColorProvider`s use the same scheme.
   heights below the drawn height. So `minResizeHeight` is 70 dp, the 69 dp artwork box + 1 dp. One row was confirmed on
   the Motorola (374.7 × 97.7 dp). At four columns (the target width) the widget measured about 375 dp wide, so the artwork
   shows.
-- **Glyph weight (Phase 7 calibration item).** On the Motorola the ±15 ring glyphs draw 21 dp tall against play's 18 dp,
-  so they may read heavier than the other controls. Phase 7 compares them with the reference and decides whether to
-  shrink them.
+- **Glyph weight (Phase 7 calibration, done).** On the Motorola the ±15 ring glyphs drew 21.3 dp tall against the
+  reference's 18 dp play. Their drawables now scale their paths by 0.84 about the box centre, so they draw about 18 dp in
+  the unchanged 28 dp box; `WidgetIconParityTest` pins their drawn height against `widget_ic_play`'s.
 - **Copy.** The receiver's label and the widget's strings say "Rolla Music" (Phase 6c ruling 7).
 - **Tests.**
   - `WidgetPaletteTest` keeps `colors.xml` and the Kotlin palette in step, and checks that the light and dark sides resolve to

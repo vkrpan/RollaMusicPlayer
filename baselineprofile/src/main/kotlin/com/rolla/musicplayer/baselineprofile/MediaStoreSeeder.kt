@@ -23,7 +23,11 @@ internal object MediaStoreSeeder {
     private const val DURATION_SECONDS = 1
     private const val WAV_HEADER_SIZE = 44
     private const val PCM_SILENCE_8_BIT = 128
-    private const val DEFAULT_SEED_COUNT = 15
+
+    // At least 60 tracks over 20 initial letters, so Home's A–Z rail shows and has a section to jump to (Phase 7
+    // Task 10: the journey profiles the rail's first jump).
+    private const val DEFAULT_SEED_COUNT = 60
+    private const val SEED_LETTERS = 20
 
     fun seedIfEmpty(count: Int = DEFAULT_SEED_COUNT) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -58,10 +62,11 @@ internal object MediaStoreSeeder {
 
     private fun insertSilentWav(context: Context, index: Int) {
         val ordinal = index + 1
+        val title = "%c Baseline Song %02d".format('A' + index % SEED_LETTERS, ordinal)
         val values =
             ContentValues().apply {
-                put(MediaStore.Audio.Media.DISPLAY_NAME, "Baseline Song %02d.wav".format(ordinal))
-                put(MediaStore.Audio.Media.TITLE, "Baseline Song %02d".format(ordinal))
+                put(MediaStore.Audio.Media.DISPLAY_NAME, "$title.wav")
+                put(MediaStore.Audio.Media.TITLE, title)
                 put(MediaStore.Audio.Media.ARTIST, "Baseline Artist")
                 put(MediaStore.Audio.Media.ALBUM, "Baseline Album")
                 put(MediaStore.Audio.Media.MIME_TYPE, "audio/wav")

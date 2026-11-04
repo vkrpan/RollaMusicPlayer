@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -82,8 +82,13 @@ private fun FolderList(folders: List<Folder>, onFolderClick: (String) -> Unit, m
             contentPadding = PaddingValues(bottom = homeListBottomPadding()),
         ) {
             // Keyed by path, the folder's identity and unique; names repeat across parents (ruling 15).
-            items(items = folders, key = { folder -> folder.path }) { folder ->
-                FolderRow(folder = folder, onClick = { onFolderClick(folder.path) })
+            itemsIndexed(items = folders, key = { _, folder -> folder.path }) { index, folder ->
+                FolderRow(
+                    folder = folder,
+                    onClick = { onFolderClick(folder.path) },
+                    // No hairline under the list's last row (Phase 7 calibration).
+                    showDivider = index < folders.lastIndex,
+                )
             }
         }
     }

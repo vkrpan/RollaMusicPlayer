@@ -58,7 +58,8 @@ internal fun Player.queueState(): QueueState {
             index = index,
             mediaId = mediaItem.mediaId,
             title = metadata.title?.toString().orEmpty(),
-            artist = metadata.artist?.toString().orEmpty(),
+            // The raw name (ruling P8): QueueSheet maps it for display, like every other artist line.
+            artist = metadata.rawArtist(),
             artworkUri = metadata.artworkUri?.toString().orEmpty(),
         )
     }

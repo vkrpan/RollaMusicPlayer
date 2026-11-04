@@ -37,6 +37,7 @@ import com.rolla.musicplayer.core.designsystem.theme.featureCard
 import com.rolla.musicplayer.core.designsystem.theme.featureCardCount
 import com.rolla.musicplayer.core.designsystem.theme.featureCardLabel
 import com.rolla.musicplayer.core.model.Album
+import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
  * Album card for the Albums grid and the artist detail strip (spec §8.1): a square art box in the featureCard shape
@@ -53,7 +54,7 @@ fun AlbumCard(
     album: Album,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    subtitle: String = album.artist,
+    subtitle: String = artistDisplayName(album.artist),
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     Box(modifier = modifier.clickable(interactionSource = interactionSource, indication = null, onClick = onClick)) {

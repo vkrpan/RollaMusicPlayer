@@ -28,7 +28,7 @@ private const val PRIVACY_STATEMENT =
 
 private const val PRIVACY_NO_COLLECTION =
     "There are no analytics, no crash reporting to outside services, no accounts, and no ads. " +
-        "Your library index, playlists, equalizer presets, and settings are stored only in this " +
+        "Your library index, playlists, equaliser presets, and settings are stored only in this " +
         "app's local storage."
 
 private const val PERMISSION_AUDIO_LABEL = "Music and audio access"

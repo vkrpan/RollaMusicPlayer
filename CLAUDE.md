@@ -125,7 +125,7 @@ compaction, when the skill body is out of context.
 - **UI Framework**: Jetpack Compose with Material Design 3
 - **Architecture**: MVVM (Model-View-ViewModel), multi-module (hybrid feature + core)
 - **Build**: Gradle Kotlin DSL with version catalog + convention plugins (build-logic); AGP 8.13.2, Gradle 8.13, `compileSdk 36`
-- **Visual style**: One UI–inspired dark (OLED black, blue accent, soft rounded surfaces). Binding spec: `.claude/rules/ui-style-guide.md`; tokens implemented in `:core:designsystem` (Color.kt / Type.kt / Shape.kt / Theme.kt)
+- **Visual style**: One UI–inspired dark (OLED black, blue accent, soft rounded surfaces). Binding spec: `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md` §5–§6 (values) and `.claude/rules/ui-style-guide.md` (rules); tokens and the component kit are implemented in `:core:designsystem`
 - **Audio Playback**: Media3 1.11.1 ExoPlayer
 - **Database**: Room for local data persistence
 - **Dependency Injection**: Hilt 2.57.2 (2.59.x needs AGP 9)
@@ -158,7 +158,9 @@ compaction, when the skill body is out of context.
 - Album artwork extraction and local disk caching
 - Full ID3 tag editing (title, artist, album, genre, year, track number, album artist, composer, artwork)
 - Batch tag editing for multiple files
-- Album detail and artist detail screens (reached via search or a library song's artist/album)
+- Home: six tabs (Favourites · Playlists · Tracks · Albums · Artists · Folders) with a One UI A–Z fast-scroll rail
+- Folders browsing (every folder that directly holds tracks) and Folder, Album and Artist detail screens, reached from
+  the Home tabs, Search and Now Playing's ⋮
 
 > A **custom user-defined tag system** was scoped for Phase 5 but cut from v1.0 — see "Post-1.0 cuts" under Current Status.
 
@@ -186,18 +188,18 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 ├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
 ├── :core:datastore     # DataStore: app settings (theme/dynamic color/speed/skip-silence), equalizer active-state, recent searches
 ├── :core:data          # Repositories + media scanner
-├── :core:media         # Media3 playback service, MediaSession, audio session, equalizer effect
+├── :core:media         # Media3 PlaybackService (a MediaLibraryService), MediaSession, the queue (QueueState/QueuePublisher), queue save/restore, audio session, equalizer effect
 ├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
-├── :core:ui            # Model-aware shared composables (SongListItem, AlbumCard, AlbumArtwork)
+├── :core:ui            # Model-aware shared composables (SongListItem, list rows, AlbumCard, FeatureCard, SongOptionsHost)
 ├── :core:permissions   # Runtime media permission gate + flow
 └── :core:testing       # Fakes, fixtures, test rules
 
 :feature
-├── :feature:library    # Songs list + Album detail + Artist detail screens (no tab bar/Genres/Folders — see Post-1.0 cuts)
+├── :feature:library    # Home tabs Tracks, Albums, Artists, Folders + Album, Artist and Folder detail screens (no Genres)
 ├── :feature:search     # Local search across the library
-├── :feature:player     # Now-playing + mini-player
+├── :feature:player     # Now Playing, mini-player, queue sheet
 ├── :feature:equalizer  # Equalizer screen (band sliders, presets UI)
-├── :feature:playlists  # Playlist management + reordering
+├── :feature:playlists  # Favourites and Playlists tabs, playlist detail, smart playlists, reordering
 ├── :feature:tageditor  # ID3 read/write screen + scoped-storage consent
 ├── :feature:settings   # App settings
 └── :feature:widget     # Glance home screen widget
@@ -279,7 +281,7 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 4. **Room Database**: Type-safe, compile-time verification
 5. **Hilt for DI**: Official Android DI solution, good Compose integration
 6. **Foreground Service**: Required for background playback on modern Android
-7. **One UI–inspired dark design system**: True-black OLED, single blue accent, heavily rounded surfaces. Defined in `.claude/rules/ui-style-guide.md` and implemented as tokens in `:core:designsystem`. All UI agents/skills build from these tokens — never hardcode colors, type, or shapes.
+7. **One UI–inspired dark design system**: True-black OLED, single blue accent, heavily rounded surfaces. Values in the redesign spec §5–§6, rules in `.claude/rules/ui-style-guide.md`, implemented as tokens and a component kit in `:core:designsystem`. All UI agents/skills build from these tokens and the kit — never hardcode colors, type, or shapes.
 
 ## Important Considerations
 
@@ -295,146 +297,55 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Current Status
 
-> **One UI redesign in progress (branch `feat/oneui-redesign`).** The binding spec is
-> `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`, and the phases are in
+> **One UI redesign: Phases 1–7 complete on branch `feat/oneui-redesign`, pending the user's commit and merge.**
+> The binding spec is `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`; the phases and their plans are in
 > `docs/superpowers/plans/2026-10-06-oneui-redesign-roadmap.md`. Where this file disagrees with the spec, the spec wins.
-> Landed so far:
-> - **Phase 1:** design-system tokens, `RollaIcons` and the component kit.
-> - **Phase 2:** Home is the start destination. It has a "Rolla Music" header, a center-weighted tab row, and a pager
->   with the Playlists and Tracks tabs (`PlaylistsTab`, `TracksTab`). `LibraryScreen`, `PlaylistsScreen`, the
->   `Library`/`Playlists` routes and the bottom nav are gone. The mini-player floats over content
->   (`MiniPlayerHost`, `LocalMiniPlayerInset`).
-> - **Phase 3:** Now Playing, the mini-player (60 dp pill), Equaliser and Settings are rebuilt on the One UI kit. There is a
->   real queue sheet (`QueueSheet`/`QueueViewModel`), backed by a `QueueState` that `PlaybackService` publishes
->   (`QueuePublisher`). Tapping a track plays the whole list from it, via the `PlaybackController` helpers `playFrom`,
->   `playAllInOrder` and `shuffleAll`. Now Playing's Volume opens the system panel (`SystemVolumePanel`), and ⋮ offers
->   Edit tags, Go to album, Go to artist and Settings. UI copy says "Equaliser"; code names stay `Equalizer*`. Reduced
->   motion uses `rememberReducedMotion()`; no module-local `isReducedMotion` copy is left (`:feature:playlists`
->   lost the last one in Phase 6a). Settings values sit in blue below their labels,
->   with no chevrons.
-> - **Phase 4a:** Home has five tabs: Favourites · Playlists · Tracks · Albums · Artists. Favourites (`FavouritesTab`,
->   `:feature:playlists`) plays the favourite tracks, with no multi-select. Albums is a 2-column `AlbumCard` grid and
->   Artists is an `ArtistRow` list with round cover avatars (`Artist.artworkUri`). Both open AlbumDetail/ArtistDetail,
->   which are now also reached from Home, not only from Search. The per-track options sheet lives in
->   `:core:ui` (`SongOptionsHost`). `AlbumArtworkCache.peek` gives Coil a fast path that does
->   not suspend, and cache files are published by an atomic rename. The Robolectric pixel-test helpers live in
->   `:core:testing` (`PixelCapture.kt`). `:core:testing` is test-only and must stay `testImplementation`.
-> - **Phase 4b:** Home has six tabs; Folders (`FoldersTab`) lists every folder that directly holds songs, by display name,
->   and opens `FolderDetail(folderPath)`. That is a One UI pushed screen that pads its own list for the pill. The
->   database gained **Room v4**: `songs.folder_path` (NULL = not scanned yet, `''` = the volume root), `MIGRATION_3_4`, and one
->   `ALL_MIGRATIONS` list that `DatabaseModule` installs and `MigrationTest` replays. Folder queries live in `FolderDao`
->   (`SongDao` is at detekt's interface limit); `FolderRepository` maps them to `Folder` (`:core:model`, with `folderName`
->   and `folderDisplayPath`). The scanner reads RELATIVE_PATH (API 29+) or DATA (24–28) through `FolderPaths`, and
->   `LibraryIndexer` re-upserts a row whenever its stored folder differs from the scanned one, which backfills an upgraded
->   install on its first sync. Rows share `ListRowScaffold` (`AlbumRow`, `ArtistRow`, `FolderRow`).
-> - **Phase 5:** Tracks, Favourites, Playlists (user rows), Artists and Folders have the One UI **A–Z rail**.
->   - **The rail:** tap or drag jumps the list, with a haptic tick; TalkBack sees one node, "Fast scroll, letter index",
->     with a "Jump to X" action per populated letter.
->   - **Components:** `FastScrollRail` and `FastScrollContainer` live in `:core:designsystem`, the pure index logic in
->     `FastScrollIndex.kt`. The container shows the rail only while the list can scroll (hidden when it fits); on Playlists the rail starts below
->     the feature cards.
->   - **Library order:** every Home list is in one library order (spec §9.0): `#` first, then A–Z, ignoring case and
->     accents, so "Émile" sorts and jumps under E. `:core:common`'s `LibraryOrder.kt` (`indexLetter`,
->     `sortedByLibraryName`) defines it, and the repositories apply it on `@CoreDataDefaultDispatcher`, off the main
->     thread. The DAOs keep NOCASE as a pre-order.
-> - **Phase 6a:** the detail screens, sheets, dialogs and menus are on the One UI kit.
->   - **Kit:** `OneUiBottomSheet`, `OneUiDialog`, `OneUiTextButton`, `OneUiTextField`, `OneUiDropdownMenu`/`OneUiMenuItem`
->     and `SheetActionRow` (`:core:designsystem`) back every sheet, dialog and menu (queue, options, add-to-playlist,
->     theme, save preset, Home ⋮, Now Playing ⋮). Destructive text uses the `destructiveText` token, never `error`.
->   - **Detail screens:** AlbumDetail, ArtistDetail, PlaylistDetail and SmartPlaylist have a `DetailArtworkHeader` hero
->     (album/artist), a static sort label, and a ⋮ on every row that opens `SongOptionsHost` (Add to playlist, Edit tags,
->     and Remove on user playlists). Like FolderDetail, they pad their own lists for the pill instead of being wrapped
->     in a wrapper; `:app` registers them through `NavGraphBuilder` extensions in `MainActivity.kt`.
->   - **Options sheet:** every caller passes `currentSongs`, so the sheet closes when its track leaves the list.
->     "Create a playlist with this track" is one `PlaylistRepository.createPlaylistWithSong` extension.
-> - **Phase 6b:** Search, the tag editors, the permission prompt and the info screens' copy are on the One UI kit.
->   - **Kit:** `OneUiSearchField`, `OneUiPillButton` (filled or tonal, with a loading state), `OneUiTextField` error and
->     supporting text, and `OneUiBottomSheet(skipPartiallyExpanded)`; the queue sheet opens at full height.
->   - **Search** has no Scaffold: a search bar, then a `ContentPanel` whose lists pad by `homeListBottomPadding()`.
->     A track's ⋮ opens `SongOptionsHost`; each recent search has its own remove button
->     (`SearchRepository.removeRecentSearch`).
->   - **Tag editors** use `OneUiTextField`s, pill buttons and `OneUiSwitch` apply toggles; copy says "tracks".
->   - **Permission:** `MediaPermissionState` (`rememberMediaPermissionState()`) is hoisted into `HomeRoute`, so Home
->     hides + and the selection bar while access is denied. The prompt sits in a `ContentPanel` and says "Rolla Music".
->   - **`:app`:** `PushedScreen` is gone. Every route that shows the pill pads its own list; the routes that hide it
->     need nothing. Every single-track "Edit tags" goes through `NavController.openTagEditor` (`navigation/TagEditorNavigation.kt`),
->     and Search registers through `searchDestination`.
->   - **No Material icons:** the `material-icons-extended` dependency is gone and detekt's `ForbiddenImport` rejects any
->     `androidx.compose.material.icons` import in main, test and androidTest sources (`RollaStaticAnalysisPlugin`).
-> - **Phase 6c:** the home-screen widget has the One UI look (spec §13), device-checked on 2026-10-23 on the Motorola
->   edge 70 (API 36). The centred mode for tall cards (ruling P14, below) was device-checked there on 2026-10-27.
->   - **Look:** a black card with 24 dp corners; a 69 dp artwork box with 12 dp corners (a `#363636` placeholder with a white
->     note); the title (16 sp Bold) and artist (13 sp) on one line each; the five controls (previous · −15 s · play/pause ·
->     +15 s · next) as XML glyphs, where previous, play/pause and next mirror `RollaIcons` and ±15 are widget-only line
->     icons; and a 3 dp `#2F6FF0` bar on a `#646466` track. The copy says "Rolla Music". The widget is meant to stay dark
->     in the light system theme: `WidgetPaletteTest` pins the same palette for day and night, but it was not checked on the
->     device.
->   - **On the device:** the look and colours, every control, the body tap, one ellipsised line for a long title with the
->     controls unmoved, one row (374.7 × 97.7 dp), the narrowest width (277 dp, artwork hidden, 51.4 dp cells) and the
->     picker preview. Not checked on the device: a real artwork bitmap (only the placeholder; the JVM tests cover the
->     bitmap branch), a large system font, the light system theme, and anything below API 31.
->   - **Narrow width and large font:** every control is one 48 dp touch box, so below 339 dp the artwork hides and the
->     controls take the full width; the minimum width is 260 dp. A large font cuts the title or artist, never a control
->     (`WidgetLayoutTest`, not checked on the device).
->   - **Height:** the widget targets one row (`targetCellHeight="1"`, `minHeight` 97 dp, `minResizeHeight` 70 dp = the
->     artwork box + 1 dp); one row was confirmed on the Motorola. That launcher reports a smaller `LocalSize` height than it
->     draws (about 167 dp for a 211.3 dp two-row card; at most 89.6 dp for the 97.7 dp one-row card), so the layout has two
->     modes (ruling P14). When the reported height holds the nominal content plus a 4.51 dp corner clearance above and
->     below, the content wraps its height and is centred. Device-checked on 2026-10-27 at two rows (374.7 × 211.3 dp): the
->     artwork is centred in the card (centre 508 px against the card's 508.5 px), the text, controls and bar are centred
->     within 2.5 dp of the artwork's centre, and the bar sits 60.7 dp above the bottom. Otherwise it fills the card, the
->     text gives way, and the bar's `barBottomInset` (ruling P12) lifts it 4.51 dp clear of the card's corner:
->     device-checked at one row and at the narrowest width, and unchanged at one row on 2026-10-27.
->   - **Tokens:** sizes are `RollaDimens.widget*`. Colours are the widget's own palette in `colors.xml` and
->     `MusicWidgetTheme.kt`, which `WidgetPaletteTest` keeps equal. The Glance unit tests use the test-only
->     `glance-appwidget-testing` 1.1.0.
-> - **Queue restore (side phase, spec `docs/superpowers/specs/2026-10-12-queue-restore-design.md`):** the database is
->   **Room v5** (`MIGRATION_4_5`): `playback_queue` (slot, song_id with no foreign key, shuffle_rank) and a single-row
->   `playback_state`, read through `PlaybackQueueDao.loadSnapshot()` and mapped by `PlaybackStateRepository` to
->   `SavedPlayback`. In `:core:media`, `QueuePersister` saves the queue on playlist changes and the state on pause, seek,
->   mode changes and every 10 s while playing, plus `saveFinal()` in `PlaybackService.onDestroy`. `RestoreCoordinator`
->   restores the queue paused when the service starts, and `RestoredShuffleOrder` (registered after
->   `StartFirstShuffleEnforcer`) puts the exact shuffle order back. `PlaybackSessionCallback.onPlaybackResumption` plus
->   Media3's `MediaButtonReceiver` resume from a headset or Bluetooth Play. **Panel resume** (spec
->   `docs/superpowers/specs/2026-10-15-panel-resume-design.md`): `PlaybackService` is a `MediaLibraryService`, so that a
->   stock-Android System UI media card (AOSP `MediaResumeListener`) can survive process death; this is designed for,
->   not yet verified on, a stock device. Its metadata request (`isForPlayback = false`) reads through
->   `RestoreCoordinator.peekSaved()`, changes nothing and returns `asPlayableLeaf()` items, and its Play resumes like a
->   headset Play. On Samsung One UI (SM-S901B, Android 14) it is not delivered: One UI never adds new apps to its media
->   resume list, so there the card goes when the process dies.
->   `MediaButtonStartFallback` keeps a media-button start with nothing to resume, or a key UP that Media3 ignores, from
->   crashing the foreground-service contract. It also stops a service that a non-play key started cold (the paused
->   notification's delete intent sends STOP when the process dies), so the next app open restores prepared (P8).
->
-> The tab bar, Folders browsing and the A–Z rail listed under "Post-1.0 cuts" below are being built by this redesign
-> at the user's explicit request, so that section and the `:feature:library` blurb above are out of date until the
-> Phase 7 docs pass.
+> What the redesign shipped:
+> - **App identity:** the launcher label and every user-visible name is "Rolla Music"; an adaptive icon (white note on
+>   `#2F6FF0`, with a monochrome layer for themed icons; a layer-list below API 26).
+> - **Design system:** One UI tokens (`RollaDimens`, `RollaShapes`, semantic colours and type), `RollaIcons` (no
+>   Material icons: detekt's `ForbiddenImport` plus the `checkNoMaterialIcons` scan, which also catches fully
+>   qualified references) and the kit in `:core:designsystem/component/` (sheets, dialogs, menus, fields, pill buttons,
+>   switch, round checkbox, sliders, tab row, content panel, A–Z rail). Calibrated against the reference screenshots on
+>   the Motorola edge 70 in Phase 7 (`docs/design/oneui-measurements.md`); the remaining differences are recorded there
+>   as accepted.
+> - **Home** is the start destination: the "Rolla Music" header, the centre-weighted six-tab pager (Favourites ·
+>   Playlists · Tracks · Albums · Artists · Folders), each tab in a content panel, and a floating mini-player pill.
+>   Tracks, Favourites, Playlists (user rows), Artists and Folders have the A–Z rail; every Home list is in one library
+>   order (`#` first, then A–Z, ignoring case and accents; `:core:common`'s `LibraryOrder.kt`). Everything below
+>   Home's header ends at the navigation bar's top. No bottom navigation bar; `LibraryScreen` and `PlaylistsScreen`
+>   are gone.
+> - **Screens:** Now Playing (with a real queue sheet), Equaliser, Settings, Search, the tag editors, the permission
+>   prompt, AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist and FolderDetail, all on the kit. UI copy says
+>   "Tracks" and "Equaliser"; code says `Song` and `Equalizer*`. A missing artist shows as "Unknown"
+>   (`artistDisplayName`), while data and routes keep the raw `<unknown>`.
+> - **Data:** Room **v5**: v4 added `songs.folder_path` (`FolderDao`, `FolderRepository`), v5 the playback queue
+>   (`playback_queue`, `playback_state`). All migrations are in one `ALL_MIGRATIONS` list that `MigrationTest` replays.
+> - **Queue restore:** the queue, position, shuffle order and repeat mode are saved and restored paused on the next
+>   start; a headset or Bluetooth Play resumes them. The stock-Android System UI resume card is designed for, not
+>   verified (see "Data Storage Strategy"); Samsung One UI does not offer it.
+> - **Widget:** the One UI look (spec §13), device-checked on the Motorola edge 70 (API 36) on 2026-10-23 and
+>   2026-10-27: one row by default, a centred mode for taller cards (ruling P14), the artwork hiding below 339 dp.
+>   Not checked on a device: a real artwork bitmap, a large system font, the light system theme, anything below API 31.
+> - **Build hygiene (Phase 7):** no annotation-target or CDS warnings in builds and test logs; the detekt plugin version
+>   is in the version catalog; a refreshed baseline profile covers the tab swipes and the rail's first jump.
 
-**Status**: **v1.0 feature-complete.** All planned phases (1–7) plus the Phase 8 polish/release pass
-are shipped: Core Playback, Library (Songs list + Album/Artist detail), Playlists, Equalizer, Tag
-Editor, Search, Settings, Home Widget, plus an accessibility pass, a baseline profile, and a signed,
-R8-minified release build (`versionCode 1` / `versionName "1.0.0"`) regression-tested in airplane mode.
-Final code-review gate passed 2026-07-23 with no blocking findings (see "Review follow-ups" below).
-**Last Updated**: 2026-07-23
+**Status**: **v1.0 shipped on `main`** (2026-07-23). **The One UI redesign (Phases 1–7) is complete on
+`feat/oneui-redesign`** and waits for the user's commit and merge; its final gate and device walk are recorded in the
+Phase 7 ledger.
+**Last Updated**: 2026-11-01
 
 ### Post-1.0 cuts (deliberate, not defects)
 
-Three things described elsewhere in this repo's specs were consciously scoped out of v1.0. If a
-future prompt flags them as "missing," they're deferred, not broken — don't rebuild them without an
-explicit ask:
+One thing described in this repo's specs was consciously scoped out. If a future prompt flags it as "missing", it is
+deferred, not broken; don't build it without an explicit ask:
 
-- **Custom tag system** — deferred during Phase 5, formally cut here. The shipped tag editor covers
-  the full standard field set (title/artist/album/genre/year/track/album artist/composer + artwork)
-  for MP3/FLAC/M4A; a user-defined custom-tag layer on top of that is the only piece not built.
-- **A–Z fast-scroll index** (`ui-style-guide.md` §6) — spec'd, never built. Confirmed unbuilt by the
-  Phase 8 UI audit (2026-07-15: code-reviewer + m3-design-system-agent + compose-performance-auditor).
-- **Center-weighted scrollable tab bar** (Favourites · Playlists · Songs · Albums · Artists · Folders,
-  §6/§7) and **Folders browsing** — also spec'd, also never built. `:feature:library`'s `LibraryScreen`
-  is a flat Songs list with a plain `TopAppBar`; Album/Artist surfaces are reached only through
-  Search's `onAlbumClick`/`onArtistClick` and the two detail screens (not a library tab bar).
+- **Custom tag system:** deferred during Phase 5, formally cut at v1.0. The shipped tag editor covers the full standard
+  field set (title/artist/album/genre/year/track/album artist/composer + artwork) for MP3/FLAC/M4A; a user-defined
+  custom-tag layer on top of that is the only piece not built.
 
-All three were net-new-feature scope, not polish, so the Phase 8 pass deliberately left them for a
-post-1.0 ask rather than building them under a "polish" mandate.
+The other three v1.0 cuts (the A–Z fast-scroll index, the centre-weighted tab bar and Folders browsing) were built by
+the One UI redesign at the user's request (Phases 2, 4b and 5) and are shipped on `feat/oneui-redesign`.
 
 ### What's shipped (on `main`)
 
@@ -484,17 +395,35 @@ self-healing items were logged as backlog rather than fixed pre-merge:
 3. `AlbumArtworkCache.invalidations: SharedFlow<Long>` has no production subscriber (only exercised in
    tests) — either wire a real consumer or trim it.
 
-### What remains (post-1.0 backlog)
+### What remains (backlog)
 
-- The custom tag system cut above — revisit only on explicit ask (the A–Z fast-scroll, tab bar and Folders are being built by the One UI redesign, Phases 2–5)
-- The two open review follow-ups above (#2 was closed in redesign Phase 4a)
-- Optional consolidation: move the per-module dispatcher qualifiers into `:core:common` (it now holds the library order, since redesign Phase 5)
+- The custom tag system cut above: revisit only on explicit ask.
+- **Scroll performance:** on the `pixel6Api31Frames` emulator the Tracks list's frame-duration P90 (with the baseline
+  profile) is 96.3 ms against v1.0.0's 70.9 ms (+35.9 %; startup +13.4 %). The final review found no cause in the
+  Phase 7 diff; the gap spans the whole redesign (pager, panel, rail, overlay pill). Next step: benchmark 8f4ce3a
+  against HEAD and take a system trace of `ScrollBenchmark` (Phase 7 ledger, `benchmarks-v1-vs-phase7.md`).
+- **"Unknown" sorts under `#`** in the Artists tab (it is the raw `<unknown>` key that sorts; Phase 7 ruling P9 kept
+  it). Sorting it by its display name is a small, separate change.
+- Review follow-ups #1 and #3 above (#2 was closed in redesign Phase 4a).
+- Optional consolidation: move the per-module dispatcher qualifiers into `:core:common` (it holds the library order).
+- **Redesign test-hygiene minors** (Phase 7 ruling 7): pure test or doc polish from the phase ledgers, none visible to a
+  user. Each entry is in the named ledger under `.superpowers/sdd/<plan>/progress.md` (git-ignored; the summaries below
+  are the record once the workspace is gone):
 
-## Next Steps (post-1.0)
+  | Ledger | Items |
+  |---|---|
+  | Phase 5 (`2026-10-17-oneui-phase5-fast-scroll`) | T1 M1, M2; T2 M3; T3 M1, M2, M4; T4 M1, M6; T5 M3, M6–M9 |
+  | 6a (`2026-10-18-oneui-phase6a-details-sheets`) | T1 M1–M6; T2 M2–M6; T3 M1–M5; T4 M1–M3; T5 M2, M4–M7; T6 M1–M5; T7 M1, M2 |
+  | 6b (`2026-10-21-oneui-phase6b-search-editors`) | T1 M5; T2 M3–M6; T3 M3–M5; T5 M3; the WhileSubscribed re-record |
+  | 6c (`2026-10-22-oneui-phase6c-widget`) | ±15 not pinned as stroked; the preview's `VectorRaster` lint; the ink-mask colour; widget layout values unpinned (M-4); the bar clearance's zero margin |
+  | 7, Task 11 and final review | `AddToPlaylistSheetSmokeTest.clickingNewPlaylistRow` is flaky on the Motorola (1 failure in 4 runs, "No compose hierarchies found"); `buildFastScrollSections` throws on a list not in library order instead of degrading (ruling P36); the tag editor and the permission prompt borrow `settingsSectionGap` (now 13 dp) for their own spacing; `checkNoMaterialIcons` has no Gradle-level test of its wiring and also matches comments |
+  | 7 (`2026-10-27-oneui-phase7-calibration-release`) | the `minor (deferred)` lines for Tasks 3b, 5 and 6 (EQ card height unpinned, divider tests' coverage, the transport's even-spread fallback below ≈334 dp, the shared `miniPlayerArtGlyph` name, the widget picker preview's old corners, a possible first-frame scrim, the search field's async query round-trip, the search-field overload duplication, `searchFlow` containment details, the trailing-control width edge, rail test polish) |
 
-1. Triage the review follow-ups above (all low/medium severity, non-blocking)
-2. Decide whether `:core:common` should also take the shared dispatcher qualifiers (it is no longer a placeholder: it holds the library order)
-3. If there's appetite for further scope: the custom tag system is a new feature, not a fix, so treat it as a fresh ask (the A–Z fast-scroll index and the tab bar/Folders browsing are built by the One UI redesign)
+## Next Steps
+
+1. Commit Phase 7 and merge `feat/oneui-redesign` into `main` (the user's call), then tag the release.
+2. Verify the System UI resume card on a stock-Android device (designed for, not yet seen).
+3. Triage the backlog above; the custom tag system is a new feature, so treat it as a fresh ask.
 
 ## Notes
 

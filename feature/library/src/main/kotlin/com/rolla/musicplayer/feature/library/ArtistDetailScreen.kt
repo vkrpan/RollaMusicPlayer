@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +42,7 @@ import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Artist
 import com.rolla.musicplayer.core.model.Playlist
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 import com.rolla.musicplayer.core.ui.AlbumCard
 import com.rolla.musicplayer.core.ui.DetailArtworkHeader
 import com.rolla.musicplayer.core.ui.SongListItem
@@ -114,7 +116,8 @@ internal fun ArtistDetailContent(
     val artist = uiState.artist
     val heroSubtitle = "${albumsCountLabel(uiState.albums.size)}, ${tracksCountLabel(uiState.songs.size)}"
     Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        OneUiDetailTopBar(title = artist?.name.orEmpty(), onNavigateUp = onNavigateUp)
+        // Display only (ruling 3): the route and the repository queries keep the raw name.
+        OneUiDetailTopBar(title = artist?.name?.let(::artistDisplayName).orEmpty(), onNavigateUp = onNavigateUp)
         ContentPanel {
             when {
                 uiState.isLoading -> Unit
@@ -156,11 +159,17 @@ internal fun ArtistDetailContent(
                     if (uiState.songs.isEmpty()) {
                         item(key = "empty", contentType = "empty") { TabMessage("No tracks by this artist") }
                     } else {
-                        items(items = uiState.songs, key = { song -> song.id }, contentType = { "song" }) { song ->
+                        itemsIndexed(
+                            items = uiState.songs,
+                            key = { _, song -> song.id },
+                            contentType = { _, _ -> "song" },
+                        ) { index, song ->
                             SongListItem(
                                 song = song,
                                 onClick = { onSongClick(song) },
                                 onMoreClick = { optionsSong = song },
+                                // No hairline under the list's last row (Phase 7 calibration).
+                                showDivider = index < uiState.songs.lastIndex,
                             )
                         }
                     }

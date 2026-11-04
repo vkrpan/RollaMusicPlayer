@@ -25,7 +25,8 @@ dependencies {
     // Detekt plugin marker (for consistency) + implementation jar (needed to
     // reference DetektExtension in RollaStaticAnalysisPlugin at compile time).
     compileOnly(libs.plugins.detekt.toDep())
-    compileOnly("io.gitlab.arturbosch.detekt:detekt-gradle-plugin:1.23.8")
+    compileOnly(libs.detekt.gradle.plugin)
+    testImplementation(libs.junit)
 }
 
 // Helper to convert a PluginDependency from version catalog to a module dependency

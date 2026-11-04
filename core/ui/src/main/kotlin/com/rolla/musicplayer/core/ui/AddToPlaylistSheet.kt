@@ -5,10 +5,11 @@ package com.rolla.musicplayer.core.ui
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
@@ -37,13 +38,16 @@ fun AddToPlaylistSheet(
     OneUiBottomSheet(onDismissRequest = onDismissRequest, modifier = modifier, title = "Add to playlist") {
         LazyColumn {
             item {
-                NewPlaylistEntry(onClick = onCreateNewPlaylist)
+                // Alone in the sheet it is the list's last row, so it draws no hairline (Phase 7 calibration).
+                NewPlaylistEntry(onClick = onCreateNewPlaylist, showDivider = playlists.isNotEmpty())
             }
-            items(items = playlists, key = { playlist -> playlist.id }) { playlist ->
+            itemsIndexed(items = playlists, key = { _, playlist -> playlist.id }) { index, playlist ->
                 PlaylistRow(
                     playlist = playlist,
                     onClick = { onPlaylistSelected(playlist.id) },
                     reserveRailSpace = false,
+                    // No hairline under the list's last row (Phase 7 calibration).
+                    showDivider = index < playlists.lastIndex,
                 )
             }
         }
@@ -76,15 +80,21 @@ fun AddToPlaylistSheetHost(
 
 /**
  * The sheet's "New playlist" entry: a single-line action row (no ellipsis: One UI sheets don't flag the follow-up
- * dialog), then a hairline from the text start so it reads apart from the first playlist below it.
+ * dialog), then, when [showDivider] (a playlist follows), a hairline from the text start so it reads apart from the
+ * first playlist below it.
  */
 @Composable
-private fun NewPlaylistEntry(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier) {
+private fun NewPlaylistEntry(onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
+    Column(modifier = modifier.testTag(NEW_PLAYLIST_ENTRY_TAG)) {
         SheetActionRow(icon = RollaIcons.Add, label = "New playlist", onClick = onClick)
-        InsetDivider(startInset = RollaDimens.listTextStart)
+        if (showDivider) {
+            InsetDivider(startInset = RollaDimens.listTextStart)
+        }
     }
 }
+
+/** Test tag on the sheet's "New playlist" entry: its row plus, when a playlist follows, the hairline. */
+internal const val NEW_PLAYLIST_ENTRY_TAG = "new_playlist_entry"
 
 // The sheet's content without the ModalBottomSheet window, which previews cannot show.
 @Suppress("UnusedPrivateMember")

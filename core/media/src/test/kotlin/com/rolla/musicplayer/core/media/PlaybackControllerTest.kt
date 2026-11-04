@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.google.common.util.concurrent.ListenableFuture
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
@@ -19,6 +20,7 @@ import io.mockk.verifyOrder
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
 import kotlin.random.Random
 
 private fun testSong(id: String = "song-1") = Song(
@@ -40,7 +42,11 @@ private fun testSong(id: String = "song-1") = Song(
  * [androidx.annotation.VisibleForTesting] seam) -- [PlaybackController.connect] itself builds a real
  * controller via [androidx.media3.session.SessionToken], which needs a live Android session/binder
  * and can't run in a plain JVM unit test.
+ *
+ * Runs under Robolectric because [toMediaItem] writes the raw artist into a real `android.os.Bundle` (Phase 7 ruling
+ * P8), which the plain JVM's android.jar stubs do not implement.
  */
+@RunWith(AndroidJUnit4::class)
 class PlaybackControllerTest {
 
     private val context: Context = mockk(relaxed = true)

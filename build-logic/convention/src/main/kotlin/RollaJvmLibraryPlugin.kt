@@ -6,6 +6,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 class RollaJvmLibraryPlugin : Plugin<Project> {
     override fun apply(target: Project) {
         with(target) {
+            disableTestClassDataSharing()
             with(pluginManager) {
                 apply("org.jetbrains.kotlin.jvm")
                 apply("rolla.static.analysis")

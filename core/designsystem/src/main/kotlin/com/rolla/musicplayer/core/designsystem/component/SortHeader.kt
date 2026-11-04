@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
+import com.rolla.musicplayer.core.designsystem.theme.labelSecondary
 import com.rolla.musicplayer.core.designsystem.theme.sortLabel
 
 /**
@@ -45,7 +46,8 @@ fun SortHeader(label: String, modifier: Modifier = Modifier, trailing: @Composab
         Text(
             text = label,
             style = MaterialTheme.typography.sortLabel,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // labelSecondary, a touch lighter than the glyph's onSurfaceVariant, as measured (Phase 7 ruling P13).
+            color = MaterialTheme.colorScheme.labelSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),

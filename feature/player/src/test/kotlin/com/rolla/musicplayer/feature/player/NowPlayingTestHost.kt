@@ -2,18 +2,27 @@
 
 package com.rolla.musicplayer.feature.player
 
+import android.view.View
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.isSpecified
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.model.RepeatMode
@@ -51,6 +60,10 @@ internal val NOW_PLAYING_TEST_SONG = Song(
 /**
  * Hosts the production [NowPlayingScreen] in the dark theme, as NowPlayingScreenSmokeTest does:
  * SharedTransitionLayout + AnimatedContent only mint the transition scopes. [fontScale] overrides the font scale.
+ * [positionMs] is the playback position; [layoutDirection] overrides the layout direction. [screenWidth] is read in
+ * composition: when it is specified, the screen is laid out that wide at the root's start (so a test can flip it
+ * without a second setContent). [onView] receives the composition's view, so a test can dispatch its own window
+ * insets (Robolectric reports none).
  */
 // UnusedContentLambdaTargetStateParameter: the Unit target state only mints the AnimatedContentScope.
 @Suppress("LongParameterList", "LongMethod", "UnusedContentLambdaTargetStateParameter")
@@ -58,6 +71,10 @@ internal fun ComposeContentTestRule.setNowPlayingScreen(
     inputs: NowPlayingTestInputs = NowPlayingTestInputs(),
     targets: NowPlayingOverflowTargets = NowPlayingOverflowTargets(),
     fontScale: Float = 1f,
+    positionMs: Long = 0L,
+    screenWidth: () -> Dp = { Dp.Unspecified },
+    layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+    onView: (View) -> Unit = {},
     onColors: (NowPlayingTestColors) -> Unit = {},
     onEditTags: (Long) -> Unit = {},
     onAlbum: (Long) -> Unit = {},
@@ -68,17 +85,23 @@ internal fun ComposeContentTestRule.setNowPlayingScreen(
     onQueue: () -> Unit = {},
 ) {
     setContent {
+        onView(LocalView.current)
         val density = LocalDensity.current.density
-        CompositionLocalProvider(LocalDensity provides Density(density, fontScale)) {
+        val width = screenWidth()
+        val hostModifier = if (width.isSpecified) Modifier.fillMaxHeight().width(width) else Modifier
+        CompositionLocalProvider(
+            LocalDensity provides Density(density, fontScale),
+            LocalLayoutDirection provides layoutDirection,
+        ) {
             RollaMusicPlayerTheme(darkTheme = true) {
                 val scheme = MaterialTheme.colorScheme
                 onColors(NowPlayingTestColors(scheme.accentText, scheme.primary, scheme.onSurface))
-                SharedTransitionLayout {
+                SharedTransitionLayout(modifier = hostModifier) {
                     AnimatedContent(targetState = Unit, label = "nowPlayingTest") {
                         NowPlayingScreen(
                             song = NOW_PLAYING_TEST_SONG,
                             isPlaying = false,
-                            positionMs = MutableStateFlow(0L),
+                            positionMs = MutableStateFlow(positionMs),
                             durationMs = MutableStateFlow(NOW_PLAYING_TEST_SONG.durationMs),
                             shuffleMode = inputs.shuffle,
                             repeatMode = inputs.repeat,

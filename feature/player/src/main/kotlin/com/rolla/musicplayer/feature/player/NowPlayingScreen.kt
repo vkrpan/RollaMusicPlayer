@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -48,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -77,6 +77,7 @@ import com.rolla.musicplayer.core.designsystem.theme.nowPlayingTitle
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.artistDisplayName
 import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
 import kotlinx.coroutines.flow.StateFlow
@@ -294,19 +295,19 @@ private fun NowPlayingContent(
             )
             .clip(MaterialTheme.shapes.extraLarge)
     }
-    // The artwork lands npArtTop below the screen top: the top bar above already takes the status bar and headerHeight.
-    val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    val artTopGap = (RollaDimens.npArtTop - statusBarTop - RollaDimens.headerHeight).coerceAtLeast(0.dp)
+    // The artwork lands npArtTopGap below the top of the window content (below the status bar, Phase 7 calibration).
+    // The top bar above this column already takes the status bar and headerHeight, so only the rest is spaced here.
+    val artTopGap = (RollaDimens.npArtTopGap - RollaDimens.headerHeight).coerceAtLeast(0.dp)
 
     Column(
         // The weighted spacer below works inside verticalScroll because the scroll lifts only the maximum height:
         // fillMaxSize's minimum (the viewport) reaches this Column, and a Column with an unbounded maximum shares the
         // slack up to its minimum among its weights. So the spacer pushes the controls to the bottom; when the content
         // is taller (large font scales) it collapses to zero and the column scrolls. Do not drop fillMaxSize.
+        // No horizontal padding here: each block below takes its own measured inset from the screen edges.
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = RollaDimens.npSeekInset),
+            .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Spacer(Modifier.height(artTopGap))
@@ -314,10 +315,14 @@ private fun NowPlayingContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = RollaDimens.npSeekInset)
                 .graphicsLayer { alpha = metadataAlphaState.value },
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            NowPlayingTitleArtist(title = song?.title.orEmpty(), artist = song?.artist.orEmpty())
+            NowPlayingTitleArtist(
+                title = song?.title.orEmpty(),
+                artist = song?.artist?.let(::artistDisplayName).orEmpty(),
+            )
         }
         Spacer(Modifier.weight(1f))
         Column(
@@ -488,7 +493,13 @@ private fun NowPlayingActionRow(
     onAddToPlaylist: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    // The end 48 dp boxes sit npControlEdgeInset from the screen edges, so their centres are 43 dp in (Phase 7).
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = RollaDimens.npControlEdgeInset),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
         OneUiIconButton(
             icon = RollaIcons.Queue,
             contentDescription = "Queue",
@@ -506,7 +517,8 @@ private fun NowPlayingActionRow(
             icon = RollaIcons.Add,
             contentDescription = "Add to playlist",
             onClick = onAddToPlaylist,
-            iconSize = RollaDimens.npActionGlyph,
+            // The + path is lighter than Queue's and the heart's, so it needs a larger box to draw as tall (P22).
+            iconSize = RollaDimens.npActionAddGlyph,
         )
     }
 }
@@ -531,7 +543,15 @@ private fun NowPlayingSeekBar(
     // The labels sit at the bottom of the seekbar's 48 dp touch box (spec §8.4). They are also padded to start below
     // the thumb, so at large font scales the box grows downward instead of the labels overlapping the track
     // (Review Focus 4). At font scale 1 the padded labels are shorter than the box and land exactly at its bottom.
-    Box(modifier = modifier.fillMaxWidth().heightIn(min = RollaDimens.minTouchTarget)) {
+    // The slider insets its track by half its thumb, so the box starts half a thumb before npSeekInset: the track then
+    // runs from npSeekInset to npSeekInset from the end, and the thumb centre travels all of it (Phase 7). The labels
+    // take that half thumb back, so they still start at npSeekInset.
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = RollaDimens.npSeekInset - RollaDimens.npSeekThumb / 2)
+            .heightIn(min = RollaDimens.minTouchTarget),
+    ) {
         OneUiSeekBar(
             value = fraction,
             onValueChange = { f ->
@@ -551,7 +571,11 @@ private fun NowPlayingSeekBar(
             durationMs = durationMsValue,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(top = (RollaDimens.minTouchTarget + RollaDimens.npSeekThumb) / 2),
+                .padding(
+                    start = RollaDimens.npSeekThumb / 2,
+                    top = (RollaDimens.minTouchTarget + RollaDimens.npSeekThumb) / 2,
+                    end = RollaDimens.npSeekThumb / 2,
+                ),
         )
     }
 }
@@ -589,12 +613,10 @@ private fun NowPlayingTransportRow(
     val shuffleOn = shuffleMode == ShuffleMode.ON
     val activeTint = MaterialTheme.colorScheme.accentText
     val idleTint = MaterialTheme.colorScheme.onSurface
-    Row(
+    TransportLayout(
         modifier = modifier
             .fillMaxWidth()
             .testTag(NOW_PLAYING_TRANSPORT_TAG),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically,
     ) {
         // The description names the control and stateDescription carries its state, so TalkBack reads both.
         OneUiIconButton(
@@ -609,14 +631,15 @@ private fun NowPlayingTransportRow(
             icon = RollaIcons.SkipPrevious,
             contentDescription = "Previous",
             onClick = onPrevious,
-            iconSize = RollaDimens.npTransportGlyph,
+            // Previous and next take their own box: at npTransportGlyph they drew narrower than measured (P22).
+            iconSize = RollaDimens.npSkipGlyph,
         )
         PlayPauseButton(isPlaying = isPlaying, onClick = onTogglePlayPause)
         OneUiIconButton(
             icon = RollaIcons.SkipNext,
             contentDescription = "Next",
             onClick = onNext,
-            iconSize = RollaDimens.npTransportGlyph,
+            iconSize = RollaDimens.npSkipGlyph,
         )
         OneUiIconButton(
             icon = when (repeatMode) {
@@ -638,6 +661,67 @@ private fun NowPlayingTransportRow(
         )
     }
 }
+
+/**
+ * Places the five transport controls where the reference has them (Phase 7 calibration), instead of spreading them
+ * evenly: shuffle and repeat with their boxes [RollaDimens.npControlEdgeInset] from the edges, previous and next
+ * centred [RollaDimens.npTransportInnerCentre] from the nearer edge, play centred. Each child is vertically centred.
+ *
+ * The row stays left to right in RTL locales (Phase 7 ruling P21): Material's bidirectionality guidance keeps media
+ * playback controls unmirrored, so shuffle stays on the left. The children are therefore placed with `place`, never
+ * `placeRelative`.
+ */
+@Composable
+private fun TransportLayout(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+        val widths = placeables.map { it.width }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val height = placeables.maxOfOrNull { it.height } ?: 0
+        val starts = transportStarts(
+            width = width,
+            widths = widths,
+            edgeInset = RollaDimens.npControlEdgeInset.roundToPx(),
+            innerCentre = RollaDimens.npTransportInnerCentre.roundToPx(),
+        )
+        layout(width, height) {
+            placeables.forEachIndexed { index, placeable ->
+                placeable.place(starts[index], (height - placeable.height) / 2)
+            }
+        }
+    }
+}
+
+/**
+ * The x of each transport control's box in a row [width] wide (px): the first and last [edgeInset] from the edges, the
+ * second and fourth centred [innerCentre] from the nearer edge, the middle one centred. When the row is too narrow for
+ * that without overlap (or does not hold exactly [TRANSPORT_CONTROL_COUNT] controls), the controls spread evenly
+ * instead, as Arrangement.SpaceEvenly would.
+ */
+internal fun transportStarts(width: Int, widths: List<Int>, edgeInset: Int, innerCentre: Int): List<Int> {
+    if (widths.size == TRANSPORT_CONTROL_COUNT) {
+        val starts = listOf(
+            edgeInset,
+            innerCentre - widths[PREVIOUS_SLOT] / 2,
+            (width - widths[PLAY_SLOT]) / 2,
+            width - innerCentre - widths[NEXT_SLOT] / 2,
+            width - edgeInset - widths[REPEAT_SLOT],
+        )
+        val fits = starts.indices.drop(1).all { i -> starts[i] >= starts[i - 1] + widths[i - 1] } &&
+            starts.first() >= 0 && starts.last() + widths.last() <= width
+        if (fits) return starts
+    }
+    val gap = ((width - widths.sum()) / (widths.size + 1)).coerceAtLeast(0)
+    return widths.runningFold(gap) { start, childWidth -> start + childWidth + gap }.dropLast(1)
+}
+
+private const val TRANSPORT_CONTROL_COUNT = 5
+
+// The transport's slots, in order: shuffle (0), previous, play, next, repeat.
+private const val PREVIOUS_SLOT = 1
+private const val PLAY_SLOT = 2
+private const val NEXT_SLOT = 3
+private const val REPEAT_SLOT = 4
 
 // A bare glyph in a 64 dp circular touch target (spec §8.4): no fill, unlike the old 72 dp primary circle.
 @Composable

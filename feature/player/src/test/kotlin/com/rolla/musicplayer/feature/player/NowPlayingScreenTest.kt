@@ -1,5 +1,9 @@
 package com.rolla.musicplayer.feature.player
 
+import android.view.View
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -16,8 +20,13 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.width
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.model.RepeatMode
@@ -169,13 +178,98 @@ class NowPlayingScreenTest {
         label.bottom.assertIsEqualTo(boxBottom, "label bottom", tolerance = 0.5.dp)
     }
 
-    // The top spacer subtracts the status bar and the header, so the artwork lands npArtTop below the screen top.
-    // Mutation: drop the top spacer (art directly under the 64 dp header) → RED.
+    // Phase 7 calibration: the artwork lands npArtTopGap below the top of the window content, i.e. below the status bar
+    // (npArtTop's screen-top anchoring is gone). The test sends a status bar, so "below the status bar" and "from the
+    // screen top" differ. Control: the status bar is really there (the top bar's chevron sits below it).
+    // Mutations: the old screen-top anchoring, npArtTopGap - statusBarTop - headerHeight → art top 95 dp → RED; drop
+    // the top spacer (art directly under the 64 dp header) → RED.
     @Test
-    fun artworkTopIsNpArtTop() {
-        setScreen()
+    fun artworkTopIsNpArtTopGapBelowTheStatusBar() {
+        lateinit var view: View
+        setScreen(onView = { view = it })
+        val statusBar = 24.dp
+        composeRule.runOnIdle {
+            val px = with(composeRule.density) { statusBar.roundToPx() }
+            ViewCompat.dispatchApplyWindowInsets(
+                view,
+                WindowInsetsCompat.Builder()
+                    .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, px, 0, 0))
+                    .build(),
+            )
+        }
+        val chevron = composeRule.onNodeWithContentDescription("Close player").getBoundsInRoot()
+        assertTrue(
+            "control: the top bar sits below the $statusBar status bar, at ${chevron.top}",
+            chevron.top > statusBar,
+        )
         val art = composeRule.onNodeWithTag(NOW_PLAYING_ARTWORK_TAG, useUnmergedTree = true).getBoundsInRoot()
-        art.top.assertIsEqualTo(RollaDimens.npArtTop, "art top", tolerance = 0.5.dp)
+        art.top.assertIsEqualTo(statusBar + RollaDimens.npArtTopGap, "art top", tolerance = 0.5.dp)
+    }
+
+    // Phase 7 calibration, measured on the 406.7 dp Motorola and against the 360 dp reference: shuffle's and repeat's
+    // centres sit npControlEdgeInset + 24 dp (43 dp) from the edges, previous and next npTransportInnerCentre (111 dp)
+    // from the nearer edge, play centred. One composition: the screen width flips from 406.7 to 360 dp.
+    // Mutation: Arrangement.SpaceEvenly over the full width (the old row) → shuffle at 49.1 dp → RED.
+    @Config(qualifiers = "w411dp-h800dp")
+    @Test
+    fun nowPlayingTransportSitsAtTheReferenceInsets() {
+        var width by mutableStateOf(MOTOROLA_WIDTH)
+        setScreen(screenWidth = { width })
+        assertTransportAtTheReferenceInsets(MOTOROLA_WIDTH)
+        width = REFERENCE_WIDTH
+        composeRule.waitForIdle()
+        assertTransportAtTheReferenceInsets(REFERENCE_WIDTH)
+    }
+
+    // Ruling P22 (device re-measure): the action row's + draws in npActionAddGlyph and the transport's previous and
+    // next in npSkipGlyph; Queue keeps npActionGlyph and shuffle npTransportGlyph. The unmerged Icon node's bounds are
+    // the glyph box. Control: Queue's and shuffle's boxes differ from the new ones, so each check reads its own token.
+    // Mutations: the + back on npActionGlyph → RED; previous back on npTransportGlyph → RED.
+    @Test
+    fun addAndSkipGlyphBoxesUseTheirTokens() {
+        setScreen()
+        assertTrue("control: + box differs from Queue's", iconWidth("Queue") != RollaDimens.npActionAddGlyph)
+        assertTrue("control: skip box differs from shuffle's", iconWidth("Shuffle") != RollaDimens.npSkipGlyph)
+        iconWidth("Add to playlist").assertIsEqualTo(RollaDimens.npActionAddGlyph, "+ glyph box", tolerance = 0.5.dp)
+        iconWidth("Previous").assertIsEqualTo(RollaDimens.npSkipGlyph, "previous glyph box", tolerance = 0.5.dp)
+        iconWidth("Next").assertIsEqualTo(RollaDimens.npSkipGlyph, "next glyph box", tolerance = 0.5.dp)
+    }
+
+    // Ruling P21: the transport stays left to right in an RTL layout (Material keeps media playback controls
+    // unmirrored): shuffle on the left, repeat on the right, previous left of play. Control: the RTL layout reaches the
+    // screen, so the top bar's close chevron moves to the right half. Mutation: TransportLayout places its children
+    // with placeRelative → shuffle on the right → RED.
+    @Test
+    fun transportStaysLeftToRightInRtl() {
+        setScreen(layoutDirection = LayoutDirection.Rtl)
+        assertTrue("control: RTL mirrors the top bar's close chevron", centreX("Close player") > SCREEN_WIDTH / 2)
+        val edgeCentre = RollaDimens.npControlEdgeInset + RollaDimens.minTouchTarget / 2
+        centreX("Shuffle").assertIsEqualTo(edgeCentre, "RTL: shuffle centre from the left", tolerance = 1.dp)
+        (SCREEN_WIDTH - centreX("Repeat")).assertIsEqualTo(edgeCentre, "RTL: repeat centre from the right", 1.dp)
+        assertTrue("RTL: previous left of play", centreX("Previous") < centreX("Play"))
+    }
+
+    // Phase 7 calibration: the action row's end 48 dp boxes sit npControlEdgeInset from the edges (centres 43 dp in);
+    // the middle heart stays centred. Mutation: pad the row by npSeekInset (the old row) → Queue centre 53 dp → RED.
+    @Test
+    fun actionRowEndsSitAtTheControlInset() {
+        setScreen()
+        val edgeCentre = RollaDimens.npControlEdgeInset + RollaDimens.minTouchTarget / 2
+        centreX("Queue").assertIsEqualTo(edgeCentre, "Queue centre from the start", tolerance = 1.dp)
+        (SCREEN_WIDTH - centreX("Add to playlist")).assertIsEqualTo(edgeCentre, "Add centre from the end", 1.dp)
+        centreX("Add to favourites").assertIsEqualTo(SCREEN_WIDTH / 2, "heart centre", tolerance = 1.dp)
+    }
+
+    // Phase 7 calibration: the action glyphs draw in npActionGlyph boxes and the transport side glyphs in
+    // npTransportGlyph boxes; the unmerged Icon node's bounds are the box. Control: the two tokens differ, so the two
+    // assertions read different boxes. Mutations: drop iconSize from the Queue button (24 dp) → RED; give the shuffle
+    // button npActionGlyph → RED.
+    @Test
+    fun actionAndTransportGlyphBoxesUseTheirTokens() {
+        setScreen()
+        assertTrue("control: the glyph tokens differ", RollaDimens.npActionGlyph != RollaDimens.npTransportGlyph)
+        iconWidth("Queue").assertIsEqualTo(RollaDimens.npActionGlyph, "Queue glyph box", tolerance = 0.5.dp)
+        iconWidth("Shuffle").assertIsEqualTo(RollaDimens.npTransportGlyph, "Shuffle glyph box", tolerance = 0.5.dp)
     }
 
     // Step 6: the weighted spacer pushes the controls down, so the transport row ends npBottomGap above the bottom.
@@ -191,12 +285,34 @@ class NowPlayingScreenTest {
         transport.bottom.assertIsEqualTo(root.bottom - RollaDimens.npBottomGap, "transport bottom", tolerance = 0.5.dp)
     }
 
+    private fun assertTransportAtTheReferenceInsets(width: Dp) {
+        val edgeCentre = RollaDimens.npControlEdgeInset + RollaDimens.minTouchTarget / 2
+        val inner = RollaDimens.npTransportInnerCentre
+        centreX("Shuffle").assertIsEqualTo(edgeCentre, "at $width: shuffle centre from the start", tolerance = 1.dp)
+        centreX("Previous").assertIsEqualTo(inner, "at $width: previous centre from the start", tolerance = 1.dp)
+        centreX("Play").assertIsEqualTo(width / 2, "at $width: play centre", tolerance = 1.dp)
+        (width - centreX("Next")).assertIsEqualTo(inner, "at $width: next centre from the end", tolerance = 1.dp)
+        (width - centreX("Repeat")).assertIsEqualTo(edgeCentre, "at $width: repeat centre from the end", 1.dp)
+    }
+
+    private fun centreX(description: String): Dp {
+        val bounds = composeRule.onNodeWithContentDescription(description).getBoundsInRoot()
+        return (bounds.left + bounds.right) / 2
+    }
+
+    /** The width of the unmerged Icon node that carries [description]: the glyph's box. */
+    private fun iconWidth(description: String): Dp =
+        composeRule.onNodeWithContentDescription(description, useUnmergedTree = true).getBoundsInRoot().width
+
     // The host lives in NowPlayingTestHost.kt (shared with NowPlayingScreenPixelTest).
     @Suppress("LongParameterList")
     private fun setScreen(
         targets: NowPlayingOverflowTargets = NowPlayingOverflowTargets(),
         inputs: NowPlayingTestInputs = NowPlayingTestInputs(),
         fontScale: Float = 1f,
+        screenWidth: () -> Dp = { Dp.Unspecified },
+        layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        onView: (View) -> Unit = {},
         onEditTags: (Long) -> Unit = {},
         onAlbum: (Long) -> Unit = {},
         onArtist: (String) -> Unit = {},
@@ -208,6 +324,9 @@ class NowPlayingScreenTest {
         inputs = inputs,
         targets = targets,
         fontScale = fontScale,
+        screenWidth = screenWidth,
+        layoutDirection = layoutDirection,
+        onView = onView,
         onEditTags = onEditTags,
         onAlbum = onAlbum,
         onArtist = onArtist,
@@ -219,5 +338,10 @@ class NowPlayingScreenTest {
 
     private companion object {
         const val DURATION_LABEL = "3:20"
+
+        // The class's 360 dp screen, and the two widths the Phase 7 calibration compared (Motorola, reference).
+        val SCREEN_WIDTH = 360.dp
+        val MOTOROLA_WIDTH = 406.7.dp
+        val REFERENCE_WIDTH = 360.dp
     }
 }

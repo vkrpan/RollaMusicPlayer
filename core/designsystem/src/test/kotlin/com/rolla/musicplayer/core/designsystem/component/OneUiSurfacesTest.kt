@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +32,9 @@ import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.accentText
+import com.rolla.musicplayer.core.designsystem.theme.artworkPlaceholder
 import com.rolla.musicplayer.core.designsystem.theme.destructiveText
+import com.rolla.musicplayer.core.designsystem.theme.sheetArtworkPlaceholder
 import com.rolla.musicplayer.core.testing.assertColorNear
 import com.rolla.musicplayer.core.testing.drawLatestDialog
 import com.rolla.musicplayer.core.testing.drawRoot
@@ -90,6 +93,33 @@ class OneUiSurfacesTest {
             val body = composeRule.onNodeWithTag("sheet-body").getUnclippedBoundsInRoot()
             assertColorNear(expected, composeRule.pixelsIn(bitmap, body).let { it[it.size / 2] })
         }
+    }
+
+    // Phase 7 F2: in the light theme artworkPlaceholder (#E6E6E8) on the sheet (#E8E8EA) is 1.02:1, so a placeholder
+    // inside a sheet draws sheetArtworkPlaceholder (#FFFFFF, 1.22:1). The probe samples the box 4 dp below its top
+    // centre, clear of the glyph and the rounded corners. Control: the same placeholder outside the sheet still draws
+    // artworkPlaceholder (fails if every placeholder turned white). Mutation: OneUiBottomSheet stops providing
+    // LocalInRaisedSurface → the sheet probe reads #E6E6E8 → RED.
+    @Test
+    fun artworkPlaceholderInsideASheetUsesTheSheetPlaceholder() {
+        var sheetPlaceholder = Color.Unspecified
+        var plainPlaceholder = Color.Unspecified
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = false) {
+                sheetPlaceholder = MaterialTheme.colorScheme.sheetArtworkPlaceholder
+                plainPlaceholder = MaterialTheme.colorScheme.artworkPlaceholder
+                ArtworkPlaceholder(modifier = Modifier.size(RollaDimens.listThumb).testTag("plain-art"))
+                OneUiBottomSheet(onDismissRequest = {}) {
+                    ArtworkPlaceholder(modifier = Modifier.size(RollaDimens.listThumb).testTag("sheet-art"))
+                }
+            }
+        }
+        val plain = composeRule.onNodeWithTag("plain-art").getUnclippedBoundsInRoot()
+        val rootProbe = composeRule.pixelsIn(composeRule.drawRoot(), plain.topCentreProbe())
+        assertColorNear(plainPlaceholder, rootProbe[rootProbe.size / 2])
+        val inSheet = composeRule.onNodeWithTag("sheet-art").getUnclippedBoundsInRoot()
+        val sheetProbe = composeRule.pixelsIn(composeRule.drawLatestDialog(), inSheet.topCentreProbe())
+        assertColorNear(sheetPlaceholder, sheetProbe[sheetProbe.size / 2])
     }
 
     // Spec §5.1: blue text is accentText, never primary. Destructive is destructiveText (ruling 3 as amended: never
@@ -332,6 +362,12 @@ class OneUiSurfacesTest {
 
     private fun ComposeTestRule.latestDialogWindow(): Window =
         runOnIdle { checkNotNull(ShadowDialog.getLatestDialog()?.window) { "no sheet window was shown" } }
+
+    /** A 2 dp square 4 dp below the box's top centre: container, clear of the glyph and the rounded corners. */
+    private fun DpRect.topCentreProbe(): DpRect {
+        val centre = (left + right) / 2
+        return DpRect(centre - 1.dp, top + 4.dp, centre + 1.dp, top + 6.dp)
+    }
 
     /** A destructive text button tagged "button" over a destructive sheet row tagged "row". */
     @Composable

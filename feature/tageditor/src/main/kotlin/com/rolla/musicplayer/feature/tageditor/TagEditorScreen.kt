@@ -268,7 +268,7 @@ internal fun TagEditorScrollColumn(modifier: Modifier = Modifier, content: @Comp
 
 /**
  * An editor card (spec §8.7, Phase 6b ruling 6): surfaceContainer in the large shape, settingsRowPadding inside, its
- * items settingsHeaderGap apart.
+ * items editorFieldGap apart.
  */
 @Composable
 internal fun TagEditorCard(
@@ -283,7 +283,7 @@ internal fun TagEditorCard(
     ) {
         Column(
             modifier = Modifier.padding(RollaDimens.settingsRowPadding),
-            verticalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+            verticalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap),
             horizontalAlignment = horizontalAlignment,
             content = content,
         )
@@ -375,7 +375,7 @@ private fun TagEditorFieldsCard(
             onValueChange = { onFieldChanged(TagField.ALBUM_ARTIST, it) },
         )
         TagTextField(label = "Genre", value = tags.genre, onValueChange = { onFieldChanged(TagField.GENRE, it) })
-        Row(horizontalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap)) {
             TagTextField(
                 label = "Year",
                 value = tags.year,
@@ -441,7 +441,7 @@ internal fun TagEditorSaveCancelRow(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(RollaDimens.settingsHeaderGap),
+        horizontalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap),
     ) {
         OneUiPillButton(
             text = "Cancel",
