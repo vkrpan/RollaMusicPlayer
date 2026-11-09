@@ -7,6 +7,8 @@ import kotlinx.coroutines.test.runTest
 import org.jaudiotagger.audio.AudioFileIO
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -14,7 +16,7 @@ import java.util.Base64
 import java.util.logging.Level
 import java.util.logging.Logger
 
-private val ALL_FIELDS = SongTags(
+internal val ALL_FIELDS = SongTags(
     title = "Fixture Title",
     artist = "Fixture Artist",
     album = "Fixture Album",
@@ -29,12 +31,12 @@ private val ALL_FIELDS = SongTags(
 // (mp4's covr type flag in particular) recognize it. PNG_B appends one trailing byte after IEND:
 // still a valid PNG by signature (all any tag writer inspects) but byte-distinct from PNG_A, which
 // is what makes "replace, don't append" observable.
-private val PNG_A: ByteArray = Base64.getDecoder().decode(
+internal val PNG_A: ByteArray = Base64.getDecoder().decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
 )
-private val PNG_B: ByteArray = PNG_A + byteArrayOf(0)
+internal val PNG_B: ByteArray = PNG_A + byteArrayOf(0)
 
-private fun pickedArtwork(bytes: ByteArray): PickedArtwork =
+internal fun pickedArtwork(bytes: ByteArray): PickedArtwork =
     PickedArtwork(bytes = bytes, mimeType = "image/png", width = 1, height = 1)
 
 /**
@@ -44,8 +46,8 @@ private fun pickedArtwork(bytes: ByteArray): PickedArtwork =
  */
 abstract class TagReaderWriterContractTest {
 
-    private val reader = TagReader(Dispatchers.Unconfined)
-    private val writer = TagWriter(Dispatchers.Unconfined)
+    protected val reader = TagReader(Dispatchers.Unconfined)
+    protected val writer = TagWriter(Dispatchers.Unconfined)
 
     /** A fresh temp file in this subclass's format, with no pre-existing tag. */
     abstract fun newFixtureFile(): File
@@ -156,4 +158,63 @@ abstract class TagReaderWriterContractTest {
 
         assertEquals(ALL_FIELDS, reader.read(file))
     }
+
+    // ── removing and detecting artwork ────────────────────────────────────
+
+    @Test
+    fun removeArtwork_afterWriteArtwork_leavesNoPicture() = runTest {
+        val file = newFixtureFile()
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+        // Control: a picture written this way is detectable on re-read
+        // (see writeArtwork_onUntaggedFile_embedsExactBytes).
+        assertEquals("control: the written picture is in the file", 1, pictureCount(file))
+
+        writer.removeArtwork(file)
+
+        assertEquals("removeArtwork leaves no picture in the file", 0, pictureCount(file))
+    }
+
+    @Test
+    fun removeArtwork_leavesEveryTextFieldIntact() = runTest {
+        val file = newFixtureFile()
+        writer.write(file, ALL_FIELDS)
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+
+        writer.removeArtwork(file)
+
+        assertEquals("the picture is gone", 0, pictureCount(file))
+        assertEquals("every text field survives the removal", ALL_FIELDS, reader.read(file))
+    }
+
+    @Test
+    fun removeArtwork_untaggedFile_leavesTheFileByteForByteUnchanged() = runTest {
+        // Control: on a file that has a picture, removeArtwork does rewrite the file.
+        val withPicture = newFixtureFile()
+        writer.writeArtwork(withPicture, pickedArtwork(PNG_A))
+        val withPictureBefore = withPicture.readBytes()
+        writer.removeArtwork(withPicture)
+        assertFalse(
+            "control: removing a picture changes the file",
+            withPictureBefore.contentEquals(withPicture.readBytes()),
+        )
+        val untagged = newFixtureFile()
+        val before = untagged.readBytes()
+
+        writer.removeArtwork(untagged)
+
+        assertArrayEquals("an untagged file has nothing to remove and is not rewritten", before, untagged.readBytes())
+    }
+
+    @Test
+    fun hasArtwork_falseUntaggedTrueAfterWrite() = runTest {
+        val file = newFixtureFile()
+        assertFalse("an untagged file has no artwork", reader.hasArtwork(file))
+
+        writer.writeArtwork(file, pickedArtwork(PNG_A))
+
+        assertTrue("a file with a written picture has artwork", reader.hasArtwork(file))
+    }
+
+    /** Pictures in [file]'s tag as re-read from disk; a file without any tag has none. */
+    protected fun pictureCount(file: File): Int = AudioFileIO.read(file).tag?.artworkList?.size ?: 0
 }

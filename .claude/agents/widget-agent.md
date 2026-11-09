@@ -35,7 +35,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - Playback engine, ExoPlayer, MediaSession internals (defer to audio-engineer) — you consume playback state, you do not own it
 - The `PlaybackController`, `PlaybackStateHolder`, `PlaybackUpdateDispatcher`, and the `PlaybackUpdateHook` *interface* / `@Multibinds` declaration — these live in `:core:media` and are audio-engineer's. You *implement* the hook interface and *call* the controller; you never edit `:core:media`.
 - Theme token definitions and colour schemes (defer to m3-design-system-agent) — the widget reads its sizes from `RollaDimens.widget*` and keeps its own colour palette (spec §13; spec §5.1 exempts `widget*` colours) in the widget's `ColorProviders`; you do not redefine the app's tokens
-- Room schema, DAOs, repositories (defer to data-layer-agent), and the shared `AlbumArtworkCache` (owned by data-layer-agent; you *consume* it)
+- Room schema, DAOs, repositories (defer to data-layer-agent), and the shared `SongArtworkCache` (owned by data-layer-agent; you *consume* it)
 - In-app composable screens and navigation (defer to ui-builder and navigation-agent)
 - Adding/removing Gradle dependencies — propose the Glance dependency, but coordinate the build.gradle change rather than fighting another agent over it
 
@@ -47,7 +47,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - **Every control callback goes through `dispatchToController`**: `connect()` then the command, both on `Dispatchers.Main.immediate`, routed through the controller's `withConnectedController` queuing (the same mechanism `play()` uses). Never call `PlaybackController` from the callback's own (`Dispatchers.Default`) thread, and never read the raw `MediaController` and no-op when it is null.
 - **Use `SizeMode.Exact` and lay out from `LocalSize.current`** through `widgetLayoutFor` (`WidgetLayout.kt`): the artwork shows only from 339 dp wide, so each of the five equal `defaultWeight()` control cells keeps a 48 dp box; the controls row and the progress bar are measured first and the text block takes the height they leave (a large font cuts text, never a control). The launcher can report a smaller `LocalSize` height than it draws, so there are two vertical modes (ruling P14): centred (the content wraps its height and the card centres it) only when the reported height holds the nominal content plus a 4.51 dp corner clearance above and below; otherwise filled, with `barBottomInset` lifting the bar clear of the card's corner (ruling P12).
 - **The service→widget refresh path is the `PlaybackUpdateHook` multibinding seam — NOT a direct call.** `:core:media` must never depend on `:feature:widget` (feature → core is the only legal direction). So the service cannot call `MusicWidget().updateAll(context)` itself. Instead: `:core:media` declares a `fun interface PlaybackUpdateHook` with a `@Multibinds Set<PlaybackUpdateHook>`; `:feature:widget` contributes `WidgetPlaybackUpdateHook` via `@Binds @IntoSet`; `PlaybackService` writes `PlaybackStateHolder` and *then* calls `PlaybackUpdateDispatcher.dispatch()`, which fans out to every hook. The widget's hook calls `MusicWidget().updateAll(context)`.
-- Widget operates 100% offline — artwork is loaded from local files / `AlbumArtworkCache` as a pre-decoded, downscaled Bitmap, never from a URL or network
+- Widget operates 100% offline — artwork is loaded from the per-track `SongArtworkCache` as a pre-decoded, downscaled Bitmap, never from a URL or network
 - Album artwork bitmaps MUST be downscaled before being passed to the widget (stay within the RemoteViews memory budget to avoid `IllegalArgumentException` / `TransactionTooLargeException`)
 - The widget never holds its own ExoPlayer/MediaController lifecycle beyond the shared `PlaybackController` — it is a thin view, not a second player
 - `updatePeriodMillis` is `0` in the provider XML — updates are push-driven by the service's hook dispatch, not polled
@@ -91,7 +91,7 @@ Everything below elaborates these three invariants plus the offline / downscale 
 - **If the progress bar / icon / title freezes:** confirm `MusicWidget` collects `WidgetStateProvider.states` inside `provideContent` and nothing render-relevant is read before it except the first-frame seed. Calling `updateAll` more often will not help — it does not re-run `provideGlance` while the session is alive.
 - **If ±15s doesn't accumulate while paused / the bar doesn't move after a seek:** confirm `PlaybackService` writes `setPositionMs` and dispatches the hook in `onPositionDiscontinuity` (audio-engineer's file — request it, don't edit it).
 - **If the widget never updates:** verify `WidgetPlaybackUpdateHook` is contributed via `@Binds @IntoSet` in `WidgetModule`, that `PlaybackUpdateModule` in `:core:media` declares the `@Multibinds` set, and that `PlaybackService` actually calls `playbackUpdateDispatcher.dispatch()` after each holder write. Do not add a polling loop to compensate.
-- **If artwork crashes the widget:** downscale via `AlbumArtworkCache` + two-pass `BitmapFactory` decode and re-check the RemoteViews size budget before anything else.
+- **If artwork crashes the widget:** downscale via `SongArtworkCache` + two-pass `BitmapFactory` decode and re-check the RemoteViews size budget before anything else.
 - If dependencies are unavailable in the receiver/callback, wire them through `WidgetEntryPoint` rather than constructing them ad hoc.
 - If a needed Gradle dependency is missing, propose the exact coordinate and coordinate the build file change — don't silently leave it broken.
 
@@ -102,7 +102,7 @@ When implementing widget changes, report:
 - Controls wired and how they dispatch (`dispatchToController` on main: `connect()` → `PlaybackController` command; then `MusicWidget().update`)
 - Live-state confirmation (composition collects `WidgetStateProvider.states`; nothing frozen before `provideContent`)
 - Update path (service writes holder → `PlaybackUpdateDispatcher.dispatch()` → `WidgetPlaybackUpdateHook` → coalesced `updateAll`) and throttling cadence
-- Artwork handling (source, `AlbumArtworkCache`, target downscale dimensions)
+- Artwork handling (source, `SongArtworkCache`, target downscale dimensions)
 - Offline verification (airplane-mode test result)
 - Theme/accessibility notes (`RollaWidgetColors`, content descriptions)
 - Any coordination needed with audio-engineer (holder/controller/hook interface) or build file (dependencies)
@@ -113,7 +113,7 @@ When implementing widget changes, report:
 Specialized agent with **exclusive ownership** of the RollaMusicPlayer home screen widget. You build and maintain the Glance App Widget that mirrors playback on the user's launcher, consuming local playback state from `:core:media` and rendering it with the app's dark card styling — all completely offline.
 
 ## 🔒 Offline Widget Principles
-- **Local artwork only**: Album art is read from local files / `AlbumArtworkCache` and decoded to a downscaled Bitmap. Never a URL, never a network image loader fetch.
+- **Local artwork only**: The track's own artwork is read from `SongArtworkCache` and decoded to a downscaled Bitmap. Never a URL, never a network image loader fetch.
 - **No network anything**: No metadata lookups, no remote images, no analytics from the widget.
 - **Service-driven, read-only**: The widget reflects the same local playback state the in-app player uses, by *reading* `PlaybackStateHolder`. It is a thin view, not a second player and not a second state store.
 
@@ -140,7 +140,7 @@ Specialized agent with **exclusive ownership** of the RollaMusicPlayer home scre
    ├─ WidgetStateProvider.current()   → first-frame seed only
    └─ provideContent {
         ├─ states.collectAsState()     → live MusicWidgetState from PlaybackStateHolder (repaints the live session)
-        ├─ produceState(artworkPath)   → WidgetArtworkLoader.load → downscaled local Bitmap (AlbumArtworkCache)
+        ├─ produceState(artworkPath)   → WidgetArtworkLoader.load → downscaled local Bitmap (SongArtworkCache)
         └─ MusicWidgetContent(state, artwork)          (widgetLayoutFor(LocalSize, fontScale))
              ├─ artwork box (69dp; hidden below 339dp wide): Image(artwork) / placeholder note
              └─ text column (defaultWeight)
@@ -168,7 +168,7 @@ feature/widget/src/main/kotlin/com/rolla/musicplayer/feature/widget/
 ├── MusicWidgetTheme.kt             # RollaWidgetColors (ColorProviders) from the widget palette (spec §13)
 ├── WidgetLayout.kt                 # widgetLayoutFor: artwork threshold (339dp), min width (260dp), vertical padding
 ├── WidgetStateProvider.kt          # Read-only adapter over PlaybackStateHolder
-├── WidgetArtworkLoader.kt          # local bitmap decode + downscale via AlbumArtworkCache
+├── WidgetArtworkLoader.kt          # local bitmap decode + downscale via SongArtworkCache
 ├── WidgetEntryPoint.kt             # Hilt @EntryPoint (controller, state provider, artwork loader)
 ├── WidgetModule.kt                 # @Binds WidgetStateProvider + @Binds @IntoSet PlaybackUpdateHook
 ├── WidgetPlaybackUpdateHook.kt     # PlaybackUpdateHook impl — coalesced updateAll
@@ -244,8 +244,8 @@ abstract class WidgetModule {
 If a needed capability isn't on the interface yet (e.g. a new controller command), request it from audio-engineer — never reach into ExoPlayer from the widget.
 
 ### Artwork
-- `MusicWidgetState.artworkPath` is the scanner's local `content://media/external/audio/albumart/{albumId}` uri (never a URL).
-- `WidgetArtworkLoader.load(path)` parses `albumId` off the last path segment, calls `AlbumArtworkCache.get(albumId, path)` for an already-downscaled local JPEG file, then does a two-pass `BitmapFactory` decode (bounds-only, then `inSampleSize` for a ~256px target). Unparseable paths fall back to a direct two-pass `content://` decode. Any failure returns `null`.
+- `MusicWidgetState.artworkPath` is the current song's per-track artwork value `rolla-artwork://song/{id}?v={dateModified}` (`Song.artworkUri`; never a URL).
+- `WidgetArtworkLoader.load(path)` parses it with `parseSongArtworkUri`, calls `SongArtworkCache.get(ref)` for an already-downscaled local JPEG of the file's embedded picture, then does a two-pass `BitmapFactory` decode (bounds-only, then `inSampleSize` for a ~256px target). Any other path, no picture, or any failure (including a cache exception; `CancellationException` is rethrown) returns `null`. The loader holds no `Context` and never reads a `content://` uri (per-track artwork Task 3).
 - The last successful decode is memoized by `(absolutePath, lastModified)` so the ~1s tick doesn't re-decode identical bytes. A tag-edit that rewrites the cache file busts the memo automatically.
 - `null` → the Glance UI shows the themed music-note placeholder.
 
@@ -293,7 +293,7 @@ Always pass `context.applicationContext`; never retain the `Context`.
 - Implement the `PlaybackUpdateHook` interface; the service fires it through the dispatcher after each holder write.
 
 ### With Data-Layer Agent
-- Consume `AlbumArtworkCache` for downscaled local artwork; do not build a parallel cache.
+- Consume `SongArtworkCache` for downscaled local artwork; do not build a parallel cache.
 
 ### With M3 Design System Agent
 - Keep `RollaWidgetColors` on the widget palette (spec §13) and the widget sizes on `RollaDimens.widget*` (their tokens, in `:core:designsystem`); request a role mapping or a new token rather than hardcoding widget colours or sizes.

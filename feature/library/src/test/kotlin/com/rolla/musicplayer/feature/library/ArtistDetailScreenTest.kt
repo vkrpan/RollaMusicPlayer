@@ -245,10 +245,9 @@ class ArtistDetailScreenTest {
             songs = songs,
         )
 
-        // Empty artwork URIs everywhere, so placeholders render and Coil never starts a load under Robolectric.
         fun albums(): List<Album> = listOf(
-            Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 2, artworkUri = ""),
-            Album(id = JAZZ_ID, title = "Jazz", artist = "Queen", songCount = 1, artworkUri = ""),
+            Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 2),
+            Album(id = JAZZ_ID, title = "Jazz", artist = "Queen", songCount = 1),
         )
 
         fun songs(n: Int): List<Song> = (1..n).map { index ->

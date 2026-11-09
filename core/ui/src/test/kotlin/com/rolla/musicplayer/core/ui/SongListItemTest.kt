@@ -127,14 +127,4 @@ class SongListItemTest {
         val checkbox = composeRule.onNodeWithTag(SONG_SELECTION_CHECKBOX_TAG, useUnmergedTree = true).getBoundsInRoot()
         ((checkbox.left + checkbox.right) / 2).assertIsEqualTo(glyphCentre, "checkbox centre", tolerance = 0.5.dp)
     }
-
-    @Test
-    fun trackNumberModeReplacesArtwork() {
-        composeRule.setContent {
-            RollaMusicPlayerTheme(darkTheme = true) {
-                Box(Modifier.width(360.dp)) { SongListItem(song, onClick = {}, trackNumber = 7) }
-            }
-        }
-        composeRule.onNodeWithContentDescription("Track 7").assertExists()
-    }
 }

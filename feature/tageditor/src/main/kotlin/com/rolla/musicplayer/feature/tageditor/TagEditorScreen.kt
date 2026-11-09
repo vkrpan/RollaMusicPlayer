@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -40,6 +42,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -58,6 +64,7 @@ import com.rolla.musicplayer.core.ui.ArtworkThumbnail
 import com.rolla.musicplayer.feature.tageditor.io.rememberMediaWriteRequester
 
 private const val LOAD_FAILED_MESSAGE = "Couldn't load this track's tags."
+private const val ARTWORK_REMOVED = "Artwork removed"
 
 /**
  * Stateful entry point for the single-song tag editor (`TagEditor(songId: Long)`). Same
@@ -134,6 +141,7 @@ fun TagEditorRoute(
                 )
             }
         },
+        onRemoveArtworkClick = remember(viewModel) { viewModel::onRemoveArtworkClick },
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
         onNavigateUp = navigateUpUnlessSaving,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
@@ -141,12 +149,14 @@ fun TagEditorRoute(
     )
 }
 
-@Suppress("LongParameterList")
+// One callback per editor action plus the Scaffold; at 31 lines splitting it would only move the parameter fan-out.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun TagEditorScreen(
     uiState: TagEditorUiState,
     onFieldChanged: (TagField, String) -> Unit,
     onChangeArtworkClick: () -> Unit,
+    onRemoveArtworkClick: () -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     onDismissMessage: () -> Unit,
@@ -174,6 +184,7 @@ fun TagEditorScreen(
                 uiState = uiState,
                 onFieldChanged = onFieldChanged,
                 onChangeArtworkClick = onChangeArtworkClick,
+                onRemoveArtworkClick = onRemoveArtworkClick,
                 onSaveClick = onSaveClick,
                 onNavigateUp = onNavigateUp,
                 modifier = Modifier.padding(innerPadding),
@@ -217,18 +228,24 @@ private fun TagEditorContent(
     uiState: TagEditorUiState,
     onFieldChanged: (TagField, String) -> Unit,
     onChangeArtworkClick: () -> Unit,
+    onRemoveArtworkClick: () -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TagEditorScrollColumn(modifier = modifier) {
         TagEditorHeaderCard(
-            // A validated pending pick previews immediately; it is only written to the file on Save.
-            artworkUri = uiState.pendingArtworkUri ?: uiState.artworkUri,
+            // A validated pending pick previews immediately, a removal previews the placeholder; either is only
+            // written to the file on Save.
+            artworkUri = uiState.previewArtworkUri,
             songTitle = uiState.songTitle,
             artistName = uiState.artistName,
+            isArtworkRemoved = uiState.isArtworkRemoved,
+            showArtworkActions = uiState.isArtworkSupported,
+            showRemoveArtwork = uiState.canRemoveArtwork,
+            artworkActionsEnabled = !uiState.isSaving,
             onChangeArtworkClick = onChangeArtworkClick,
-            changeArtworkEnabled = !uiState.isSaving,
+            onRemoveArtworkClick = onRemoveArtworkClick,
         )
         TagEditorFieldsCard(
             tags = uiState.tags,
@@ -291,40 +308,92 @@ internal fun TagEditorCard(
 }
 
 /**
- * Context at the top of the form: the track's artwork (current, or the pending replacement pick),
- * title, and artist. Title/artist are never editable here; artwork IS -- "Change artwork" opens
- * the system PhotoPicker for a LOCAL image, which is embedded into the file on Save (see
- * [SongTags]'s KDoc on why artwork lives outside the text-field model).
+ * Context at the top of the form: the track's artwork (current, the pending replacement pick, or
+ * the placeholder once removed), title, and artist. Title/artist are never editable here; artwork
+ * IS -- "Change artwork" opens the system PhotoPicker for a LOCAL image, which is embedded into
+ * the file on Save, and "Remove artwork" (shown only while [showRemoveArtwork]) deletes the
+ * embedded picture on Save (see [SongTags]'s KDoc on why artwork lives outside the text-field
+ * model). Neither pill shows for a format that cannot carry artwork ([showArtworkActions] false).
  */
-// The artwork, the tonal Change artwork pill and the two text lines: one flat card.
+// The artwork, the artwork pills and the two text lines: one flat card.
 @Suppress("LongParameterList")
 @Composable
 private fun TagEditorHeaderCard(
-    artworkUri: String?,
+    artworkUri: String,
     songTitle: String,
     artistName: String,
+    isArtworkRemoved: Boolean,
+    showArtworkActions: Boolean,
+    showRemoveArtwork: Boolean,
+    artworkActionsEnabled: Boolean,
     onChangeArtworkClick: () -> Unit,
-    changeArtworkEnabled: Boolean,
+    onRemoveArtworkClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TagEditorCard(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         ArtworkThumbnail(
-            artworkUri = artworkUri.orEmpty(),
+            artworkUri = artworkUri,
             // Decorative: the song title Text is announced two stops later; describing the
-            // artwork made TalkBack read the title twice (a11y audit).
+            // artwork made TalkBack read the title twice (a11y audit). Only a removal is described
+            // (see artworkRemovedAnnouncement).
             contentDescription = null,
             shape = MaterialTheme.shapes.extraLarge,
             large = true,
             placeholderGlyphSize = RollaDimens.npArtGlyph,
-            modifier = Modifier.size(RollaDimens.detailArtworkSize),
+            modifier = Modifier
+                .size(RollaDimens.detailArtworkSize)
+                .artworkRemovedAnnouncement(isArtworkRemoved),
         )
-        OneUiPillButton(
-            text = "Change artwork",
-            onClick = onChangeArtworkClick,
-            enabled = changeArtworkEnabled,
-            tonal = true,
-        )
+        if (showArtworkActions) {
+            ArtworkActionsRow(
+                showRemove = showRemoveArtwork,
+                enabled = artworkActionsEnabled,
+                onChangeClick = onChangeArtworkClick,
+                onRemoveClick = onRemoveArtworkClick,
+            )
+        }
         HeaderTitles(songTitle = songTitle, artistName = artistName)
+    }
+}
+
+/**
+ * The header artwork is a polite live region that stays silent until a removal, then says [ARTWORK_REMOVED]: the
+ * "Remove artwork" pill TalkBack was focused on has just vanished, so the change is announced instead of lost. The
+ * region is present from the start because TalkBack announces a change to an existing live region, not a new node.
+ */
+private fun Modifier.artworkRemovedAnnouncement(isArtworkRemoved: Boolean): Modifier = semantics {
+    liveRegion = LiveRegionMode.Polite
+    if (isArtworkRemoved) contentDescription = ARTWORK_REMOVED
+}
+
+/**
+ * The tonal "Change artwork" pill and, while [showRemove], the tonal destructive "Remove artwork" pill beside it. A
+ * centred FlowRow (ruling P20): at a large font scale the second pill wraps under the first instead of ellipsizing.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ArtworkActionsRow(
+    showRemove: Boolean,
+    enabled: Boolean,
+    onChangeClick: () -> Unit,
+    onRemoveClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(RollaDimens.editorFieldGap),
+    ) {
+        OneUiPillButton(text = "Change artwork", onClick = onChangeClick, enabled = enabled, tonal = true)
+        if (showRemove) {
+            OneUiPillButton(
+                text = "Remove artwork",
+                onClick = onRemoveClick,
+                enabled = enabled,
+                tonal = true,
+                destructive = true,
+            )
+        }
     }
 }
 
@@ -466,6 +535,7 @@ private fun previewUiState(): TagEditorUiState = TagEditorUiState(
     songTitle = "Bohemian Rhapsody",
     artistName = "Queen",
     artworkUri = "",
+    canRemoveArtwork = true,
     tags = SongTags(
         title = "Bohemian Rhapsody",
         artist = "Queen",
@@ -500,6 +570,7 @@ private fun PreviewTagEditorScreen() {
             uiState = previewUiState(),
             onFieldChanged = { _, _ -> },
             onChangeArtworkClick = {},
+            onRemoveArtworkClick = {},
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
@@ -517,6 +588,7 @@ private fun PreviewTagEditorScreenValidationError() {
             uiState = previewValidationErrorUiState(),
             onFieldChanged = { _, _ -> },
             onChangeArtworkClick = {},
+            onRemoveArtworkClick = {},
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},

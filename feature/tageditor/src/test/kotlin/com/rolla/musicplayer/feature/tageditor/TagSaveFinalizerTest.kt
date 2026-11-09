@@ -1,6 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor
 
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.data.scanner.SyncResult
 import com.rolla.musicplayer.core.media.PlaybackController
@@ -35,7 +35,7 @@ class TagSaveFinalizerTest {
     private val libraryIndexer: LibraryIndexer = mockk()
     private val fakeSongRepository = FakeSongRepository()
     private val playbackController: PlaybackController = mockk()
-    private val albumArtworkCache: AlbumArtworkCache = mockk(relaxed = true)
+    private val songArtworkCache: SongArtworkCache = mockk(relaxed = true)
 
     private val finalizer = TagSaveFinalizer(
         songFileResolver = songFileResolver,
@@ -43,7 +43,7 @@ class TagSaveFinalizerTest {
         libraryIndexer = libraryIndexer,
         songRepository = fakeSongRepository,
         playbackController = playbackController,
-        albumArtworkCache = albumArtworkCache,
+        songArtworkCache = songArtworkCache,
     )
 
     private val song1 = testSong("1")
@@ -67,27 +67,56 @@ class TagSaveFinalizerTest {
         coVerifyOrder {
             mediaScanNotifier.awaitScan(listOf("/music/1.mp3", "/music/2.mp3"))
             libraryIndexer.syncSongs(listOf(1L, 2L))
-            albumArtworkCache.invalidate(1L)
+            songArtworkCache.invalidate(1L)
+            songArtworkCache.invalidate(2L)
             playbackController.updateSongMetadata(song1)
             playbackController.updateSongMetadata(song2)
         }
     }
 
     @Test
-    fun onSongsSaved_invalidatesArtworkCacheOncePerDistinctAlbumId() = runTest {
-        val albumASong1 = testSong("1", albumId = 10L)
-        val albumASong2 = testSong("2", albumId = 10L)
-        val albumBSong = testSong("3", albumId = 20L)
-        coEvery { songFileResolver.resolveFilePath(albumASong1) } returns "/music/1.mp3"
-        coEvery { songFileResolver.resolveFilePath(albumASong2) } returns "/music/2.mp3"
-        coEvery { songFileResolver.resolveFilePath(albumBSong) } returns "/music/3.mp3"
-        fakeSongRepository.emit(listOf(albumASong1, albumASong2, albumBSong))
+    fun invalidatesEverySavedSongById() = runTest {
+        // Two tracks of one album: each has its own picture, so each drops its own entry (spec §5.3).
+        val first = testSong("9540", albumId = 7L)
+        val second = testSong("9545", albumId = 7L)
+        stubResolvable(first, second)
+        fakeSongRepository.emit(listOf(first, second))
 
-        finalizer.onSongsSaved(listOf(albumASong1, albumASong2, albumBSong))
+        finalizer.onSongsSaved(listOf(first, second))
 
-        coVerify(exactly = 1) { albumArtworkCache.invalidate(10L) }
-        coVerify(exactly = 1) { albumArtworkCache.invalidate(20L) }
-        coVerify(exactly = 2) { albumArtworkCache.invalidate(any()) }
+        coVerify(exactly = 1) { songArtworkCache.invalidate(9540L) }
+        coVerify(exactly = 1) { songArtworkCache.invalidate(9545L) }
+        coVerify(exactly = 2) { songArtworkCache.invalidate(any()) }
+    }
+
+    @Test
+    fun refreshRunsEvenWhenInvalidateThrows() = runTest {
+        // v1.0 follow-up #1: a cache failure must not skip the playback refresh, nor the other songs' invalidation.
+        val first = testSong("9540", albumId = 7L)
+        val second = testSong("9545", albumId = 7L)
+        stubResolvable(first, second)
+        coEvery { songArtworkCache.invalidate(any()) } throws IOException("cache dir unwritable")
+        fakeSongRepository.emit(listOf(first, second))
+
+        finalizer.onSongsSaved(listOf(first, second))
+
+        // Control (as in invalidatesEverySavedSongById): invalidate is reached, so the throw really happened.
+        coVerify(exactly = 1) { songArtworkCache.invalidate(9540L) }
+        coVerify(exactly = 1) { songArtworkCache.invalidate(9545L) }
+        verify(exactly = 1) { playbackController.updateSongMetadata(first) }
+        verify(exactly = 1) { playbackController.updateSongMetadata(second) }
+    }
+
+    @Test
+    fun onSongsSaved_reindexFailure_stillInvalidatesTheSavedSongs() = runTest {
+        // The file write succeeded, so its old cached picture is stale whether or not the re-sync ran.
+        coEvery { libraryIndexer.syncSongs(any()) } throws IOException("db locked")
+        fakeSongRepository.emit(listOf(song1, song2))
+
+        finalizer.onSongsSaved(listOf(song1, song2))
+
+        coVerify(exactly = 1) { songArtworkCache.invalidate(1L) }
+        coVerify(exactly = 1) { songArtworkCache.invalidate(2L) }
     }
 
     @Test
@@ -143,19 +172,8 @@ class TagSaveFinalizerTest {
         verify(exactly = 0) { playbackController.updateSongMetadata(any()) }
     }
 
-    @Test
-    fun onSongsSaved_artworkCacheInvalidationFailure_isSwallowedAndSaveStaysSuccessful() = runTest {
-        // Best-effort contract: a cache eviction failure must not propagate into the caller's
-        // save flow either -- the file write (and re-sync) already succeeded.
-        coEvery { albumArtworkCache.invalidate(any()) } throws IOException("cache dir unwritable")
-        fakeSongRepository.emit(listOf(song1))
-
-        finalizer.onSongsSaved(listOf(song1))
-
-        coVerify(exactly = 1) { albumArtworkCache.invalidate(1L) }
-        // Downstream step (playback refresh) is skipped because the exception aborted the try
-        // block, but the call itself must not throw out of onSongsSaved.
-        verify(exactly = 0) { playbackController.updateSongMetadata(any()) }
+    private fun stubResolvable(vararg songs: Song) {
+        songs.forEach { song -> coEvery { songFileResolver.resolveFilePath(song) } returns "/music/${song.id}.mp3" }
     }
 }
 

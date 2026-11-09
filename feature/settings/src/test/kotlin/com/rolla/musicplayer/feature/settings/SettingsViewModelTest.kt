@@ -1,7 +1,7 @@
 package com.rolla.musicplayer.feature.settings
 
 import app.cash.turbine.test
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.data.repository.DEFAULT_PLAYBACK_SPEED
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
@@ -39,13 +39,13 @@ class SettingsViewModelTest {
     private val libraryIndexer: LibraryIndexer = mockk {
         coEvery { sync() } returns SyncResult(added = 0, removed = 0)
     }
-    private val albumArtworkCache: AlbumArtworkCache = mockk(relaxed = true)
+    private val songArtworkCache: SongArtworkCache = mockk(relaxed = true)
 
     private fun createViewModel(
         settingsRepository: SettingsRepository = fakeSettingsRepository,
         equalizerPreferences: EqualizerPreferences = fakeEqualizerPreferences,
         indexer: LibraryIndexer = libraryIndexer,
-        artworkCache: AlbumArtworkCache = albumArtworkCache,
+        artworkCache: SongArtworkCache = songArtworkCache,
     ): SettingsViewModel = SettingsViewModel(settingsRepository, equalizerPreferences, indexer, artworkCache)
 
     // ── uiState defaults ─────────────────────────────────────────────────────
@@ -299,10 +299,10 @@ class SettingsViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
-        coVerify(exactly = 1) { albumArtworkCache.clear() }
+        coVerify(exactly = 1) { songArtworkCache.clear() }
         coVerifyOrder {
             libraryIndexer.sync()
-            albumArtworkCache.clear()
+            songArtworkCache.clear()
         }
     }
 
@@ -357,7 +357,7 @@ class SettingsViewModelTest {
     @Test
     fun onRescanClick_artworkCacheClearThrows_stillReportsSuccess() = runTest {
         coEvery { libraryIndexer.sync() } returns SyncResult(added = 5, removed = 2)
-        coEvery { albumArtworkCache.clear() } throws IOException("disk full")
+        coEvery { songArtworkCache.clear() } throws IOException("disk full")
         val viewModel = createViewModel()
 
         viewModel.uiState.test {
@@ -396,7 +396,7 @@ class SettingsViewModelTest {
 
             cancelAndIgnoreRemainingEvents()
         }
-        coVerify(exactly = 0) { albumArtworkCache.clear() }
+        coVerify(exactly = 0) { songArtworkCache.clear() }
     }
 
     @Test

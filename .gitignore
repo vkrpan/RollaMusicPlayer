@@ -39,3 +39,8 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Obsidian vault (docs/): per-machine workspace state, cache and trash
+docs/.obsidian/workspace*.json
+docs/.obsidian/cache
+docs/.trash/

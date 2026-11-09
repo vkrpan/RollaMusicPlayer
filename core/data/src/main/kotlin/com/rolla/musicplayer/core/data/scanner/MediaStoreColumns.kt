@@ -55,9 +55,6 @@ internal object MediaStoreColumns {
     fun selectionForIds(count: Int): String =
         "$SELECTION AND $ID IN (${List(count) { "?" }.joinToString(",")})"
 
-    /** Local content URI used to build per-album artwork URIs — no network involved. */
-    val ALBUM_ART_URI: Uri = Uri.parse("content://media/external/audio/albumart")
-
     val COLLECTION: Uri =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)

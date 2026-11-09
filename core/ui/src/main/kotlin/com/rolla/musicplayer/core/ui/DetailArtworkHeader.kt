@@ -26,12 +26,12 @@ import com.rolla.musicplayer.core.designsystem.theme.artistName
 internal const val DETAIL_ARTWORK_TEST_TAG = "detail_artwork"
 
 /**
- * The hero at the top of AlbumDetail/ArtistDetail (spec §8.7): the artwork at detailArtworkSize (a circle for an
- * artist, the extraLarge rounded square otherwise), then one ellipsized subtitle line. The title lives in the top bar.
+ * The hero at the top of AlbumDetail/ArtistDetail (spec §8.7): the placeholder at detailArtworkSize (a circle for an
+ * artist, the extraLarge rounded square otherwise; albums and artists carry no picture, per-track artwork spec goal
+ * 3), then one ellipsized subtitle line. The title lives in the top bar.
  */
 @Composable
 fun DetailArtworkHeader(
-    artworkUri: String,
     subtitle: String,
     modifier: Modifier = Modifier,
     circular: Boolean = false,
@@ -41,9 +41,8 @@ fun DetailArtworkHeader(
         modifier = modifier.fillMaxWidth().padding(top = RollaDimens.panelTopGap),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ArtworkThumbnail(
-            artworkUri = artworkUri,
-            contentDescription = null, // Decorative: the title in the top bar names it (a11y audit precedent).
+        // Decorative: the title in the top bar names it (a11y audit precedent).
+        PlaceholderThumbnail(
             shape = if (circular) CircleShape else MaterialTheme.shapes.extraLarge,
             placeholderGlyph = placeholderGlyph,
             // Now Playing's large placeholder at the same 168 dp, not the list thumbnail's (controller ruling P4).
@@ -71,9 +70,8 @@ fun DetailArtworkHeader(
 private fun PreviewDetailArtworkHeader() {
     RollaMusicPlayerTheme {
         Column {
-            DetailArtworkHeader(artworkUri = "", subtitle = "Queen · 12 tracks")
+            DetailArtworkHeader(subtitle = "Queen · 12 tracks")
             DetailArtworkHeader(
-                artworkUri = "",
                 subtitle = "3 albums, 27 tracks",
                 circular = true,
                 placeholderGlyph = RollaIcons.Person,

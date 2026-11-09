@@ -29,8 +29,7 @@ interface AlbumDao {
             album_id AS albumId,
             album AS title,
             MIN(artist) AS artist,
-            COUNT(*) AS songCount,
-            MAX(artwork_uri) AS artworkUri
+            COUNT(*) AS songCount
         FROM songs
         WHERE album_id = :albumId
         GROUP BY album_id
@@ -48,8 +47,7 @@ interface AlbumDao {
             album_id AS albumId,
             album AS title,
             MIN(artist) AS artist,
-            COUNT(*) AS songCount,
-            MAX(artwork_uri) AS artworkUri
+            COUNT(*) AS songCount
         FROM songs
         GROUP BY album_id
         ORDER BY title COLLATE NOCASE ASC, albumId ASC

@@ -83,9 +83,9 @@ rule; review enforces the rest.
 | Tab row | `OneUiTabRow` (centre-weighted, no indicator) | `ScrollableTabRow` directly |
 | Content panel | `ContentPanel` | an ad-hoc rounded `Box` |
 | Sort / control header | `SortHeader` with circle Shuffle and Play | |
-| Sheet, dialog, menu | `OneUiBottomSheet`, `OneUiDialog` + `OneUiTextButton` (`destructive = true` for Delete/Remove), `OneUiDropdownMenu`/`OneUiMenuItem`, `SheetActionRow` | `ModalBottomSheet`, `AlertDialog`, `TextButton`, `DropdownMenu` |
+| Sheet, dialog, menu | `OneUiBottomSheet`, `OneUiDialog` + `OneUiTextButton` (`destructive = true` for Delete/Remove), `OneUiDropdownMenu`/`OneUiMenuItem` (`destructive = true` for Remove), `SheetActionRow` | `ModalBottomSheet`, `AlertDialog`, `TextButton`, `DropdownMenu` |
 | Text entry | `OneUiTextField` (`isError`/`supportingText`/`trailingControl`), `OneUiDialogField` in dialogs, `OneUiSearchField` | `TextField`, `OutlinedTextField` |
-| Buttons | `OneUiPillButton` (filled or tonal, `loading`), `OneUiIconButton`, the circle buttons | `Button`, `OutlinedButton` |
+| Buttons | `OneUiPillButton` (filled or tonal, `loading`, `destructive` on a tonal pill), `OneUiIconButton`, the circle buttons | `Button`, `OutlinedButton` |
 | Toggles and selection | `OneUiSwitch`, `OneUiCheckbox` (round), `PillChip` | M3 `Switch`, `Checkbox`, `FilterChip` |
 | Sliders | `OneUiSlider`, `OneUiSeekBar`, `EqVerticalSlider` | M3 `Slider` directly |
 | Artwork stand-in | `ArtworkPlaceholder` | an `Icon` on a grey `Box` |

@@ -62,7 +62,6 @@ class ArtistDetailViewModelTest {
             title = "Album $index",
             artist = "Test Artist",
             songCount = 3,
-            artworkUri = "content://media/external/audio/albumart/$index",
         )
     }
 

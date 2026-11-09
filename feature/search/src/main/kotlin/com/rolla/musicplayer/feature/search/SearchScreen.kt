@@ -441,7 +441,7 @@ private fun previewResults() = SearchResults(
         previewSong(id = "2", title = "Another One Bites the Dust", artist = "Queen"),
     ),
     albums = listOf(
-        Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 12, artworkUri = ""),
+        Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 12),
     ),
     artists = listOf(
         Artist(id = 1L, name = "Queen", albumCount = 15, songCount = 180),

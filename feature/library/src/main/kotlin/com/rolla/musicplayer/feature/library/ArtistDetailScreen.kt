@@ -128,7 +128,6 @@ internal fun ArtistDetailContent(
                 ) {
                     item(key = "hero", contentType = "hero") {
                         DetailArtworkHeader(
-                            artworkUri = artist.artworkUri,
                             subtitle = heroSubtitle,
                             circular = true,
                             placeholderGlyph = RollaIcons.Person,
@@ -226,8 +225,8 @@ private fun ArtistAlbumsStrip(albums: List<Album>, onAlbumClick: (Long) -> Unit,
 private val PreviewArtist = Artist(id = 1L, name = "Queen", albumCount = 2, songCount = 3)
 
 private val PreviewArtistAlbums = listOf(
-    Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 2, artworkUri = ""),
-    Album(id = 2L, title = "News of the World", artist = "Queen", songCount = 1, artworkUri = ""),
+    Album(id = 1L, title = "A Night at the Opera", artist = "Queen", songCount = 2),
+    Album(id = 2L, title = "News of the World", artist = "Queen", songCount = 1),
 )
 
 private val PreviewArtistSongs = listOf(

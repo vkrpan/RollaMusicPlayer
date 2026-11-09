@@ -18,9 +18,10 @@ import com.rolla.musicplayer.core.model.Folder
 import com.rolla.musicplayer.core.model.folderDisplayPath
 
 /**
- * Model-aware row for a [Folder] (spec §8.1): the folder's first-song art (or a note placeholder) with a FolderBadge
- * in its bottom-end corner, the folder name, and its display path ("/Internal storage/Music"). The anatomy is
- * [ListRowScaffold]'s; [onClick] opens the folder. The list passes [showDivider] = false for its last row.
+ * Model-aware row for a [Folder] (spec §8.1): a note placeholder (a folder carries no picture, per-track artwork spec
+ * goal 3) with a FolderBadge in its bottom-end corner, the folder name, and its display path ("/Internal
+ * storage/Music"). The anatomy is [ListRowScaffold]'s; [onClick] opens the folder. The list passes [showDivider] =
+ * false for its last row.
  */
 @Composable
 fun FolderRow(folder: Folder, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
@@ -33,11 +34,7 @@ fun FolderRow(folder: Folder, onClick: () -> Unit, modifier: Modifier = Modifier
     ) {
         Box {
             // Decorative within the merged row: the row's texts already name the folder.
-            ArtworkThumbnail(
-                artworkUri = folder.artworkUri,
-                contentDescription = null,
-                modifier = Modifier.testTag(FOLDER_THUMB_TAG),
-            )
+            PlaceholderThumbnail(modifier = Modifier.testTag(FOLDER_THUMB_TAG))
             FolderBadge(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -58,11 +55,8 @@ internal const val FOLDER_BADGE_TAG = "folder_badge"
 private fun PreviewFolderRow() {
     RollaMusicPlayerTheme {
         Column {
-            FolderRow(folder = Folder(path = "Music", name = "Music", songCount = 12, artworkUri = ""), onClick = {})
-            FolderRow(
-                folder = Folder(path = "", name = "Internal storage", songCount = 2, artworkUri = ""),
-                onClick = {},
-            )
+            FolderRow(folder = Folder(path = "Music", name = "Music", songCount = 12), onClick = {})
+            FolderRow(folder = Folder(path = "", name = "Internal storage", songCount = 2), onClick = {})
         }
     }
 }

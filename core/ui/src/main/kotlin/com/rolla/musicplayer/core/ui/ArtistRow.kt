@@ -15,9 +15,9 @@ import com.rolla.musicplayer.core.model.Artist
 import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
- * Model-aware row for an [Artist] (spec §8.1): a circular 48 dp avatar (the artist's representative cover, or a Person
- * placeholder), the name and "N albums, M tracks". The anatomy is [ListRowScaffold]'s; [onClick] opens the artist.
- * The list passes [showDivider] = false for its last row.
+ * Model-aware row for an [Artist] (spec §8.1): a circular 48 dp Person placeholder (an artist carries no picture,
+ * per-track artwork spec goal 3), the name and "N albums, M tracks". The anatomy is [ListRowScaffold]'s; [onClick]
+ * opens the artist. The list passes [showDivider] = false for its last row.
  */
 @Composable
 fun ArtistRow(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
@@ -29,9 +29,7 @@ fun ArtistRow(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier
         modifier = modifier,
         showDivider = showDivider,
     ) {
-        ArtworkThumbnail(
-            artworkUri = artist.artworkUri,
-            contentDescription = null,
+        PlaceholderThumbnail(
             shape = CircleShape,
             placeholderGlyph = RollaIcons.Person,
             modifier = Modifier.testTag(ARTIST_AVATAR_TAG),

@@ -1,0 +1,42 @@
+filters:
+  or:
+    - 'type == "feature"'
+    - 'type == "module"'
+    - 'type == "agent"'
+    - 'type == "guide"'
+views:
+  - type: table
+    name: Features
+    filters:
+      and:
+        - 'type == "feature"'
+    order:
+      - file.name
+      - status
+      - spec
+      - plan
+  - type: table
+    name: Modules
+    filters:
+      and:
+        - 'type == "module"'
+    order:
+      - file.name
+      - gradle
+      - owners
+  - type: table
+    name: Agents
+    filters:
+      and:
+        - 'type == "agent"'
+    order:
+      - file.name
+      - source
+  - type: table
+    name: Guides
+    filters:
+      and:
+        - 'type == "guide"'
+    order:
+      - file.name
+      - source

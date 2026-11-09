@@ -15,8 +15,11 @@ import com.rolla.musicplayer.feature.tageditor.io.TagWriter
 import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
 import io.mockk.just
 import io.mockk.mockk
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -82,14 +85,34 @@ class TagEditorViewModelTest {
         tagSaveFinalizer = tagSaveFinalizer,
     ).also { createdViewModels += it }
 
-    /** Emits [song], stubs a successful copy+read, and returns a constructed, loaded ViewModel. */
-    private fun TestScope.loadedViewModel(): TagEditorViewModel {
+    /**
+     * Emits [song], stubs a successful copy+read of [copy] whose tag embeds a picture when [hasArtwork], and returns a
+     * constructed, loaded ViewModel.
+     */
+    private fun TestScope.loadedViewModel(copy: File = editableCopy, hasArtwork: Boolean = true): TagEditorViewModel {
         fakeSongRepository.emit(listOf(song))
-        coEvery { songFileResolver.createEditableCopy(song) } returns editableCopy
-        coEvery { tagReader.read(editableCopy) } returns loadedTags
+        coEvery { songFileResolver.createEditableCopy(song) } returns copy
+        coEvery { tagReader.read(copy) } returns loadedTags
+        coEvery { tagReader.hasArtwork(copy) } returns hasArtwork
         val viewModel = newViewModel()
         advanceUntilIdle()
         return viewModel
+    }
+
+    /** Stubs a successful field write, artwork write or removal, persist and clean-up of [editableCopy]. */
+    private fun stubSuccessfulSave() {
+        coEvery { tagWriter.write(editableCopy, any()) } just Runs
+        coEvery { tagWriter.writeArtwork(editableCopy, any()) } just Runs
+        coEvery { tagWriter.removeArtwork(editableCopy) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song, editableCopy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(editableCopy) } just Runs
+    }
+
+    /** Clicks Save, grants consent and runs the write to completion. */
+    private fun TestScope.saveWithConsent(viewModel: TagEditorViewModel) {
+        viewModel.onSaveClick()
+        viewModel.onConsentGranted()
+        advanceUntilIdle()
     }
 
     // ── load ──────────────────────────────────────────────────────────────
@@ -272,6 +295,229 @@ class TagEditorViewModelTest {
         coVerify(exactly = 1) { tagWriter.writeArtwork(editableCopy, artwork) }
         coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
         assertTrue(viewModel.uiState.value.isSaved)
+    }
+
+    // ── artwork removal (per-track artwork Task 7) ───────────────────────
+
+    // Remove, then Save: the fields are written, then the picture is removed from the same copy before the persist,
+    // and nothing is embedded. Trivial stub: onRemoveArtworkClick does nothing → the state stays clean, Save no-ops
+    // and removeArtwork is never called. Mutation: writeAndPersist ignores isArtworkRemoved → RED on removeArtwork.
+    @Test
+    fun remove_thenSave_callsRemoveArtworkNotWrite() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        stubSuccessfulSave()
+
+        viewModel.onRemoveArtworkClick()
+        assertTrue("a removal alone makes the form saveable", viewModel.uiState.value.canSave)
+        saveWithConsent(viewModel)
+
+        coVerifyOrder {
+            tagWriter.write(editableCopy, any())
+            tagWriter.removeArtwork(editableCopy)
+            songFileResolver.persistEditedCopy(song, editableCopy)
+        }
+        coVerify(exactly = 1) { tagWriter.removeArtwork(editableCopy) }
+        coVerify(exactly = 0) { tagWriter.writeArtwork(any(), any()) }
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+    }
+
+    // The header previews the placeholder ("") once the picture is removed, and the removal alone is an edit.
+    // Control: before the click the header previews the song's artwork and the form is clean. Trivial stub: no state
+    // change → the preview stays the song's artwork. Mutation: dirty ignores isArtworkRemoved → RED on isDirty.
+    @Test
+    fun remove_previewsPlaceholderAndMarksDirty() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        val before = viewModel.uiState.value
+        assertEquals("before removal the header previews the song's artwork", song.artworkUri, before.previewArtworkUri)
+        assertEquals("the freshly loaded form is clean", false, before.isDirty)
+        assertTrue("a file with a picture offers Remove artwork", before.canRemoveArtwork)
+
+        viewModel.onRemoveArtworkClick()
+
+        val after = viewModel.uiState.value
+        assertTrue("the removal is recorded", after.isArtworkRemoved)
+        assertEquals("after removal the header previews the placeholder", "", after.previewArtworkUri)
+        assertTrue("removing the file's picture is an edit", after.isDirty)
+        assertTrue("removing the file's picture can be saved", after.canSave)
+        assertEquals("Remove artwork is not offered twice", false, after.canRemoveArtwork)
+    }
+
+    // The last choice wins: a pick after a removal cancels the removal and is what Save writes. Control: the removal
+    // is recorded before the pick. Trivial stub: no removal recorded → RED on the control. Mutation: onArtworkPicked
+    // keeps isArtworkRemoved → RED on "the pick cancels the removal".
+    @Test
+    fun pickAfterRemove_writesThePick() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        val artwork = pickedArtwork()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns artwork
+        stubSuccessfulSave()
+
+        viewModel.onRemoveArtworkClick()
+        assertTrue("the removal is recorded before the pick (control)", viewModel.uiState.value.isArtworkRemoved)
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals("the pick cancels the removal", false, state.isArtworkRemoved)
+        assertEquals("the header previews the pick", PICKED_IMAGE_URI, state.previewArtworkUri)
+        saveWithConsent(viewModel)
+
+        coVerify(exactly = 1) { tagWriter.writeArtwork(editableCopy, artwork) }
+        coVerify(exactly = 0) { tagWriter.removeArtwork(any()) }
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+    }
+
+    // The last choice wins the other way too: a removal after a pick drops the pick, and Save removes. Trivial stub:
+    // the removal leaves the pick pending → RED on assertNull. Mutation: onRemoveArtworkClick clears the shown uri but
+    // keeps the picked bytes, so Save still embeds them → RED on removeArtwork.
+    @Test
+    fun removeAfterPick_removes() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns pickedArtwork()
+        stubSuccessfulSave()
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+        assertEquals("the pick is pending (control)", PICKED_IMAGE_URI, viewModel.uiState.value.pendingArtworkUri)
+        viewModel.onRemoveArtworkClick()
+
+        val state = viewModel.uiState.value
+        assertNull("the removal drops the pending pick", state.pendingArtworkUri)
+        assertEquals("the header previews the placeholder", "", state.previewArtworkUri)
+        saveWithConsent(viewModel)
+
+        coVerify(exactly = 1) { tagWriter.removeArtwork(editableCopy) }
+        coVerify(exactly = 0) { tagWriter.writeArtwork(any(), any()) }
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+    }
+
+    // Ruling P21, last tap wins: a pick still loading when Remove is tapped is dropped when its load completes, and
+    // Save removes. Control: the removal is recorded while the load is suspended. Trivial stub (no generation check)
+    // → the late pick clears the removal. Mutation: onRemoveArtworkClick no longer invalidates in-flight picks → RED.
+    @Test
+    fun slowPickThenRemove_removeWins() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        val gate = CompletableDeferred<PickedArtwork?>()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } coAnswers { gate.await() }
+        stubSuccessfulSave()
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+        viewModel.onRemoveArtworkClick()
+        assertTrue("the removal is recorded while the pick loads (control)", viewModel.uiState.value.isArtworkRemoved)
+        gate.complete(pickedArtwork())
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("a pick that finishes after Remove does not undo it", state.isArtworkRemoved)
+        assertNull("the late pick is not pending", state.pendingArtworkUri)
+        assertEquals("the header still previews the placeholder", "", state.previewArtworkUri)
+        saveWithConsent(viewModel)
+        coVerify(exactly = 1) { tagWriter.removeArtwork(editableCopy) }
+        coVerify(exactly = 0) { tagWriter.writeArtwork(any(), any()) }
+    }
+
+    // Ruling P21: a pick whose load completes after Save started is not applied (the save is already writing the
+    // state the user confirmed). Control: Save started with the field edit. Trivial stub (no isSaving check) → the
+    // pick lands mid-save and is embedded. Mutation: drop the isSaving check at completion → RED.
+    @Test
+    fun slowPickThenSave_pickNotApplied() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = true)
+        val gate = CompletableDeferred<PickedArtwork?>()
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } coAnswers { gate.await() }
+        stubSuccessfulSave()
+
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+        viewModel.onSaveClick()
+        assertTrue("the save has started (control)", viewModel.uiState.value.isSaving)
+        gate.complete(pickedArtwork())
+        advanceUntilIdle()
+
+        assertNull("a pick that finishes during a save is not applied", viewModel.uiState.value.pendingArtworkUri)
+        viewModel.onConsentGranted()
+        advanceUntilIdle()
+        coVerify(exactly = 0) { tagWriter.writeArtwork(any(), any()) }
+        assertTrue("the save completes with the fields only", viewModel.uiState.value.isSaved)
+    }
+
+    // A file with no picture and no pick has nothing to remove; near-miss control: the same file with a pick can
+    // remove it, and removing only the pick returns the form to clean. Trivial stub: canRemoveArtwork always true →
+    // RED on the first assertion. Mutation: canRemoveArtwork ignores fileHasArtwork → RED on the first assertion.
+    @Test
+    fun noPictureInFile_cannotRemove() = runTest {
+        val viewModel = loadedViewModel(hasArtwork = false)
+        coEvery { artworkLoader.load(PICKED_IMAGE_URI) } returns pickedArtwork()
+
+        assertEquals("no picture and no pick: nothing to remove", false, viewModel.uiState.value.canRemoveArtwork)
+
+        viewModel.onArtworkPicked(PICKED_IMAGE_URI)
+        advanceUntilIdle()
+        assertTrue("a pending pick can be removed", viewModel.uiState.value.canRemoveArtwork)
+
+        viewModel.onRemoveArtworkClick()
+        assertEquals(
+            "removing only the pick from a picture-less file leaves nothing to save",
+            false,
+            viewModel.uiState.value.isDirty,
+        )
+    }
+
+    // A WAV copy cannot carry artwork (spec goal 9): no Change or Remove, even when its tag holds a picture. Control:
+    // the MP3 copy of the same song supports artwork. Trivial stub: isArtworkSupported left at true → RED.
+    // Mutation: isArtworkSupported = true always → RED.
+    @Test
+    fun wavFile_hidesArtworkActions() = runTest {
+        val mp3 = loadedViewModel(hasArtwork = true)
+        assertTrue("an MP3 copy supports artwork (control)", mp3.uiState.value.isArtworkSupported)
+
+        val wavCopy = File("cache/tag_editor_edits/${SONG_ID}_edit.wav")
+        val wav = loadedViewModel(copy = wavCopy, hasArtwork = true)
+
+        val state = wav.uiState.value
+        assertEquals("a WAV copy does not support artwork", false, state.isArtworkSupported)
+        assertEquals("a WAV copy offers no Remove artwork", false, state.canRemoveArtwork)
+    }
+
+    // Ruling P9-style isolation: a hasArtwork failure is "no picture"; the load still completes and the form works.
+    // Trivial stub: hasArtwork never asked → RED on the coVerify. Mutation: drop the catch (the failure reaches the
+    // load's own catch) → RED on loadFailed.
+    @Test
+    fun hasArtworkThrows_treatsAsNoPictureAndLoads() = runTest {
+        fakeSongRepository.emit(listOf(song))
+        coEvery { songFileResolver.createEditableCopy(song) } returns editableCopy
+        coEvery { tagReader.read(editableCopy) } returns loadedTags
+        coEvery { tagReader.hasArtwork(editableCopy) } throws IOException("corrupt picture frame")
+
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { tagReader.hasArtwork(editableCopy) }
+        val state = viewModel.uiState.value
+        assertEquals("the load completes", false, state.isLoading)
+        assertEquals("a hasArtwork failure is not a load failure", false, state.loadFailed)
+        assertNull("no error message is shown", state.message)
+        assertEquals("the tags still load", loadedTags, state.tags)
+        assertEquals("an unreadable picture counts as no picture", false, state.canRemoveArtwork)
+    }
+
+    // Cancellation is never swallowed: a cancelled hasArtwork ends the load instead of completing it as "no picture".
+    // Control: the previous test shows the same throw of a plain exception completes the load. Mutation: catch every
+    // Throwable (cancellation included) → the load completes → RED on isLoading.
+    @Test
+    fun hasArtworkCancelled_rethrowsAndDoesNotFinishTheLoad() = runTest {
+        fakeSongRepository.emit(listOf(song))
+        coEvery { songFileResolver.createEditableCopy(song) } returns editableCopy
+        coEvery { tagReader.read(editableCopy) } returns loadedTags
+        coEvery { tagReader.hasArtwork(editableCopy) } throws CancellationException("screen left")
+
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("a cancelled load never reports itself finished", state.isLoading)
+        assertEquals("a cancelled load is not a load failure", false, state.loadFailed)
     }
 
     // ── save: consent request ─────────────────────────────────────────────

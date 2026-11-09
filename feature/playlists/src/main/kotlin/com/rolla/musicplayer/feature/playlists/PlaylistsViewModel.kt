@@ -28,7 +28,7 @@ internal fun smartPlaylistLabel(kind: SmartPlaylistKind): String = when (kind) {
 
 /**
  * Display summary for a smart playlist card: a [kind] + label pulled from a [SongRepository]
- * flow, plus a small artwork preview (the first 4 distinct non-blank artwork URIs) for a collage-style thumbnail.
+ * flow, plus a small artwork preview (the first 4 tracks' artwork values, in order) for a collage-style thumbnail.
  */
 @Immutable
 data class SmartPlaylistSummary(
@@ -85,14 +85,9 @@ class PlaylistsViewModel @Inject constructor(
         kind = kind,
         label = smartPlaylistLabel(kind),
         count = songs.size,
-        // Songs without art are skipped before capping, so later art still fills the card. artworkUri is per album,
-        // so duplicates are dropped too: four tracks of one album would otherwise fill the collage with one cover.
-        previewArtworkUris = songs.asSequence()
-            .map { it.artworkUri }
-            .filter { it.isNotBlank() }
-            .distinct()
-            .take(PREVIEW_ARTWORK_LIMIT)
-            .toList(),
+        // The first four tracks, unfiltered (per-track artwork spec goal 8): each value is that track's own picture,
+        // and FeatureCard draws the placeholder for a track without one (a failed load).
+        previewArtworkUris = songs.take(PREVIEW_ARTWORK_LIMIT).map(Song::artworkUri),
     )
 
     private companion object {

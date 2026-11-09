@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.designsystem.component
 
 import android.view.Window
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
@@ -218,6 +220,76 @@ class OneUiSurfacesTest {
         composeRule.runOnIdle { expanded = true }
         composeRule.onNodeWithText("Settings").performClick()
         assertEquals(1, clicks)
+    }
+
+    // Per-track artwork Task 8: a destructive menu item ("Remove artwork") draws its label in destructiveText; a plain
+    // one keeps the menu's onSurface. The items are laid out outside a popup so drawRoot() sees them. Control: the
+    // plain label draws onSurface. Trivial stub: destructive ignored → RED. Mutation: colour the destructive label
+    // with colorScheme.error → the separator colour appears → RED.
+    @Test
+    fun menuItemDestructiveDrawsDestructiveText() {
+        var onSurface = Color.Unspecified
+        var destructive = Color.Unspecified
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                MaterialTheme(colorScheme = MaterialTheme.colorScheme.copy(error = ERROR_SEPARATOR)) {
+                    onSurface = MaterialTheme.colorScheme.onSurface
+                    destructive = MaterialTheme.colorScheme.destructiveText
+                    Column {
+                        OneUiMenuItem(text = "MMMMMM", onClick = {})
+                        OneUiMenuItem(text = "WWWWWW", onClick = {}, destructive = true)
+                    }
+                }
+            }
+        }
+        val bitmap = composeRule.drawRoot()
+        val plain = composeRule.pixelsIn(
+            bitmap,
+            composeRule.onNodeWithText("MMMMMM", useUnmergedTree = true).getUnclippedBoundsInRoot(),
+        )
+        val danger = composeRule.pixelsIn(
+            bitmap,
+            composeRule.onNodeWithText("WWWWWW", useUnmergedTree = true).getUnclippedBoundsInRoot(),
+        )
+        assertTrue("control: the plain item draws onSurface", plain.any { isColorNear(onSurface, it) })
+        assertFalse("the plain item is not destructive", plain.any { isColorNear(destructive, it) })
+        assertTrue("the destructive item draws destructiveText", danger.any { isColorNear(destructive, it) })
+        assertFalse("the destructive item never draws error", danger.any { isColorNear(ERROR_SEPARATOR, it) })
+    }
+
+    // A disabled destructive item keeps the disabled fade: its label is destructiveText at DISABLED_CONTENT_ALPHA over
+    // the menu's surfaceContainerHigh, never full destructiveText. Control: the enabled twin draws full
+    // destructiveText. Trivial stub: the fade lost → full destructiveText in the disabled item → RED. Mutation: set the
+    // colour on the Text (which overrides the item's disabled colour) → RED.
+    @Test
+    fun disabledDestructiveMenuItemKeepsTheDisabledFade() {
+        var destructive = Color.Unspecified
+        var faded = Color.Unspecified
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                val scheme = MaterialTheme.colorScheme
+                destructive = scheme.destructiveText
+                faded = scheme.destructiveText.copy(alpha = DISABLED_CONTENT_ALPHA).compositeOver(
+                    scheme.surfaceContainerHigh,
+                )
+                Column(Modifier.background(scheme.surfaceContainerHigh)) {
+                    OneUiMenuItem(text = "MMMMMM", onClick = {}, destructive = true)
+                    OneUiMenuItem(text = "WWWWWW", onClick = {}, enabled = false, destructive = true)
+                }
+            }
+        }
+        val bitmap = composeRule.drawRoot()
+        val enabled = composeRule.pixelsIn(
+            bitmap,
+            composeRule.onNodeWithText("MMMMMM", useUnmergedTree = true).getUnclippedBoundsInRoot(),
+        )
+        val disabled = composeRule.pixelsIn(
+            bitmap,
+            composeRule.onNodeWithText("WWWWWW", useUnmergedTree = true).getUnclippedBoundsInRoot(),
+        )
+        assertTrue("control: the enabled item draws destructiveText", enabled.any { isColorNear(destructive, it) })
+        assertFalse("the disabled item never draws full destructiveText", disabled.any { isColorNear(destructive, it) })
+        assertTrue("the disabled item draws faded destructiveText", disabled.any { isColorNear(faded, it) })
     }
 
     // SheetActionRow: singleLineRowHeight tall, label starts at listTextStart, destructive tints destructiveText.

@@ -80,7 +80,6 @@ class AlbumDaoTest {
         assertEquals("Greatest Hits", album?.title)
         assertEquals("Artist A", album?.artist)
         assertEquals(2, album?.songCount)
-        assertEquals("art-100", album?.artworkUri)
     }
 
     @Test

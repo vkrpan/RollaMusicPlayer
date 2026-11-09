@@ -112,7 +112,6 @@ class ArtistDaoTest {
         assertEquals(listOf("Alpha Album", "Zebra Album"), albums.map { it.title })
         assertEquals(200L, albums.first().albumId)
         assertEquals(2, albums.first().songCount)
-        assertEquals("art-200", albums.first().artworkUri)
     }
 
     @Test
@@ -202,7 +201,7 @@ class ArtistDaoTest {
         assertEquals(listOf("1"), songs.map { it.id })
     }
 
-    // Mutation: drop COLLATE NOCASE from the outer ORDER BY → "queen" sorts after "Zappa" → RED (Review Focus 1).
+    // Mutation: drop COLLATE NOCASE from the ORDER BY → "queen" sorts after "Zappa" → RED (Review Focus 1).
     @Test
     fun observeArtists_groupsByExactName_ordersCaseInsensitivelyThenBinary() = runTest {
         songDao.upsertSongs(
@@ -222,26 +221,5 @@ class ArtistDaoTest {
         assertEquals(listOf("ABBA", "Queen", "queen", "Zappa"), artists.map { it.name })
         assertEquals(2, artists.single { it.name == "Queen" }.albumCount)
         assertEquals(3, artists.single { it.name == "Queen" }.songCount)
-    }
-
-    // The expected album ("alpha") is the MIDDLE row in scan order, so no position-based pick can pass by accident.
-    // Mutations: (a) MIN(album) without COLLATE NOCASE → binary min is "Mid" ('M' < 'Z' < 'a') → art/mid → RED;
-    // (b) delete the MIN(...) AS firstAlbum line → the bare column comes from an unspecified row of the group (the
-    // first or the last in practice: art/zeta or art/mid), never the middle one → RED.
-    @Test
-    fun observeArtists_artworkComesFromTheAlphabeticallyFirstAlbum() = runTest {
-        songDao.upsertSongs(
-            listOf(
-                buildSongEntity(id = "1", mediaStoreId = 1L)
-                    .copy(artist = "X", albumId = 1L, album = "Zeta", artworkUri = "art/zeta"),
-                buildSongEntity(id = "2", mediaStoreId = 2L)
-                    .copy(artist = "X", albumId = 2L, album = "alpha", artworkUri = "art/alpha"),
-                buildSongEntity(id = "3", mediaStoreId = 3L)
-                    .copy(artist = "X", albumId = 3L, album = "Mid", artworkUri = "art/mid"),
-            ),
-        )
-
-        assertEquals("art/alpha", artistDao.observeArtists().first().single().artworkUri)
-        assertEquals("art/alpha", artistDao.observeArtist("X").first()?.artworkUri)
     }
 }

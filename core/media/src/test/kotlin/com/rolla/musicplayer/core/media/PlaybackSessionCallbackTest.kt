@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.media
 
 import android.os.Looper
 import androidx.media3.common.C
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -14,6 +15,7 @@ import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.SavedPlayback
 import com.rolla.musicplayer.core.model.SavedPlaybackState
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.songArtworkUri
 import com.rolla.musicplayer.core.testing.FakePlaybackStateRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -79,10 +81,13 @@ class PlaybackSessionCallbackTest {
         artworkUri = "",
     )
 
-    private fun TestScope.callback(onNothingToResume: () -> Unit = {}): PlaybackSessionCallback {
+    private fun TestScope.callback(
+        artwork: suspend (String) -> ByteArray? = { null },
+        onNothingToResume: () -> Unit = {},
+    ): PlaybackSessionCallback {
         val main = StandardTestDispatcher(testScheduler)
         val coordinator = RestoreCoordinator(repository, backgroundScope, main) {}
-        return PlaybackSessionCallback(backgroundScope, main, coordinator, restoredOrder, onNothingToResume)
+        return PlaybackSessionCallback(backgroundScope, main, coordinator, restoredOrder, artwork, onNothingToResume)
     }
 
     /** Media3's own seeded order for [n] items starting at [startIndex], read from a bare player with no listeners. */
@@ -135,11 +140,13 @@ class PlaybackSessionCallbackTest {
     )
 
     private fun TestScope.coordinatorAndCallback(
+        artwork: suspend (String) -> ByteArray? = { null },
         onNothingToResume: () -> Unit,
     ): Pair<RestoreCoordinator, PlaybackSessionCallback> {
         val main = StandardTestDispatcher(testScheduler)
         val coordinator = RestoreCoordinator(repository, backgroundScope, main) {}
-        val callback = PlaybackSessionCallback(backgroundScope, main, coordinator, restoredOrder, onNothingToResume)
+        val callback =
+            PlaybackSessionCallback(backgroundScope, main, coordinator, restoredOrder, artwork, onNothingToResume)
         return coordinator to callback
     }
 
@@ -268,7 +275,7 @@ class PlaybackSessionCallbackTest {
         val coordinator = RestoreCoordinator(repository, backgroundScope, main) {}
         val cancelledScope = CoroutineScope(Job().apply { cancel() })
 
-        val future = PlaybackSessionCallback(cancelledScope, main, coordinator, restoredOrder) {}
+        val future = PlaybackSessionCallback(cancelledScope, main, coordinator, restoredOrder, { null }) {}
             .onPlaybackResumption(session, controller, isForPlayback = true)
         runCurrent()
 
@@ -327,6 +334,91 @@ class PlaybackSessionCallbackTest {
 
         assertEquals(1, future.get().startIndex)
         assertEquals(0, reports)
+    }
+
+    private fun songWithArt(i: Int) = song(i).copy(artworkUri = songArtworkUri("s$i", 7L))
+
+    // Start index 2: neither the first nor the last item, so an off-by-position attach cannot pass by accident.
+    private val savedWithArt = SavedPlayback(
+        songs = (0 until 4).map(::songWithArt),
+        shuffleOrder = listOf(2, 0, 3, 1),
+        state = SavedPlaybackState(currentIndex = 2, positionMs = 1_000L, shuffleEnabled = false, RepeatMode.OFF),
+    )
+
+    // Ruling P12: Media3's legacy browse path (the stock-Android resume card) decodes only artworkData, so the
+    // metadata request's START item carries the provider's bytes; the others carry none. (The service's provider
+    // always answers the placeholder, ruling P14, pinned through the session in PlaybackSessionArtworkTest.) Trivial
+    // stub (no attach) → RED at the start item. Mutations: attach to item 0 → RED at the start item; attach to every
+    // item → RED at "other items"; PICTURE_TYPE_OTHER → RED at the type.
+    @Test
+    fun notForPlayback_onlyTheStartItemCarriesArtworkData() = runTest {
+        repository.saved = savedWithArt
+        val asked = mutableListOf<String>()
+        val artwork: suspend (String) -> ByteArray? = { uri -> "art:$uri".toByteArray().also { asked += uri } }
+        val (_, callback) = coordinatorAndCallback(artwork = artwork) {}
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+
+        val items = future.get().mediaItems
+        val startUri = songArtworkUri("s2", 7L)
+        assertEquals("the start item's bytes", "art:$startUri", items[2].mediaMetadata.artworkData?.decodeToString())
+        assertEquals(
+            "the start item's picture type",
+            MediaMetadata.PICTURE_TYPE_FRONT_COVER,
+            items[2].mediaMetadata.artworkDataType,
+        )
+        assertEquals("the start item keeps its uri", startUri, items[2].mediaMetadata.artworkUri?.toString())
+        assertEquals(
+            "other items carry no artworkData",
+            listOf(null, null, null),
+            listOf(0, 1, 3).map { items[it].mediaMetadata.artworkData },
+        )
+        assertEquals("the provider is asked once, for the start song", listOf(startUri), asked)
+    }
+
+    // A failing artwork provider degrades to "no bytes": the metadata request still resolves and the start item keeps
+    // its title, artist and uri. Control: the provider was asked. Mutation: drop the local catch in artworkOrNull →
+    // the request's outer catch fails the future → RED at "the request resolves".
+    @Test
+    fun notForPlayback_aFailingArtworkProvider_stillDescribesTheStartItem() = runTest {
+        repository.saved = savedWithArt
+        var asked = 0
+        val artwork: suspend (String) -> ByteArray? = {
+            asked++
+            throw IOException("disk full")
+        }
+        val (_, callback) = coordinatorAndCallback(artwork = artwork) {}
+
+        val future = callback.onPlaybackResumption(session, controller, isForPlayback = false)
+        settle()
+
+        val result = runCatching { future.get() }
+        assertTrue("the request resolves: ${result.exceptionOrNull()}", result.isSuccess)
+        assertEquals("the provider was asked", 1, asked)
+        val start = result.getOrThrow().mediaItems[2]
+        assertEquals("the start item", "s2", start.mediaId)
+        assertEquals("its title", "T2", start.mediaMetadata.title?.toString())
+        assertEquals("its artist", "A", start.mediaMetadata.artist?.toString())
+        assertEquals("its uri", songArtworkUri("s2", 7L), start.mediaMetadata.artworkUri?.toString())
+        assertEquals("no artworkData", null, start.mediaMetadata.artworkData)
+    }
+
+    // Ruling P12: the playback branch is unchanged; the player's items keep only the uri. Control: the four items
+    // arrive. Mutation: give the playback branch the provider (startArtwork = startItemArtwork) → RED.
+    @Test
+    fun forPlayback_itemsCarryNoArtworkData() = runTest {
+        repository.saved = savedWithArt
+        val asked = mutableListOf<String>()
+
+        val future = callback(artwork = { uri -> "art:$uri".toByteArray().also { asked += uri } })
+            .onPlaybackResumption(session, controller, isForPlayback = true)
+        runCurrent()
+
+        val items = future.get().mediaItems
+        assertEquals("the four saved items", 4, items.size)
+        assertEquals("no item carries artworkData", List(4) { null }, items.map { it.mediaMetadata.artworkData })
+        assertTrue("the provider is never asked", asked.isEmpty())
     }
 
     private companion object {

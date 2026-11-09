@@ -12,9 +12,9 @@ import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.artistDisplayName
 
 /**
- * Model-aware row for an [Album] (spec §8.1): the 48 dp rounded-square album art (or a note placeholder), the title
- * and "Artist, N tracks". The anatomy is [ListRowScaffold]'s; there is no trailing overflow, and [onClick] opens the
- * album. The list passes [showDivider] = false for its last row.
+ * Model-aware row for an [Album] (spec §8.1): the 48 dp rounded-square note placeholder (an album carries no picture,
+ * per-track artwork spec goal 3), the title and "Artist, N tracks". The anatomy is [ListRowScaffold]'s; there is no
+ * trailing overflow, and [onClick] opens the album. The list passes [showDivider] = false for its last row.
  */
 @Composable
 fun AlbumRow(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier, showDivider: Boolean = true) {
@@ -25,8 +25,8 @@ fun AlbumRow(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier, s
         modifier = modifier,
         showDivider = showDivider,
     ) {
-        // Decorative within the merged row: the row's texts already name the album.
-        ArtworkThumbnail(album.artworkUri, null)
+        // Decorative (no description of its own): the row's texts already name the album.
+        PlaceholderThumbnail()
     }
 }
 
@@ -43,7 +43,6 @@ private fun PreviewAlbumRow() {
                     title = "A Night at the Opera",
                     artist = "Queen",
                     songCount = 12,
-                    artworkUri = "",
                 ),
                 onClick = {},
             )
@@ -53,7 +52,6 @@ private fun PreviewAlbumRow() {
                     title = "The Wall",
                     artist = "Pink Floyd",
                     songCount = 26,
-                    artworkUri = "",
                 ),
                 onClick = {},
             )

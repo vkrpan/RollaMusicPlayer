@@ -22,30 +22,27 @@ data class Song(
     val trackNumber: Int?,        // ← a FIELD named trackNumber. Stays. Not "songNumber".
     val year: Int?,
     val contentUri: String,       // stable content:// uri for playback
-    val artworkUri: String        // local album-art uri
+    val artworkUri: String        // per-track value rolla-artwork://song/{id}?v={dateModified} (derived in toDomain)
 )
 
 data class Album(
     val id: Long,
     val title: String,
     val artist: String,
-    val songCount: Int,
-    val artworkUri: String
+    val songCount: Int
 )
 
 data class Artist(
     val id: Long,
     val name: String,
     val albumCount: Int,
-    val songCount: Int,
-    val artworkUri: String = ""   // cover of the artist's alphabetically first album; identity stays the name
+    val songCount: Int            // identity stays the name
 )
 
 data class Folder(
     val path: String,
     val name: String,
-    val songCount: Int,
-    val artworkUri: String
+    val songCount: Int
 ) // path relative to its volume ("" = root) is the identity; name = last segment or "Internal storage"
 
 data class SavedPlaybackState(
@@ -85,8 +82,9 @@ Naming conventions:
 - Detail route is **`SongDetail(val songId: Long)`** → screen `SongDetailScreen`, callback `onSongClick`.
 - Entities map to these models via `toDomain()` / `toEntity()`; entities may be named `SongEntity`, etc.
 - A folder's identity is its `path`. Routes and list keys use the path; `name` is display-only.
-- An artist's identity is its raw `name` (Phase 4a ruling 12). `Artist.artworkUri` is the cover of the artist's
-  alphabetically first album and is display-only.
+- An artist's identity is its raw `name` (Phase 4a ruling 12).
+- Artwork is per track only (per-track artwork, 2026-11-08): `Song.artworkUri` is the track's own picture, resolved
+  through `SongArtworkCache`; `Album`, `Artist` and `Folder` have no artwork and always show the placeholder.
 
 ## UI label exception ("Tracks" on screen, `Song` in code)
 

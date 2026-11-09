@@ -95,7 +95,7 @@ private fun FolderList(folders: List<Folder>, onFolderClick: (String) -> Unit, m
 }
 
 private val PreviewFolders = listOf("", "Music", "Music/Chill", "Download/Music", "Podcasts", "Recordings")
-    .map { path -> Folder(path = path, name = folderName(path), songCount = 12, artworkUri = "") }
+    .map { path -> Folder(path = path, name = folderName(path), songCount = 12) }
 
 @Suppress("UnusedPrivateMember")
 @Preview(name = "Folders Tab - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, widthDp = 360, heightDp = 640)

@@ -30,6 +30,30 @@ class SongSelectionStateTest {
         assertFalse(state.isActive)
     }
 
+    // Ruling P23: a locked selection ignores toggle() but still takes clear() and retainAll(). Control: toggle works
+    // before the lock. Trivial stub: lock ignored → "b" is added while locked → RED. Mutation: retainAll also honours
+    // the lock → "c" survives → RED.
+    @Test
+    fun lockFreezesToggleButNotClearOrRetainAll() {
+        val state = SongSelectionState(emptySet())
+        state.toggle("a")
+        state.toggle("c")
+        assertEquals("control: toggle works unlocked", setOf("a", "c"), state.selectedIds)
+
+        state.isLocked = true
+        state.toggle("b")
+        state.toggle("a")
+        assertEquals("a locked selection ignores toggle", setOf("a", "c"), state.selectedIds)
+        state.retainAll(setOf("a"))
+        assertEquals("retainAll still applies while locked", setOf("a"), state.selectedIds)
+        state.clear()
+        assertFalse("clear still applies while locked", state.isActive)
+
+        state.isLocked = false
+        state.toggle("b")
+        assertEquals("unlocked again, toggle works", setOf("b"), state.selectedIds)
+    }
+
     @Test
     fun retainAllDropsIdsMissingFromTheGivenSet() {
         val state = SongSelectionState(setOf("a", "b", "c"))

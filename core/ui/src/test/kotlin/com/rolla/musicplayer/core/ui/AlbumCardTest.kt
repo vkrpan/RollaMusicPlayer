@@ -57,8 +57,7 @@ class AlbumCardTest {
         title: String = "Jazz",
         artist: String = "Queen",
         songCount: Int = 3,
-        artworkUri: String = "",
-    ) = Album(id = id, title = title, artist = artist, songCount = songCount, artworkUri = artworkUri)
+    ) = Album(id = id, title = title, artist = artist, songCount = songCount)
 
     private fun setCard(
         album: Album,
@@ -104,14 +103,6 @@ class AlbumCardTest {
         val art = composeRule.onNodeWithTag(ALBUM_CARD_ART_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertEquals(150f, (art.right - art.left).value, 0.5f)
         assertEquals(150f, (art.bottom - art.top).value, 0.5f)
-    }
-
-    // Proves presence, not draw order. Mutation: draw the placeholder only when artworkUri is blank → missing for a
-    // non-blank uri, and a failed load would show nothing → RED.
-    @Test
-    fun `placeholder is composed even when there is an artwork uri`() {
-        setCard(album(artworkUri = "content://media/external/audio/albumart/99"))
-        composeRule.onNodeWithTag(ALBUM_CARD_PLACEHOLDER_TAG, useUnmergedTree = true).assertExists()
     }
 
     // Mutation: drop clip(featureCard) from the art box → the corner probe reads the placeholder colour → RED.

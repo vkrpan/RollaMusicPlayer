@@ -107,7 +107,6 @@ internal fun AlbumDetailContent(
                 ) {
                     item(key = "hero", contentType = "hero") {
                         DetailArtworkHeader(
-                            artworkUri = album.artworkUri,
                             subtitle = "${artistDisplayName(album.artist)} · ${tracksCountLabel(uiState.songs.size)}",
                         )
                     }
@@ -136,10 +135,11 @@ internal fun AlbumDetailContent(
                             key = { _, song -> song.id },
                             contentType = { _, _ -> "song" },
                         ) { index, song ->
+                            // Each row leads with the track's own picture, not its number (per-track artwork spec
+                            // goal 2a); the list keeps the track-number order.
                             SongListItem(
                                 song = song,
                                 onClick = { onSongClick(song) },
-                                trackNumber = song.trackNumber,
                                 onMoreClick = { optionsSong = song },
                                 // No hairline under the list's last row (Phase 7 calibration).
                                 showDivider = index < uiState.songs.lastIndex,
@@ -166,7 +166,6 @@ private val PreviewAlbum = Album(
     title = "A Night at the Opera",
     artist = "Queen",
     songCount = 6,
-    artworkUri = "",
 )
 
 private val PreviewAlbumSongs = List(6) { index ->

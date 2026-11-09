@@ -33,7 +33,7 @@ class FoldersTabViewModelTest {
         val repository = FakeFolderRepository()
         val viewModel = FoldersTabViewModel(repository)
         val job = launch { viewModel.folders.collect {} }
-        val folders = listOf(Folder("Music", "Music", 4, "b"), Folder("Download/Music", "Music", 1, "a"))
+        val folders = listOf(Folder("Music", "Music", 4), Folder("Download/Music", "Music", 1))
 
         repository.emitFolders(folders)
         advanceUntilIdle()

@@ -4,6 +4,9 @@ import androidx.media3.common.Player
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.SongArtworkRef
+import com.rolla.musicplayer.core.model.parseSongArtworkUri
+import com.rolla.musicplayer.core.model.songArtworkUri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -74,6 +77,23 @@ class MediaItemsTest {
             "the rebuilt Song keeps the artwork uri",
             "content://media/external/audio/albumart/7",
             rebuilt.artworkUri,
+        )
+    }
+
+    // Per-track artwork (Task 1 consumer audit): the rolla-artwork value survives android.net.Uri and the rebuild
+    // unchanged, so it still parses to the same song and version. Trivial stub (toPlaybackSong drops the artwork) →
+    // RED. Mutation: toPlaybackSong reads the uri's path only → "/9545" → RED.
+    @Test
+    fun perTrackArtworkValue_passesThroughUnchanged() {
+        val value = songArtworkUri("9545", 1_794_133_952L)
+        val item = song.copy(artworkUri = value).toMediaItem()
+        assertEquals("the media item carries the value as is", value, item.mediaMetadata.artworkUri.toString())
+        val rebuilt = item.asPlayableLeaf().toPlaybackSong()
+        assertEquals("the rebuilt Song keeps the value as is", value, rebuilt.artworkUri)
+        assertEquals(
+            "the rebuilt value parses to the same song and version",
+            SongArtworkRef(9545L, 1_794_133_952L),
+            parseSongArtworkUri(rebuilt.artworkUri),
         )
     }
 

@@ -47,7 +47,8 @@ class TagWriter @Inject constructor(
      * when its value is blank or overwritten ([Tag.setField]) when non-blank; any [TagField] NOT
      * present in [fields] is left completely untouched on disk -- this is what lets the batch
      * editor honor its per-field overwrite selection (an unpicked field for a given song is simply
-     * never included in that song's `fields` map).
+     * never included in that song's `fields` map). An MP3 with only an ID3v1 tag is edited through
+     * an ID3v2 tag built from it ([editableTag], ruling P18), so its untouched fields survive too.
      */
     suspend fun writeFields(file: File, fields: Map<TagField, String>) = withContext(ioDispatcher) {
         // jaudiotagger's default commit() strategy renames the original file aside to "*.old",
@@ -62,7 +63,7 @@ class TagWriter @Inject constructor(
         // every write since it is idempotent and this is the only place in the app that writes tags.
         TagOptionSingleton.getInstance().isPreserveFileIdentity = true
         val audioFile = AudioFileIO.read(file)
-        val tag = audioFile.tagOrCreateAndSetDefault
+        val tag = audioFile.editableTag()
         fields.forEach { (field, value) -> tag.setFieldIfNotBlank(field.toFieldKey(), value) }
         audioFile.commit()
     }
@@ -70,8 +71,11 @@ class TagWriter @Inject constructor(
     /**
      * Replaces the file's embedded artwork (front cover) with [artwork]'s bytes and commits.
      * All existing artwork fields are deleted first so the file ends up with exactly one cover
-     * -- some files in the wild carry several APIC frames, and "replace" leaving stale extras
-     * behind would show a different image in players that read a different frame.
+     * -- some files in the wild carry several APIC frames (or, in FLAC, a Vorbis-comment picture
+     * beside the PICTURE blocks; [deleteEveryArtwork]), and "replace" leaving stale extras
+     * behind would show a different image in players that read a different frame. An MP3 with
+     * only an ID3v1 tag first gets an ID3v2 tag built from it ([editableTag], ruling P16),
+     * so its title, artist and album stay visible.
      *
      * The artwork object is populated field-by-field ([org.jaudiotagger.tag.images.Artwork.setBinaryData]
      * etc.) rather than via `ArtworkFactory.createArtworkFromFile` -- the picked image arrives as
@@ -97,7 +101,7 @@ class TagWriter @Inject constructor(
         TagOptionSingleton.getInstance().isPreserveFileIdentity = true
         TagOptionSingleton.getInstance().isAndroid = Build.VERSION.SDK_INT != 0
         val audioFile = AudioFileIO.read(file)
-        val tag = audioFile.tagOrCreateAndSetDefault
+        val tag = audioFile.editableTag()
         val embedded = ArtworkFactory.getNew().apply {
             binaryData = artwork.bytes
             mimeType = artwork.mimeType
@@ -107,17 +111,43 @@ class TagWriter @Inject constructor(
             // FLAC's picture block serializes the description unconditionally -- null would NPE.
             description = ""
         }
-        tag.deleteArtworkField()
+        tag.deleteEveryArtwork()
         tag.setField(embedded)
+        audioFile.commit()
+    }
+
+    /**
+     * Deletes every embedded picture from [file] and commits, leaving every text field as it was (spec §5.6): the
+     * artwork field's `deleteArtworkField()`, then commit, with the same in-place commit strategy
+     * (isPreserveFileIdentity) as [writeArtwork]. A FLAC picture stored as a Vorbis-comment field goes too
+     * ([deleteEveryArtwork], ruling P17).
+     *
+     * A file with no picture (no tag at all, an empty tag, or an MP3 whose only tag is ID3v1, which has no picture and
+     * whose `deleteArtworkField()` throws) is not rewritten: there is nothing to remove.
+     */
+    suspend fun removeArtwork(file: File) = withContext(ioDispatcher) {
+        TagOptionSingleton.getInstance().isPreserveFileIdentity = true
+        val audioFile = AudioFileIO.read(file)
+        val tag = audioFile.tag?.takeIf { it.hasAnyArtwork() } ?: return@withContext
+        tag.deleteEveryArtwork()
         audioFile.commit()
     }
 }
 
 /**
+ * Whether this app writes artwork into a file of this format: MP3, FLAC and M4A only (spec goal 9), decided by the
+ * editable copy's extension, case-insensitively. A WAV, OGG or AAC file (or one without an extension) is never offered
+ * an artwork write and counts as not written in a multi-track Set.
+ */
+fun File.supportsArtwork(): Boolean = extension.lowercase() in ARTWORK_EXTENSIONS
+
+private val ARTWORK_EXTENSIONS = setOf("mp3", "flac", "m4a")
+
+/**
  * Sets [key] to [value] when non-blank, otherwise deletes it -- the blank-means-clear contract
  * documented on [TagWriter.writeFields] and on [SongTags].
  */
-private fun Tag.setFieldIfNotBlank(key: FieldKey, value: String) {
+internal fun Tag.setFieldIfNotBlank(key: FieldKey, value: String) {
     if (value.isNotBlank()) setField(key, value) else deleteField(key)
 }
 

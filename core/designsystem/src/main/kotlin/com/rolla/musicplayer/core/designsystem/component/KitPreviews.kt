@@ -158,8 +158,8 @@ private fun PreviewOneUiSearchField() {
     }
 }
 
-// The tag editor's form parts (Phase 6b) on a surfaceContainer card: tonal and filled pills, a saving pill, a disabled
-// pill, and a field in error with its destructiveText supporting text.
+// The tag editor's form parts (Phase 6b) on a surfaceContainer card: tonal and filled pills, the tonal destructive pill
+// (Remove artwork), a saving pill, a disabled pill, and a field in error with its destructiveText supporting text.
 @Suppress("UnusedPrivateMember")
 @Preview(name = "Pill buttons - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Preview(name = "Pill buttons - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
@@ -172,6 +172,10 @@ private fun PreviewOneUiPillButton() {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OneUiPillButton(text = "Cancel", onClick = {}, tonal = true)
                     OneUiPillButton(text = "Save", onClick = {})
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OneUiPillButton(text = "Change artwork", onClick = {}, tonal = true)
+                    OneUiPillButton(text = "Remove artwork", onClick = {}, tonal = true, destructive = true)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OneUiPillButton(text = "Save", onClick = {}, loading = true, loadingDescription = "Saving")
@@ -240,6 +244,7 @@ private fun PreviewOneUiDropdownMenu() {
                     OneUiMenuItem(text = "Edit tags", onClick = {})
                     OneUiMenuItem(text = "Go to album", onClick = {})
                     OneUiMenuItem(text = "Settings", onClick = {})
+                    OneUiMenuItem(text = "Remove artwork", onClick = {}, destructive = true)
                 }
             }
         }

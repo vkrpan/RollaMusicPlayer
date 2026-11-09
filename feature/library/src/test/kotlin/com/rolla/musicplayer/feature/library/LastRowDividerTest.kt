@@ -69,7 +69,7 @@ class LastRowDividerTest {
     @Test
     fun foldersDrawNoDividerUnderTheLastRow() {
         val folders = listOf("Alpha", "Bravo", "Charlie").map { path ->
-            Folder(path = path, name = folderName(path), songCount = 1, artworkUri = "")
+            Folder(path = path, name = folderName(path), songCount = 1)
         }
         setContent { FoldersTabContent(folders = folders, scanState = ScanState.Done(1, 0), onFolderClick = {}) }
         assertDividerOnlyBetweenRows(rowTitles = folders.map { it.name })

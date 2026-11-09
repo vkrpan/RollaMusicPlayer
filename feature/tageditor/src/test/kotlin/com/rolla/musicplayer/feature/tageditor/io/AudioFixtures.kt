@@ -37,6 +37,50 @@ internal object AudioFixtures {
         return out.toByteArray()
     }
 
+    private const val ID3V1_LENGTH = 128
+    private const val ID3V1_TITLE_OFFSET = 3
+    private const val ID3V1_ARTIST_OFFSET = 33
+    private const val ID3V1_ALBUM_OFFSET = 63
+    private const val ID3V1_YEAR_OFFSET = 93
+    private const val ID3V1_TEXT_LENGTH = 30
+    private const val ID3V1_YEAR_LENGTH = 4
+    private const val ID3V1_1_TRACK_INDEX = 126
+    private const val ID3V1_GENRE_INDEX = 127
+    private const val ID3V1_GENRE_NONE = 0xFF
+
+    /**
+     * [mp3Bytes] followed by a 128-byte ID3v1 tag and no ID3v2 tag at all: the old-file case where jaudiotagger's
+     * `getTagOrCreateDefault` would start an empty ID3v2 tag. The tag is "TAG", then 30-byte title, artist and album, a
+     * 4-byte year, and, when the track is not 0, the ID3v1.1 track byte (after a zero comment terminator), then the
+     * genre index (255 = none).
+     */
+    fun mp3WithId3v1OnlyBytes(fields: Id3v1Fields): ByteArray {
+        val v1 = ByteArray(ID3V1_LENGTH)
+        "TAG".toByteArray(Charsets.ISO_8859_1).copyInto(v1)
+        mapOf(
+            ID3V1_TITLE_OFFSET to fields.title,
+            ID3V1_ARTIST_OFFSET to fields.artist,
+            ID3V1_ALBUM_OFFSET to fields.album,
+        ).forEach { (offset, text) ->
+            text.toByteArray(Charsets.ISO_8859_1).take(ID3V1_TEXT_LENGTH).toByteArray().copyInto(v1, offset)
+        }
+        fields.year.toByteArray(Charsets.ISO_8859_1).take(ID3V1_YEAR_LENGTH).toByteArray()
+            .copyInto(v1, ID3V1_YEAR_OFFSET)
+        v1[ID3V1_1_TRACK_INDEX] = fields.track.toByte()
+        v1[ID3V1_GENRE_INDEX] = fields.genre.toByte()
+        return mp3Bytes() + v1
+    }
+
+    /** The fields an ID3v1(.1) tag can hold; [genre] is an index into the ID3v1 genre table (255 = none). */
+    data class Id3v1Fields(
+        val title: String,
+        val artist: String,
+        val album: String,
+        val year: String = "",
+        val track: Int = 0,
+        val genre: Int = ID3V1_GENRE_NONE,
+    )
+
     private const val FLAC_SAMPLE_RATE = 44_100
     private const val FLAC_CHANNELS = 2
     private const val FLAC_BITS_PER_SAMPLE = 16

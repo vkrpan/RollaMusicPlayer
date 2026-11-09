@@ -23,6 +23,11 @@ import javax.inject.Singleton
  *
  * Every call site wraps its [dispatch] call in `serviceScope.launch { ... }` (`Dispatchers.Default`)
  * so hooks never run synchronously on the player's callback thread -- see [PlaybackService].
+ *
+ * One more caller sits outside the service: [PlaybackController.updateSongMetadata] dispatches
+ * synchronously right after it writes the current song to the holder, because the in-place
+ * `replaceMediaItem` that follows produces no media-item transition (so none of the three above
+ * fires). Hooks must therefore stay non-blocking, as [PlaybackUpdateHook] already requires.
  */
 @Singleton
 class PlaybackUpdateDispatcher @Inject constructor(

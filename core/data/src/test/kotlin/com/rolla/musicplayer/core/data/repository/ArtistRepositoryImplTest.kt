@@ -27,7 +27,6 @@ class ArtistRepositoryImplTest {
         name = name,
         albumCount = 1,
         songCount = 1,
-        artworkUri = "art/$name",
     )
 
     // Ruling 1. Mutation: drop the sort → ["Abba", "Zappa", "Émile"] → RED.
@@ -44,7 +43,6 @@ class ArtistRepositoryImplTest {
         title = title,
         artist = "Queen",
         songCount = 1,
-        artworkUri = "art/$id",
     )
 
     // Ruling 8: the albums strip uses the library order (the DAO gives binary title order). Control: three albums come
@@ -81,7 +79,6 @@ class ArtistRepositoryImplTest {
                 name = "Artist A",
                 albumCount = 2,
                 songCount = 5,
-                artworkUri = "art-a",
             ),
         )
 
@@ -110,14 +107,12 @@ class ArtistRepositoryImplTest {
                     title = "Album One",
                     artist = "Artist A",
                     songCount = 3,
-                    artworkUri = "art-10",
                 ),
                 AlbumSearchRow(
                     albumId = 20L,
                     title = "Album Two",
                     artist = "Artist A",
                     songCount = 2,
-                    artworkUri = "art-20",
                 ),
             ),
         )
@@ -168,17 +163,16 @@ class ArtistRepositoryImplTest {
         verify { artistDao.observeArtistSongs("Artist B") }
     }
 
-    // Mutation: drop artworkUri from ArtistSearchRow.toDomain() → Artist.artworkUri is "" → RED.
+    // An artist carries no artwork (per-track artwork spec goal 3): the row maps to its name and counts.
     @Test
-    fun `observeArtists maps rows including artwork`() = runTest {
+    fun `observeArtists maps rows to name and counts`() = runTest {
         every { artistDao.observeArtists() } returns flowOf(
-            listOf(ArtistSearchRow(name = "Queen", albumCount = 2, songCount = 5, artworkUri = "art/q")),
+            listOf(ArtistSearchRow(name = "Queen", albumCount = 2, songCount = 5)),
         )
 
         val artist = repository.observeArtists().first().single()
 
         assertEquals("Queen", artist.name)
-        assertEquals("art/q", artist.artworkUri)
         assertEquals(2, artist.albumCount)
         assertEquals(5, artist.songCount)
     }

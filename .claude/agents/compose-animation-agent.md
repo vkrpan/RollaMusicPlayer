@@ -215,13 +215,13 @@ fun NowPlayingCard(expanded: Boolean) {
 ### 2. Shared Element Transitions
 **Seamless Navigation Continuity**
 
-Implement smooth transitions between screens, particularly for album artwork and now-playing interfaces:
+Implement smooth transitions between screens, particularly for track artwork and now-playing interfaces:
 
 ```kotlin
 // ✅ CORRECT: Shared element transition setup
 @Composable
-fun AlbumListItem(
-    album: Album,
+fun SongListItemShared(
+    song: Song,
     onClick: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope
@@ -234,12 +234,12 @@ fun AlbumListItem(
         ) {
             Row {
                 AsyncImage(
-                    model = album.artworkUri,
-                    contentDescription = album.title,
+                    model = song.artworkUri,
+                    contentDescription = song.title,
                     modifier = Modifier
                         .size(80.dp)
                         .sharedElement(
-                            state = rememberSharedContentState(key = "album_art_${album.id}"),
+                            state = rememberSharedContentState(key = "song_art_${song.id}"),
                             animatedVisibilityScope = animatedVisibilityScope,
                             boundsTransform = { _, _ ->
                                 spring(
@@ -254,12 +254,12 @@ fun AlbumListItem(
                     modifier = Modifier
                         .padding(16.dp)
                         .sharedBounds(
-                            sharedContentState = rememberSharedContentState(key = "album_info_${album.id}"),
+                            sharedContentState = rememberSharedContentState(key = "song_info_${song.id}"),
                             animatedVisibilityScope = animatedVisibilityScope
                         )
                 ) {
-                    Text(text = album.title)
-                    Text(text = album.artist)
+                    Text(text = song.title)
+                    Text(text = song.artist)
                 }
             }
         }
@@ -267,21 +267,21 @@ fun AlbumListItem(
 }
 
 @Composable
-fun AlbumDetailScreen(
-    album: Album,
+fun NowPlayingArtwork(
+    song: Song,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope
 ) {
     with(sharedTransitionScope) {
         Column {
             AsyncImage(
-                model = album.artworkUri,
-                contentDescription = album.title,
+                model = song.artworkUri,
+                contentDescription = song.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .aspectRatio(1f)
                     .sharedElement(
-                        state = rememberSharedContentState(key = "album_art_${album.id}"),
+                        state = rememberSharedContentState(key = "song_art_${song.id}"),
                         animatedVisibilityScope = animatedVisibilityScope
                     )
             )
@@ -290,16 +290,16 @@ fun AlbumDetailScreen(
                 modifier = Modifier
                     .padding(16.dp)
                     .sharedBounds(
-                        sharedContentState = rememberSharedContentState(key = "album_info_${album.id}"),
+                        sharedContentState = rememberSharedContentState(key = "song_info_${song.id}"),
                         animatedVisibilityScope = animatedVisibilityScope
                     )
             ) {
                 Text(
-                    text = album.title,
+                    text = song.title,
                     style = MaterialTheme.typography.headlineLarge
                 )
                 Text(
-                    text = album.artist,
+                    text = song.artist,
                     style = MaterialTheme.typography.titleMedium
                 )
             }

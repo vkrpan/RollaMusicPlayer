@@ -24,9 +24,19 @@ class SongSelectionState internal constructor(initial: Set<String>) {
     // Derived, so a reader of isActive recomposes only when selection starts or ends, not on every toggle in between.
     val isActive: Boolean by derivedStateOf { selectedIds.isNotEmpty() }
 
+    /**
+     * While true the selection is frozen for the user: [toggle] (a row's tap or long press) is ignored. Home sets it
+     * while the selected tracks' artwork is being written (spec §5.5: the selection stays until the write ends, ruling
+     * P23). [clear] and [retainAll] still apply: the write's own result, rescan pruning and access loss use them. Not
+     * saved: the owner sets it again from its busy state.
+     */
+    var isLocked: Boolean by mutableStateOf(false)
+
     fun isSelected(songId: String): Boolean = songId in selectedIds
 
+    /** Adds or removes [songId]; ignored while [isLocked]. */
     fun toggle(songId: String) {
+        if (isLocked) return
         selectedIds = if (songId in selectedIds) selectedIds - songId else selectedIds + songId
     }
 

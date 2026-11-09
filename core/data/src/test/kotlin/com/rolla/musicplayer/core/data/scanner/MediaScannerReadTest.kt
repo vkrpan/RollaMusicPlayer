@@ -4,6 +4,7 @@ import android.database.MatrixCursor
 import android.provider.MediaStore
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.model.songArtworkUri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -31,6 +32,20 @@ class MediaScannerReadTest {
     fun api28ReadsTheFolderFromData() {
         val songs = scanner.readSongs(cursorWith(MediaStore.Audio.Media.DATA, "/storage/emulated/0/Music/Chill/a.mp3"))
         assertEquals("Music/Chill", songs.single().folderPath)
+    }
+
+    // New rows agree with toDomain's read-time derivation (spec §5.4). The cursor row has id 1, album id 10 and
+    // date_modified 1000. Trivial stub ("") → RED; the old album-art uri → RED. Mutation: build the value from the
+    // album id instead of the row id → "rolla-artwork://song/10?v=1000" → RED.
+    @Test
+    @Config(sdk = [29])
+    fun readSongs_writesThePerTrackArtworkValue() {
+        val songs = scanner.readSongs(cursorWith(MediaStore.Audio.Media.RELATIVE_PATH, "Music/Chill/"))
+        assertEquals(
+            "the scanner stores the track's own versioned artwork value",
+            songArtworkUri(1L.toString(), 1_000L),
+            songs.single().artworkUri,
+        )
     }
 
     // The MatrixCursor tests cannot see the projection: a cursor built by hand always has the column. Mutation: leave

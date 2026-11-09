@@ -18,7 +18,6 @@ data class AlbumSearchRow(
     val title: String,
     val artist: String,
     val songCount: Int,
-    val artworkUri: String,
 )
 
 /** Maps this row to the domain [Album]. */
@@ -27,5 +26,4 @@ fun AlbumSearchRow.toDomain(): Album = Album(
     title = title,
     artist = artist,
     songCount = songCount,
-    artworkUri = artworkUri,
 )

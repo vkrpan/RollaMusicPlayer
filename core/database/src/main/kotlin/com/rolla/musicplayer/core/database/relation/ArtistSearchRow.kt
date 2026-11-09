@@ -4,17 +4,13 @@ import com.rolla.musicplayer.core.model.Artist
 
 /**
  * Projection returned by `SearchDao.searchArtists`, `ArtistDao.observeArtists` and
- * `ArtistDao.observeArtist` — one row per distinct (exact, case-sensitive) `artist` name.
- *
- * [artworkUri] is the cover of the artist's alphabetically first album (compared
- * case-insensitively): each query's inner `GROUP BY artist` has exactly one `MIN(album COLLATE
- * NOCASE)` aggregate, so SQLite takes the bare `artwork_uri` column from that minimum row.
+ * `ArtistDao.observeArtist` — one row per distinct (exact, case-sensitive) `artist` name. It carries
+ * no picture: artists always show the placeholder (per-track artwork spec goal 3).
  */
 data class ArtistSearchRow(
     val name: String,
     val albumCount: Int,
     val songCount: Int,
-    val artworkUri: String,
 )
 
 /**
@@ -33,7 +29,6 @@ fun ArtistSearchRow.toDomain(): Artist = Artist(
     name = name,
     albumCount = albumCount,
     songCount = songCount,
-    artworkUri = artworkUri,
 )
 
 // 64-bit FNV-1a offset basis / prime — see http://www.isthe.com/chongo/tech/comp/fnv/.

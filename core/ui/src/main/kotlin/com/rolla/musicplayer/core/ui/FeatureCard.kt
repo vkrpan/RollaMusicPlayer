@@ -40,7 +40,8 @@ private const val COLLAGE_CELL_COUNT = COLLAGE_CELLS_PER_SIDE * COLLAGE_CELLS_PE
 /**
  * One UI feature card (spec §8.1): a [RollaDimens.featureCardSize] square art box in the featureCard shape, with the
  * label and count centered below. Art is a placeholder note, a single image, or a 2×2 collage of the first four.
- * Blank URIs (a song with no album art has "") count as no art, matching the smart-playlist preview filter.
+ * Blank URIs count as no art (Phase 6a ruling 9); a track without a picture has a non-blank value whose load fails,
+ * and its collage cell shows the placeholder.
  * The whole card is one TalkBack node ("<label>, <count>").
  */
 @Composable
@@ -138,9 +139,10 @@ private fun Collage(uris: List<String>, modifier: Modifier = Modifier) {
 }
 
 /**
- * One collage image on its own cell placeholder. Without the backdrop, a loading or failed image (e.g. a MediaStore
- * albumart URI with no art, which throws FileNotFound) leaves the cell transparent and exposes a fragment of the
- * card's large centred glyph as a stray line. A non-blank URI can still fail, so the blank filter can't prevent it.
+ * One collage image on its own cell placeholder. Without the backdrop, a loading or failed image (e.g. a track whose
+ * file has no picture, which the artwork interceptor answers with an error) leaves the cell transparent and exposes a
+ * fragment of the card's large centred glyph as a stray line. A non-blank URI can still fail, so the blank filter
+ * can't prevent it.
  */
 @Composable
 private fun CollageImageCell(uri: String, modifier: Modifier = Modifier) {

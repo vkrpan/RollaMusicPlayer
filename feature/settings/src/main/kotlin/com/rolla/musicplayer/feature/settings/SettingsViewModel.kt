@@ -3,7 +3,7 @@ package com.rolla.musicplayer.feature.settings
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.datastore.EqualizerPreferences
@@ -47,7 +47,7 @@ class SettingsViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val equalizerPreferences: EqualizerPreferences,
     private val libraryIndexer: LibraryIndexer,
-    private val albumArtworkCache: AlbumArtworkCache,
+    private val songArtworkCache: SongArtworkCache,
 ) : ViewModel() {
 
     internal var sdkIntProvider: () -> Int = { Build.VERSION.SDK_INT }
@@ -111,9 +111,9 @@ class SettingsViewModel @Inject constructor(
      * Runs a full manual library rescan ([LibraryIndexer.sync] -- safe to fire even while another
      * sync is in flight elsewhere; the indexer serializes concurrent calls internally). Re-entry
      * from this screen is ignored while a rescan is already running. On a successful sync, every
-     * cached downscaled album cover is dropped via [clearArtworkCacheBestEffort] -- a manual rescan
-     * is the user asserting "my library changed", so any album's art may now be stale; the next
-     * display re-decodes fresh art from `content://`. This does NOT run on the automatic syncs
+     * cached downscaled track picture is dropped via [clearArtworkCacheBestEffort] -- a manual rescan
+     * is the user asserting "my library changed", so any track's picture may now be stale; the next
+     * display re-reads the picture embedded in the track's own file. This does NOT run on the automatic syncs
      * triggered by permission grant/app launch, only this manual entry point -- clearing on every
      * launch would force a full re-decode and tank first-load perf. On completion,
      * [SettingsUiState.rescanMessage] carries a result summary; a failure becomes a friendly
@@ -138,7 +138,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     /**
-     * Wipes [albumArtworkCache] after a successful rescan. Deliberately best-effort and isolated
+     * Wipes [songArtworkCache] after a successful rescan. Deliberately best-effort and isolated
      * from [onRescanClick]'s own try/catch: a cache-clear failure (e.g. disk IO) must never
      * downgrade an otherwise-successful rescan into [RESCAN_FAILURE_MESSAGE] -- the freshly synced
      * Room data is the source of truth for rescan success, the artwork cache is a pure performance
@@ -146,7 +146,7 @@ class SettingsViewModel @Inject constructor(
      */
     private suspend fun clearArtworkCacheBestEffort() {
         try {
-            albumArtworkCache.clear()
+            songArtworkCache.clear()
         } catch (e: CancellationException) {
             throw e
         } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {

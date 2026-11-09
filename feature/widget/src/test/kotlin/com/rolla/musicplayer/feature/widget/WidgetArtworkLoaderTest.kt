@@ -1,151 +1,135 @@
 package com.rolla.musicplayer.feature.widget
 
-import android.content.ContentResolver
-import android.content.Context
 import android.graphics.Bitmap
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
+import com.rolla.musicplayer.core.model.SongArtworkRef
 import io.mockk.mockk
-import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
-import org.junit.Rule
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.rules.TemporaryFolder
+import java.io.File
+import java.io.IOException
 
 /**
- * [BitmapFactory]-backed decode paths (the happy path and malformed-bytes path) require a real
- * Android runtime -- `BitmapFactory` is an unimplemented JVM stub under plain JUnit -- so those
- * are verified on-device (see the widget-agent report). This suite covers everything reachable
- * without a real decode:
- * - the null/blank short-circuit (touches neither the resolver nor the cache)
- * - the albumId-parse + [AlbumArtworkCache] wiring: a well-formed albumart uri resolves its
- *   albumId and calls through to the cache on every [WidgetArtworkLoader.load] (the cache's own
- *   `lastModified` touch-for-recency is how staleness is detected, so it must never be
- *   short-circuited by the local memo); a `null` from the cache returns `null` immediately without
- *   falling back to a direct decode; an unparseable path never touches the cache and instead
- *   exercises the pre-wave-2 direct-`content://`-decode fallback
- * - the exception-to-null failure contract, from both the resolver and the cache
- * - [WidgetArtworkLoader.decodeMemoized] directly, using [mockk] `Bitmap` instances (an
- *   `android.graphics.Bitmap` mock never invokes the real, unmocked JVM stub) to prove the memo
- *   hits for an unchanged [WidgetArtworkLoader.DecodeKey] and busts for a changed one -- this is
- *   the exact mechanism [WidgetArtworkLoader.load] wires a cache [java.io.File]'s
- *   `(absolutePath, lastModified)` into, so it stands in for a real decode-and-memoize /
- *   decode-once / re-decode-on-rewrite pass without needing [android.graphics.BitmapFactory] to
- *   work under plain JUnit.
+ * [WidgetArtworkLoader] resolves a per-track artwork value (`rolla-artwork://song/{id}?v={version}`) through
+ * [SongArtworkCache] and decodes the cached file; anything else is "no artwork" without a read. The real
+ * [android.graphics.BitmapFactory] decode is an unimplemented stub under plain JUnit, so the loader's file decode is
+ * replaced by a recording lambda returning [mockk] `Bitmap`s (a mock never invokes the stub), and the memo is tested
+ * directly through [WidgetArtworkLoader.decodeMemoized].
  */
 class WidgetArtworkLoaderTest {
 
-    @get:Rule
-    val tempFolder = TemporaryFolder()
+    private val bitmap = mockk<Bitmap>()
+    private val decodedFiles = mutableListOf<File>()
+    private val decode: (File) -> Bitmap? = { file ->
+        decodedFiles += file
+        bitmap
+    }
 
-    private val context: Context = mockk(relaxed = true)
-    private val resolver: ContentResolver = mockk(relaxed = true)
-    private val albumArtworkCache: AlbumArtworkCache = mockk(relaxed = true)
-    private val loader = WidgetArtworkLoader(context, albumArtworkCache, Dispatchers.Unconfined)
+    private fun loaderFor(cache: SongArtworkCache) = WidgetArtworkLoader(cache, Dispatchers.Unconfined, decode)
 
     // ── null / blank short-circuit ───────────────────────────────────────────
 
     @Test
-    fun `load returns null for a null path without touching the resolver or cache`() = runTest {
-        val bitmap = loader.load(null)
+    fun `load returns null for a null path without touching the cache`() = runTest {
+        val cache = FakeSongArtworkCache()
 
-        assertNull(bitmap)
-        verify(exactly = 0) { context.contentResolver }
-        coVerify(exactly = 0) { albumArtworkCache.get(any(), any()) }
+        assertNull("a null path has no artwork", loaderFor(cache).load(null))
+        assertEquals("a null path never reads the cache", 0, cache.calls)
     }
 
     @Test
-    fun `load returns null for a blank path without touching the resolver or cache`() = runTest {
-        val bitmap = loader.load("   ")
+    fun `load returns null for a blank path without touching the cache`() = runTest {
+        val cache = FakeSongArtworkCache()
 
-        assertNull(bitmap)
-        verify(exactly = 0) { context.contentResolver }
-        coVerify(exactly = 0) { albumArtworkCache.get(any(), any()) }
+        assertNull("a blank path has no artwork", loaderFor(cache).load("   "))
+        assertEquals("a blank path never reads the cache", 0, cache.calls)
     }
 
-    // ── albumId parse + cache wiring ─────────────────────────────────────────
+    // ── the per-track ref path ───────────────────────────────────────────────
 
+    // Mutation: decode File(artworkPath) instead of the cache's file → the decode sees the wrong file → RED.
     @Test
-    fun `load resolves albumId from a well-formed albumart uri and queries the cache`() = runTest {
-        val path = "content://media/external/audio/albumart/42"
-        coEvery { albumArtworkCache.get(42L, path) } returns null
+    fun songRef_decodesTheCacheFile() = runTest {
+        val file = File("/cache/42-100.jpg")
+        val cache = FakeSongArtworkCache(files = mapOf(42L to file))
 
-        loader.load(path)
+        val result = loaderFor(cache).load("rolla-artwork://song/42?v=100")
 
-        coVerify(exactly = 1) { albumArtworkCache.get(42L, path) }
+        assertSame("the decoded cache file is the widget's bitmap", bitmap, result)
+        assertEquals("get is asked for the parsed ref", listOf(SongArtworkRef(42L, 100L)), cache.getCalls)
+        assertEquals("the cache file is decoded exactly once", listOf(file), decodedFiles)
     }
 
     @Test
     fun `load queries the cache on every call, not just once behind the memo`() = runTest {
-        val path = "content://media/external/audio/albumart/3"
-        val file = tempFolder.newFile("3.jpg") // empty -- BitmapFactory decode fails, exception caught to null
-        coEvery { albumArtworkCache.get(3L, path) } returns file
+        val file = File("/cache/3-100.jpg")
+        val cache = FakeSongArtworkCache(files = mapOf(3L to file))
+        val loader = loaderFor(cache)
 
-        loader.load(path)
-        loader.load(path)
+        loader.load("rolla-artwork://song/3?v=100")
+        loader.load("rolla-artwork://song/3?v=100")
 
-        // The cache's own lastModified touch-for-recency (see AlbumArtworkCacheImpl) is how a
-        // rewritten file busts the memo, so every load must re-resolve the cache -- only the
-        // BitmapFactory decode itself is skippable behind the memo.
-        coVerify(exactly = 2) { albumArtworkCache.get(3L, path) }
+        // A new version of the file publishes a new cache file with a new lastModified, which busts the memo, so every
+        // load must re-resolve the cache; only the decode itself is skippable behind the memo.
+        assertEquals("every load re-resolves the cache", 2, cache.getCalls.size)
+        assertEquals("the unchanged file decodes once", 1, decodedFiles.size)
     }
 
     @Test
-    fun `load returns null immediately when the cache has no decodable art`() = runTest {
-        val path = "content://media/external/audio/albumart/7"
-        coEvery { albumArtworkCache.get(7L, path) } returns null
+    fun `load returns null without decoding when the track has no picture`() = runTest {
+        val cache = FakeSongArtworkCache()
 
-        val bitmap = loader.load(path)
+        val result = loaderFor(cache).load("rolla-artwork://song/7?v=100")
 
-        assertNull(bitmap)
-        verify(exactly = 0) { context.contentResolver }
+        assertNull("no picture has no artwork", result)
+        assertEquals("the cache was asked", 1, cache.getCalls.size)
+        assertEquals("nothing is decoded", emptyList<File>(), decodedFiles)
     }
 
+    // Mutation: a non-ref path is decoded as a file (File(artworkPath)) instead of returning null → decode runs → RED.
     @Test
-    fun `load falls back to direct decode for an unparseable path without touching the cache`() = runTest {
-        every { context.contentResolver } returns resolver
-        every { resolver.openInputStream(any()) } throws SecurityException("no grant")
+    fun nonRefPath_returnsNullWithoutReadingAnything() = runTest {
+        val cache = FakeSongArtworkCache(files = mapOf(1L to File("/cache/1-100.jpg")))
+        val loader = loaderFor(cache)
+        assertSame("control: a ref decodes the cache file", bitmap, loader.load("rolla-artwork://song/1?v=100"))
+        assertEquals("control: the cache path is reachable", 1, cache.calls)
+        assertEquals("control: the decode is observable", 1, decodedFiles.size)
 
-        val bitmap = loader.load("content://media/local/art/not-a-number")
+        val result = loader.load("content://media/external/audio/albumart/1")
 
-        assertNull(bitmap)
-        coVerify(exactly = 0) { albumArtworkCache.get(any(), any()) }
+        assertNull("a MediaStore album uri has no artwork", result)
+        assertEquals("a MediaStore album uri never reads the cache", 1, cache.calls)
+        assertEquals("a MediaStore album uri never decodes anything", 1, decodedFiles.size)
     }
 
-    // ── failure contract ─────────────────────────────────────────────────────
-
+    // Mutation: drop load's catch of non-cancellation exceptions → the IOException escapes load → RED.
     @Test
-    fun `load returns null when the resolver throws SecurityException`() = runTest {
-        every { context.contentResolver } returns resolver
-        every { resolver.openInputStream(any()) } throws SecurityException("no grant")
+    fun getThrows_returnsNull() = runTest {
+        val cache = FakeSongArtworkCache(
+            files = mapOf(1L to File("/cache/1-100.jpg")),
+            failures = mapOf(2L to IOException("disk full")),
+        )
+        val loader = loaderFor(cache)
+        assertSame("control: a ref decodes the cache file", bitmap, loader.load("rolla-artwork://song/1?v=100"))
 
-        val bitmap = loader.load("content://media/local/art/not-a-number")
+        val outcome = runCatching { loader.load("rolla-artwork://song/2?v=200") }
 
-        assertNull(bitmap)
-    }
-
-    @Test
-    fun `load returns null when the cache throws SecurityException`() = runTest {
-        val path = "content://media/external/audio/albumart/1"
-        coEvery { albumArtworkCache.get(1L, path) } throws SecurityException("no grant")
-
-        val bitmap = loader.load(path)
-
-        assertNull(bitmap)
+        assertTrue("a throwing cache must not escape load, got $outcome", outcome.isSuccess)
+        assertNull("a throwing cache has no artwork", outcome.getOrNull())
+        assertEquals("the throwing cache was asked", listOf(1L, 2L), cache.getCalls.map { it.songId })
     }
 
     // ── decodeMemoized: the memo mechanism itself ────────────────────────────
 
     @Test
     fun `decodeMemoized decodes once and memoizes the result for an unchanged key`() {
-        val bitmap = mockk<Bitmap>()
-        val key = WidgetArtworkLoader.DecodeKey.CacheFile(absolutePath = "/cache/1.jpg", lastModified = 1_000L)
+        val loader = loaderFor(FakeSongArtworkCache())
+        val key = WidgetArtworkLoader.DecodeKey(absolutePath = "/cache/1.jpg", lastModified = 1_000L)
         var decodeCallCount = 0
         val decode = {
             decodeCallCount++
@@ -162,6 +146,7 @@ class WidgetArtworkLoaderTest {
 
     @Test
     fun `decodeMemoized busts and re-decodes when the file's lastModified changes`() {
+        val loader = loaderFor(FakeSongArtworkCache())
         val staleBitmap = mockk<Bitmap>()
         val freshBitmap = mockk<Bitmap>()
         var decodeCallCount = 0
@@ -171,13 +156,13 @@ class WidgetArtworkLoaderTest {
         }
 
         val first = loader.decodeMemoized(
-            WidgetArtworkLoader.DecodeKey.CacheFile(absolutePath = "/cache/1.jpg", lastModified = 1_000L),
+            WidgetArtworkLoader.DecodeKey(absolutePath = "/cache/1.jpg", lastModified = 1_000L),
             decode,
         )
-        // Simulates AlbumArtworkCache#invalidate + a subsequent AlbumArtworkCache#get rewriting
-        // the file: same path, new lastModified -- an edited cover must never keep serving stale art.
+        // Simulates the cache rewriting the file: same path, new lastModified -- an edited picture must never keep
+        // serving stale art.
         val second = loader.decodeMemoized(
-            WidgetArtworkLoader.DecodeKey.CacheFile(absolutePath = "/cache/1.jpg", lastModified = 2_000L),
+            WidgetArtworkLoader.DecodeKey(absolutePath = "/cache/1.jpg", lastModified = 2_000L),
             decode,
         )
 
@@ -188,8 +173,9 @@ class WidgetArtworkLoaderTest {
 
     @Test
     fun `decodeMemoized does not memoize a null decode result`() {
+        val loader = loaderFor(FakeSongArtworkCache())
         var decodeCallCount = 0
-        val key = WidgetArtworkLoader.DecodeKey.DirectUri("content://media/local/art/1")
+        val key = WidgetArtworkLoader.DecodeKey(absolutePath = "/cache/1.jpg", lastModified = 1_000L)
 
         val first = loader.decodeMemoized(key) {
             decodeCallCount++
@@ -203,5 +189,35 @@ class WidgetArtworkLoaderTest {
         assertNull(first)
         assertNull(second)
         assertEquals(2, decodeCallCount)
+    }
+
+    /** [files] and [failures] answer `get` by song id; anything else is "no picture". [calls] counts every call. */
+    private class FakeSongArtworkCache(
+        private val files: Map<Long, File> = emptyMap(),
+        private val failures: Map<Long, Exception> = emptyMap(),
+    ) : SongArtworkCache {
+        val getCalls = mutableListOf<SongArtworkRef>()
+        var calls = 0
+            private set
+
+        override suspend fun get(ref: SongArtworkRef): File? {
+            calls++
+            getCalls += ref
+            failures[ref.songId]?.let { throw it }
+            return files[ref.songId]
+        }
+
+        override fun peek(ref: SongArtworkRef): File? {
+            calls++
+            return files[ref.songId]
+        }
+
+        override suspend fun invalidate(songId: Long) {
+            calls++
+        }
+
+        override suspend fun clear() {
+            calls++
+        }
     }
 }

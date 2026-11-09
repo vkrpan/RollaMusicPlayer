@@ -48,6 +48,5 @@ class AlbumsTabViewModelTest {
         title = title,
         artist = artist,
         songCount = 1,
-        artworkUri = "content://media/external/audio/albumart/$id",
     )
 }

@@ -80,10 +80,34 @@ controller writes it, running the id snippet per write. A start-up rule
 in a project file reaches every agent the project ever dispatches.
 
 An observation file comes into being only through
-  bash "<skill directory>/scripts/new-observation.sh" <slug> "C:/Users/VK/.claude/task-observer-workspace"
-which prints the path to write into. Never by copying another file's
+  bash "<skill directory>/scripts/new-observation.sh" <slug> "/c/Users/VK/.claude/task-observer-workspace"
+which prints the path to write into (the helper rejects the C:/ drive-letter form of the same path, so it takes
+the /c/ form here). Never by copying another file's
 header or counting a listing — including on the turn after a
 compaction, when the skill body is out of context.
+
+## Knowledge vault (project memory)
+
+`docs/` is an Obsidian vault and the project's memory: the user's standing rules, decisions, lessons learned, history
+and backlog. Claude's private auto-memory holds only a pointer to it. Entry point `docs/Home.md`; note types,
+frontmatter and query commands in `docs/_meta/Vault conventions.md`.
+
+- **Vault first.** For any question about the project and before any task, grep the vault for the area
+  (`grep -rli "<term>" docs --include=*.md`), read the matching notes and obey every note in `docs/rules/` (index
+  `docs/rules/Rules.md`) before reading code or git history.
+- **Every change reaches every involved entity.** When code or an `.md` file is created, modified or removed, update
+  every vault note that describes it — its feature, module, agent, decision, rule, guide, backlog and timeline notes —
+  before reporting the work done. A change with no vault update is unfinished. Subagents report the entities they
+  touched; the controller writes the vault.
+- **After every compaction**, before resuming: a PostCompact hook saves the summary to `docs/history/sessions/`
+  (`status: to-distill`); distil each such note into the entity notes, then mark it `status: distilled`
+  (`docs/rules/Save compaction summaries to the vault.md`).
+- **Write in the same turn.** A preference the user states ("from now on", "always", "never") → `docs/rules/`; a
+  product or design choice → `docs/decisions/`; a lesson learned the hard way → `docs/knowledge/`; a finished phase
+  → `docs/history/` and `docs/history/Timeline.md`; opened or closed work → `docs/backlog/Backlog.md`. Update an
+  existing note before adding one, mark replaced notes `status: superseded`, and add every note to its folder index.
+- **Point, don't copy.** `.claude/rules/`, `.claude/agents/` and `.claude/skills/` stay where the harness loads them;
+  specs and plans stay in `docs/superpowers/`. Vault notes link to them.
 
 ## Project Overview
 
@@ -108,7 +132,8 @@ compaction, when the skill body is out of context.
 - **Playlists**: Stored in local Room database
 - **Equalizer Presets**: Stored in local Room database
 - **Settings**: DataStore (Preferences) for app configuration and equalizer active-state
-- **Album Artwork**: Cached locally in app-specific storage
+- **Artwork**: each track's own embedded picture, decoded once into a per-track cache in app-specific storage
+  (`SongArtworkCache`, `cacheDir/song_art`); albums, artists and folders have no artwork and show the placeholder
 - **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. A System UI media card that keeps the saved track after the process has died, with a Play that resumes the queue the same way, is designed for the stock-Android System UI (AOSP `MediaResumeListener`) and is **not yet device-verified** (`PlaybackService` is a `MediaLibraryService`; no library is browsable). On Samsung One UI (SM-S901B, Android 14) it is not delivered, because One UI never adds new apps to its media resume list, so on that phone the card disappears when the process dies
 
 ### Technical Implications
@@ -155,17 +180,20 @@ compaction, when the skill body is out of context.
 - Automatic music library scanning and indexing
 - Metadata extraction and display
 - Search across songs, albums, and artists (grouped results; substring match over Room)
-- Album artwork extraction and local disk caching
-- Full ID3 tag editing (title, artist, album, genre, year, track number, album artist, composer, artwork)
+- Per-track artwork: every track shows its own embedded picture (lists, Search, queue, mini-player, Now Playing,
+  notification, lock screen, media card, widget); no picture shows the white note; albums, artists and folders always
+  show the placeholder; the stock-Android resume card always shows the white note
+- Full ID3 tag editing (title, artist, album, genre, year, track number, album artist, composer, artwork), with Change
+  and Remove artwork (MP3, FLAC and M4A only); Set or Remove artwork for many tracks from the Tracks tab's selection ⋮
 - Batch tag editing for multiple files
 - Home: six tabs (Favourites · Playlists · Tracks · Albums · Artists · Folders) with a One UI A–Z fast-scroll rail
 - Folders browsing (every folder that directly holds tracks) and Folder, Album and Artist detail screens, reached from
   the Home tabs, Search and Now Playing's ⋮
 
-> A **custom user-defined tag system** was scoped for Phase 5 but cut from v1.0 — see "Post-1.0 cuts" under Current Status.
+> A **custom user-defined tag system** was scoped for Phase 5 but cut from v1.0 — see `docs/decisions/Custom tag system is cut.md`.
 
 ### Home Screen Widget
-- Album artwork display with high-quality rendering
+- The current track's own artwork (or the white note)
 - Visual timeline/progress bar
 - 15-second skip backward/forward buttons
 - Previous/next track buttons
@@ -187,7 +215,7 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 ├── :core:common        # The library order (text/LibraryOrder.kt: indexLetter, sortedByLibraryName), shared by :core:data and :core:designsystem. Dispatcher qualifiers are still per module (e.g. CoreDataIoDispatcher, TagEditorIoDispatcher, WidgetIoDispatcher)
 ├── :core:database      # Room: entities, DAOs, migrations, MusicDatabase
 ├── :core:datastore     # DataStore: app settings (theme/dynamic color/speed/skip-silence), equalizer active-state, recent searches
-├── :core:data          # Repositories + media scanner
+├── :core:data          # Repositories + media scanner + the per-track artwork cache (SongArtworkCache)
 ├── :core:media         # Media3 PlaybackService (a MediaLibraryService), MediaSession, the queue (QueueState/QueuePublisher), queue save/restore, audio session, equalizer effect
 ├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
 ├── :core:ui            # Model-aware shared composables (SongListItem, list rows, AlbumCard, FeatureCard, SongOptionsHost)
@@ -222,56 +250,10 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 - `build-logic/`, root Gradle, version catalog, `:baselineprofile` → build-tooling-agent
 - `:core:model` is a shared contract — settle model names once (the codebase uses **`Song`**, not `Track`)
 
-## Development Phases
+## Development history
 
-### Phase 1: Foundation (Weeks 1-2)
-- Project setup and dependencies
-- Basic UI structure with Compose
-- Room database schema
-- Media scanning implementation
-
-### Phase 2: Core Playback (Weeks 3-4)
-- ExoPlayer integration
-- Playback service with MediaSession
-- Notification controls
-- Basic player UI
-
-### Phase 3: Library Management (Weeks 5-6)
-- Library screens (songs, albums, artists, genres)
-- Search and filtering
-- Album artwork handling
-- Navigation implementation
-
-### Phase 4: Playlists (Week 7)
-- Playlist creation and management
-- Playlist UI
-- Drag-and-drop reordering
-
-### Phase 5: Advanced Features (Weeks 8-9)
-- 8-band equalizer implementation
-- Preset management
-- Audio visualization
-- Tag editor (single and batch)
-- Custom tag system
-
-### Phase 6: Widget & Polish (Week 10)
-- Home screen widget implementation
-- UI/UX refinements
-- Performance optimization
-- Bug fixes
-
-### Phase 7: Testing & Release (Weeks 11-12)
-- Comprehensive testing
-- Documentation
-- Release preparation
-
-### Phase 8: Polish & Release (post-Phase-7 closeout)
-- Album detail and artist detail screens (closing out the Phase 3 leftover)
-- Album artwork disk cache
-- UI style-guide conformance sweep and accessibility (TalkBack, touch targets, contrast, font scale) pass
-- Test debt closure (`MediaWriteRequester` SDK branches, Compose UI smoke suite)
-- Baseline profile (startup + library scroll)
-- Signed, R8-minified release build verified in airplane mode — **v1.0.0**
+v1.0 was built in Phases 0–8 (2026-06-29 to 2026-07-23; prompt docs in `docs/history/v1-phases/`), the One UI redesign
+in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
 
 ## Key Design Decisions
 
@@ -291,139 +273,23 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 - **Permissions**: READ_MEDIA_AUDIO (Android 13+), READ_EXTERNAL_STORAGE (older versions) - storage only
 - **Scoped Storage**: Handle Android 10+ storage restrictions properly
 - **Battery Optimization**: Proper service lifecycle management for background playback
-- **Memory Management**: Efficient bitmap loading for album art from local storage
+- **Memory Management**: Efficient bitmap loading for artwork from the per-track cache
 - **Audio Focus**: Handle audio focus changes properly for local playback
 - **MediaSession**: Proper integration for system controls (no Android Auto streaming)
 
 ## Current Status
 
-> **One UI redesign: Phases 1–7 complete on branch `feat/oneui-redesign`, pending the user's commit and merge.**
-> The binding spec is `docs/superpowers/specs/2026-10-06-oneui-redesign-design.md`; the phases and their plans are in
-> `docs/superpowers/plans/2026-10-06-oneui-redesign-roadmap.md`. Where this file disagrees with the spec, the spec wins.
-> What the redesign shipped:
-> - **App identity:** the launcher label and every user-visible name is "Rolla Music"; an adaptive icon (white note on
->   `#2F6FF0`, with a monochrome layer for themed icons; a layer-list below API 26).
-> - **Design system:** One UI tokens (`RollaDimens`, `RollaShapes`, semantic colours and type), `RollaIcons` (no
->   Material icons: detekt's `ForbiddenImport` plus the `checkNoMaterialIcons` scan, which also catches fully
->   qualified references) and the kit in `:core:designsystem/component/` (sheets, dialogs, menus, fields, pill buttons,
->   switch, round checkbox, sliders, tab row, content panel, A–Z rail). Calibrated against the reference screenshots on
->   the Motorola edge 70 in Phase 7 (`docs/design/oneui-measurements.md`); the remaining differences are recorded there
->   as accepted.
-> - **Home** is the start destination: the "Rolla Music" header, the centre-weighted six-tab pager (Favourites ·
->   Playlists · Tracks · Albums · Artists · Folders), each tab in a content panel, and a floating mini-player pill.
->   Tracks, Favourites, Playlists (user rows), Artists and Folders have the A–Z rail; every Home list is in one library
->   order (`#` first, then A–Z, ignoring case and accents; `:core:common`'s `LibraryOrder.kt`). Everything below
->   Home's header ends at the navigation bar's top. No bottom navigation bar; `LibraryScreen` and `PlaylistsScreen`
->   are gone.
-> - **Screens:** Now Playing (with a real queue sheet), Equaliser, Settings, Search, the tag editors, the permission
->   prompt, AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist and FolderDetail, all on the kit. UI copy says
->   "Tracks" and "Equaliser"; code says `Song` and `Equalizer*`. A missing artist shows as "Unknown"
->   (`artistDisplayName`), while data and routes keep the raw `<unknown>`.
-> - **Data:** Room **v5**: v4 added `songs.folder_path` (`FolderDao`, `FolderRepository`), v5 the playback queue
->   (`playback_queue`, `playback_state`). All migrations are in one `ALL_MIGRATIONS` list that `MigrationTest` replays.
-> - **Queue restore:** the queue, position, shuffle order and repeat mode are saved and restored paused on the next
->   start; a headset or Bluetooth Play resumes them. The stock-Android System UI resume card is designed for, not
->   verified (see "Data Storage Strategy"); Samsung One UI does not offer it.
-> - **Widget:** the One UI look (spec §13), device-checked on the Motorola edge 70 (API 36) on 2026-10-23 and
->   2026-10-27: one row by default, a centred mode for taller cards (ruling P14), the artwork hiding below 339 dp.
->   Not checked on a device: a real artwork bitmap, a large system font, the light system theme, anything below API 31.
-> - **Build hygiene (Phase 7):** no annotation-target or CDS warnings in builds and test logs; the detekt plugin version
->   is in the version catalog; a refreshed baseline profile covers the tab swipes and the rail's first jump.
+- **v1.0.0** shipped on `main` (2026-07-23). Detail: `docs/history/v1.0 release.md`.
+- **One UI redesign** Phases 1–7 complete on `feat/oneui-redesign` (last commit `15821b4`, pushed), waiting for the
+  user's merge into `main`. Detail: `docs/history/One UI redesign.md`.
+- **Per-track artwork**: built on `feat/oneui-redesign` (2026-11-08/09), final review ready to merge, device walk passed;
+  not committed yet. Spec
+  `docs/superpowers/specs/2026-11-08-per-track-artwork-design.md`, plan `docs/superpowers/plans/2026-11-08-per-track-artwork.md`,
+  status `docs/features/Per-track artwork.md`.
+- Backlog, review follow-ups, the custom-tag-system cut and next steps: `docs/backlog/Backlog.md`. History by date:
+  `docs/history/Timeline.md`.
 
-**Status**: **v1.0 shipped on `main`** (2026-07-23). **The One UI redesign (Phases 1–7) is complete on
-`feat/oneui-redesign`** and waits for the user's commit and merge; its final gate and device walk are recorded in the
-Phase 7 ledger.
-**Last Updated**: 2026-11-01
-
-### Post-1.0 cuts (deliberate, not defects)
-
-One thing described in this repo's specs was consciously scoped out. If a future prompt flags it as "missing", it is
-deferred, not broken; don't build it without an explicit ask:
-
-- **Custom tag system:** deferred during Phase 5, formally cut at v1.0. The shipped tag editor covers the full standard
-  field set (title/artist/album/genre/year/track/album artist/composer + artwork) for MP3/FLAC/M4A; a user-defined
-  custom-tag layer on top of that is the only piece not built.
-
-The other three v1.0 cuts (the A–Z fast-scroll index, the centre-weighted tab bar and Folders browsing) were built by
-the One UI redesign at the user's request (Phases 2, 4b and 5) and are shipped on `feat/oneui-redesign`.
-
-### What's shipped (on `main`)
-
-| Area | Commits | Notes |
-|---|---|---|
-| Project scaffold, multi-module build | foundation | Convention plugins, version catalog, detekt + Spotless pre-commit hook |
-| `:core:model` — domain models | foundation | `Song`, `Album`, `Artist`, `Playlist`, `EqualizerPreset`, `RepeatMode`, `ShuffleMode` |
-| `:core:database` — Room | foundation | Entities, DAOs, `MusicDatabase` |
-| `:core:datastore` — DataStore | foundation | Settings + equalizer active-state |
-| `:core:common` — utilities | foundation; redesign Phase 5 | Empty at v1.0. The redesign's Phase 5 adds the library order (`LibraryOrder.kt`). Dispatcher qualifiers stay per module |
-| `:core:designsystem` — theme | foundation | Color, Typography, Shape tokens + semantic extensions (`songTitle`, `miniPlayerContainer`, `sliderInactiveTrack`, etc.) per ui-style-guide |
-| `:core:permissions` — permission gate | foundation | Version-aware READ_MEDIA_AUDIO / READ_EXTERNAL_STORAGE, rationale UI, Settings routing |
-| `:core:data` — repositories + scanner | foundation | MediaStore scanner, Song/Album/Artist repositories |
-| `:core:media` — ExoPlayer service | `c0c507d`+ | `PlaybackService` (MediaLibraryService), `PlaybackController`, `PlaybackStateHolder`, position ticker |
-| `:feature:library` — library screens | foundation | Songs/Albums/Artists/Genres lists |
-| `:feature:player` — Now Playing + Mini-player | `286867f`, `066306b` | Full Now Playing screen, persistent mini-player pill, shared-element artwork transition (spring physics, reduced-motion aware), `PlayerViewModel`, `MiniPlayerViewModel` |
-| Navigation | `c0c507d` | Type-safe `@Serializable` routes, `SharedTransitionLayout` wiring |
-| Audit fixes | `066306b` | artworkUri pipeline fixed, `ProcessLifecycleOwner` release, recomposition scope (position ticks scoped to seekbar only), stable lambdas, `PlayPauseButton` accessibility, `hasSong` StateFlow |
-| `:feature:playlists` — playlists | `c532e58`…`55c4b01` | Smart playlists (Recently played / Favourites / Most played), user playlists, playlist detail with key-based drag-and-drop reorder (reduced-motion aware), add-to-playlist sheet, play-count tracking + favourite toggle, transactional DAO position integrity (append/remove/compact), Room v2 migration |
-| Equalizer — `:core:media` engine + `:feature:equalizer` UI | `524f6e1`…`58b22e9` | `EqualizerController` (audiofx wrapper: nearest-band mapping for the 9 target frequencies, bandLevelRange clamping, thread-safe + exception-contained), service lifecycle binding (attach/re-apply persisted state on session-id change, guaranteed release on destroy), active state in DataStore + named presets in Room (DB v3, tested migration), 9 vertical spring sliders + preset chip grid + gains-driven response curve (real `Visualizer` rejected — requires RECORD_AUDIO, conflicts with privacy positioning), `Equalizer` route wired from Now Playing |
-| `:feature:tageditor` — tag editor | `546154d`…`98868cc` | Offline jaudiotagger fork (`com.github.Adonai`, local IO only) + `SongTags` model, `TagReader`/`TagWriter` (MP3/FLAC/M4A contract-tested against real fixture files), scoped-storage write consent per SDK (`createWriteRequest` 30+ / `RecoverableSecurityException` recovery 29 / legacy WRITE_EXTERNAL_STORAGE maxSdk=28 requested at point of use), single-song editor + batch editing (per-field apply toggles, per-song outcomes, partial-failure summaries), copy-through-cache write via `SongFileResolver`, post-save `TagSaveFinalizer` (MediaStore re-scan → targeted Room re-sync preserving user state → now-playing metadata refresh via `replaceMediaItem`), local-image artwork embedding (PhotoPicker, `isAndroid` flag for FLAC on-device decode), cancel/back guarded mid-save, long-press entry points in library |
-| `:feature:search` — library search | `8c22705`…`adc4577` | LIKE-based substring search over Room (deliberate FTS4 rejection — documented in `SearchDao`; wildcard-escaped, prefix-first relevance), grouped results Songs/Albums/Artists (albums/artists derived via `GROUP BY` over `songs` — no new tables; synthetic FNV-1a artist id, display-only since redesign Phase 4a; lists key artists by name), `SearchRepository` + `SearchResults` model, debounced (300ms) cancellable `SearchViewModel` (`flatMapLatest`, instant-Idle on blank, SavedStateHandle-seeded), SearchScreen (auto-focus field, IME-safe single-owner insets, sectioned results), shared `AlbumRow`/`ArtistRow` in `:core:ui`, `Search(query: String? = null)` route + library/playlists top-bar entries + `rollamusic://search` deep link, recent searches in DataStore (capped MRU 10, escaped codec, best-effort writes) |
-| `:feature:settings` + settings vertical | `1b1a4a9`…`36b5366` | SettingsPreferences in the shared "settings" DataStore (theme mode enum codec, dynamic color, playback speed, skip silence — crossfade/gapless-toggle/pureBlack REJECTED as decorative, recorded in PHASE6-SETTINGS.md), SettingsRepository with two-sided speed clamping, PlaybackSettingsBinder (service-lifecycle binding: speed via Player API, skipSilence via ExoPlayer-only API w/ UnstableApi opt-in, persisted values re-applied on service start), settings-driven theme (MainViewModel → RollaMusicPlayerTheme; resolved-theme edge-to-edge bar contrast; LocalRollaDarkTheme fixing a forced-theme WCAG bug in miniPlayerContainer/sliderInactiveTrack), grouped-cards SettingsScreen per §6 (theme picker dialog, API-31-gated dynamic color row, optimistic write-on-release speed slider), Privacy/About/Licenses screens (all local: PackageInfo version, hand-curated OSS list), manual rescan with progress + result snackbar (LibraryIndexer now serializes concurrent syncs via internal Mutex — fixed a TOCTOU race), Settings/About/Licenses/Privacy routes + overflow (⋮) entries in Library and Playlists |
-| `:feature:widget` — Glance home widget | `9fa3a73`…`4e91047` | §8 dark rounded card (GlanceTheme ColorProviders mapped from the §2 palette — deliberately day==night; Glance can't read the app's Compose tokens), 56dp artwork w/ single-entry memoized 256px two-pass downscale (review-gate HIGH: was re-decoding per 1s tick), title/artist, primary progress bar, previous · −15s · play/pause · +15s · next controls (all content-described) + body-tap → app, five stateless ActionCallbacks via WidgetEntryPoint driving the ONE PlaybackController (no second player; ±15s = seekTo clamped, pure-function tested), cold-tap-safe (controller commands queue on the connect future), push-updated via the PlaybackUpdateHook multibinding seam (:core:media dispatcher fires after state-holder writes on track change/play-pause/1s tick-while-playing; widget side coalesces via replay-1 DROP_OLDEST SharedFlow), updatePeriodMillis=0 (never polls), receiver exported=true (review-gate CRITICAL: false leaves the widget un-addable — platform-protected broadcasts, no attack surface), picker preview drawable |
-| Unit tests | `066306b`+ | Turbine/MockK suites across player (44), playlists (ViewModel/DAO/repository + migration), equalizer (controller 19, repository 12, DataStore codec 11, ViewModel 15, session manager 7, plus androidTest DAO/migration/converter), tag editor (ViewModel 25, batch ViewModel 20, finalizer 6, 8×3 format contract tests), search (ViewModel 21 incl. flatMapLatest-cancellation proof, repository 8, recents codec 17, androidTest DAO 11), settings (ViewModel 20 incl. gated rescan state machine, repository 14, prefs codec, PlaybackSettingsBinder 8, MainViewModel 6, LibraryIndexer 10 incl. mutex-serialization proofs), and widget (state 5, provider 4, sample-size 8, loader 3, seek-clamp 10, update-hook coalescing 3, plus core-media dispatcher 5 + controller queuing 7) |
-| **Phase 8 — Polish & Release** | | |
-| `:feature:library` — Album/Artist detail | `23b6fb1`, `b31abda` | `AlbumDetail(albumId: Long)` and `ArtistDetail(artistName: String)` routes — artist is routed by name (the real `ArtistDao` `GROUP BY` key), deliberately *not* Search's synthetic FNV-1a hash id, which is display-only (lists key artists by name since redesign Phase 4a); artwork header + title/artist/counts + Shuffle/Play + song list w/ track numbers (Album), horizontal `AlbumCard` strip + all songs (Artist); wired from both `LibraryScreen` and Search's previously-dormant `onAlbumClick`/`onArtistClick` |
-| `:core:data` — album artwork disk cache | `7a61bd3` | `AlbumArtworkCache`/`AlbumArtworkCacheImpl`, albumId-keyed and downscaled into app-specific storage, bounded (32MiB, LRU by write-timestamp), mutex-serialized writes off the main thread, served through a Coil `ImageLoaderFactory` interceptor; invalidated on manual rescan and on tag-editor cover-embed (hooked into `TagSaveFinalizer` so an edited cover shows everywhere immediately); missing/undecodable art falls back to the existing placeholder; shared by the widget's artwork loader |
-| UI style-guide audit | `9fbde91` | Insets (NowPlaying nav-bar clearance, removed a double status-bar inset), empty states added (AlbumDetail/ArtistDetail songs, Playlists user list), 48dp control touch targets, `AddToPlaylistSheet` divider, recomposition scoping (Library multi-select and equalizer drag via `derivedStateOf` + `@Immutable`) — audit confirmed the fast-scroll/tab-bar/Folders gaps above are conscious cuts, not bugs |
-| Accessibility pass | `89ae1da` | Full TalkBack walk of every screen; meaningful contentDescriptions/stateDescriptions, `mergeDescendants` on rows; custom accessibility actions ("Move up"/"Move down") added to `PlaylistDetailScreen` as an accessible equivalent to the drag-based reorder; ≥48dp touch targets everywhere (EQ sliders, overflow, widget controls); WCAG AA contrast re-verified in both themes; fontScale 1.5 survives without clipping |
-| Test debt closure | `4d5f2eb` | `MediaWriteRequester` SDK-branch tests (`createWriteRequest` 30+ / `RecoverableSecurityException` 29 / legacy ≤28) via Robolectric/mockkStatic; Compose UI smoke suite covering library → tap song → mini-player → expand now-playing, search query → tap result, and add-to-playlist |
-| Baseline profile | `e0b2636` | `:baselineprofile` Macrobenchmark module: cold-start and library-scroll journeys generated on a frames-capable managed device; profile committed and packaged into the release build |
-| Release build | `1f86d53`, `074e994` | R8 `minifyEnabled` + `shrinkResources` with verified keep rules (kotlinx-serialization `@Serializable` routes, jaudiotagger reflection, Media3, Glance receivers, Room, Hilt); local keystore signing read only from `local.properties`/env, never committed — the release build type ships **unsigned with a warning** if signing config is absent rather than silently falling back to debug signing; `versionCode 1` / `versionName "1.0.0"`; a `checkReleaseManifestNoInternet` Gradle task reads the real merged manifest and fails `./gradlew check` if `INTERNET` (or similar) ever sneaks in; regression-tested on the release build in airplane mode (play, EQ, tag edit + scoped-storage consent, search, playlists, widget, deep links, process-death restore) |
-
-### Review follow-ups (non-blocking, from the Phase 8 final gate — 2026-07-23)
-
-code-reviewer's final pass before the v1.0 merge found no CRITICAL/HIGH issues. Three narrow,
-self-healing items were logged as backlog rather than fixed pre-merge:
-
-1. `TagSaveFinalizer.onSongsSaved` puts `albumArtworkCache.invalidate(it)` in the same try block as
-   `refreshPlayback(songs)` — if invalidation throws, the metadata refresh is silently skipped too.
-   `SettingsViewModel.clearArtworkCacheBestEffort` already isolates the same cache's `clear()` call in
-   its own try/catch for exactly this reason; `TagSaveFinalizer` should match that pattern.
-2. **Closed in redesign Phase 4a.** `AlbumArtworkCacheImpl.get`'s hit-path `file.exists()` check ran outside the write
-   mutex, so a reader could see a partially written file. The cache now writes a temp file and renames it into place, so
-   a visible file is always complete.
-3. `AlbumArtworkCache.invalidations: SharedFlow<Long>` has no production subscriber (only exercised in
-   tests) — either wire a real consumer or trim it.
-
-### What remains (backlog)
-
-- The custom tag system cut above: revisit only on explicit ask.
-- **Scroll performance:** on the `pixel6Api31Frames` emulator the Tracks list's frame-duration P90 (with the baseline
-  profile) is 96.3 ms against v1.0.0's 70.9 ms (+35.9 %; startup +13.4 %). The final review found no cause in the
-  Phase 7 diff; the gap spans the whole redesign (pager, panel, rail, overlay pill). Next step: benchmark 8f4ce3a
-  against HEAD and take a system trace of `ScrollBenchmark` (Phase 7 ledger, `benchmarks-v1-vs-phase7.md`).
-- **"Unknown" sorts under `#`** in the Artists tab (it is the raw `<unknown>` key that sorts; Phase 7 ruling P9 kept
-  it). Sorting it by its display name is a small, separate change.
-- Review follow-ups #1 and #3 above (#2 was closed in redesign Phase 4a).
-- Optional consolidation: move the per-module dispatcher qualifiers into `:core:common` (it holds the library order).
-- **Redesign test-hygiene minors** (Phase 7 ruling 7): pure test or doc polish from the phase ledgers, none visible to a
-  user. Each entry is in the named ledger under `.superpowers/sdd/<plan>/progress.md` (git-ignored; the summaries below
-  are the record once the workspace is gone):
-
-  | Ledger | Items |
-  |---|---|
-  | Phase 5 (`2026-10-17-oneui-phase5-fast-scroll`) | T1 M1, M2; T2 M3; T3 M1, M2, M4; T4 M1, M6; T5 M3, M6–M9 |
-  | 6a (`2026-10-18-oneui-phase6a-details-sheets`) | T1 M1–M6; T2 M2–M6; T3 M1–M5; T4 M1–M3; T5 M2, M4–M7; T6 M1–M5; T7 M1, M2 |
-  | 6b (`2026-10-21-oneui-phase6b-search-editors`) | T1 M5; T2 M3–M6; T3 M3–M5; T5 M3; the WhileSubscribed re-record |
-  | 6c (`2026-10-22-oneui-phase6c-widget`) | ±15 not pinned as stroked; the preview's `VectorRaster` lint; the ink-mask colour; widget layout values unpinned (M-4); the bar clearance's zero margin |
-  | 7, Task 11 and final review | `AddToPlaylistSheetSmokeTest.clickingNewPlaylistRow` is flaky on the Motorola (1 failure in 4 runs, "No compose hierarchies found"); `buildFastScrollSections` throws on a list not in library order instead of degrading (ruling P36); the tag editor and the permission prompt borrow `settingsSectionGap` (now 13 dp) for their own spacing; `checkNoMaterialIcons` has no Gradle-level test of its wiring and also matches comments |
-  | 7 (`2026-10-27-oneui-phase7-calibration-release`) | the `minor (deferred)` lines for Tasks 3b, 5 and 6 (EQ card height unpinned, divider tests' coverage, the transport's even-spread fallback below ≈334 dp, the shared `miniPlayerArtGlyph` name, the widget picker preview's old corners, a possible first-frame scrim, the search field's async query round-trip, the search-field overload duplication, `searchFlow` containment details, the trailing-control width edge, rail test polish) |
-
-## Next Steps
-
-1. Commit Phase 7 and merge `feat/oneui-redesign` into `main` (the user's call), then tag the release.
-2. Verify the System UI resume card on a stock-Android device (designed for, not yet seen).
-3. Triage the backlog above; the custom tag system is a new feature, so treat it as a fresh ask.
+**Last Updated**: 2026-11-09
 
 ## Notes
 

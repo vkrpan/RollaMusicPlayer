@@ -1,0 +1,12 @@
+filters:
+  and:
+    - 'type == "rule"'
+views:
+  - type: table
+    name: Rules
+    order:
+      - file.name
+      - status
+      - date
+      - tags
+      - source

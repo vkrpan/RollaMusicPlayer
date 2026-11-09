@@ -9,7 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import javax.inject.Qualifier
 
 /**
- * Qualifies the [CoroutineDispatcher] used for [com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache]'s
+ * Qualifies the [CoroutineDispatcher] used for [com.rolla.musicplayer.core.data.artwork.SongArtworkCache]'s
  * local disk-cache IO (decode, file write, eviction). `:core:common` has no established
  * dispatcher-qualifier convention yet -- `:feature:tageditor`'s `TagEditorIoDispatcher` and
  * `:feature:widget`'s `WidgetIoDispatcher` hit the same gap -- so this mirrors that precedent and

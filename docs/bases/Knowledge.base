@@ -1,0 +1,12 @@
+filters:
+  or:
+    - 'type == "knowledge"'
+    - 'type == "device"'
+views:
+  - type: table
+    name: Knowledge
+    order:
+      - file.name
+      - type
+      - date
+      - tags

@@ -126,7 +126,6 @@ private fun testAlbum() = Album(
     title = "A Night at the Opera",
     artist = "Queen",
     songCount = 12,
-    artworkUri = "",
 )
 
 private fun testArtist() = Artist(

@@ -32,7 +32,7 @@ class ArtistsTabViewModelTest {
         val viewModel = ArtistsTabViewModel(repository)
         val job = launch { viewModel.artists.collect {} }
         // Names differ only in case: both artists must come through, in the repository's order.
-        val artists = listOf(Artist(1L, "Queen", 2, 5, "a"), Artist(2L, "queen", 1, 1, "b"))
+        val artists = listOf(Artist(1L, "Queen", 2, 5), Artist(2L, "queen", 1, 1))
 
         repository.emitArtists(artists)
         advanceUntilIdle()

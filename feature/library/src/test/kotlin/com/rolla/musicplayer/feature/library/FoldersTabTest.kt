@@ -142,6 +142,6 @@ class FoldersTabTest {
     }
 
     private companion object {
-        fun folder(path: String) = Folder(path = path, name = folderName(path), songCount = 1, artworkUri = "")
+        fun folder(path: String) = Folder(path = path, name = folderName(path), songCount = 1)
     }
 }

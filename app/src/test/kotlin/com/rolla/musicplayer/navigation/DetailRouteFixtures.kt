@@ -71,7 +71,6 @@ internal object DetailRouteFixtures {
                     title = "A Night at the Opera",
                     artist = ARTIST_NAME,
                     songCount = songs.size,
-                    artworkUri = "",
                 ),
             )
             emitSongs(songs)

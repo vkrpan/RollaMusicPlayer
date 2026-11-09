@@ -343,7 +343,7 @@ class SearchScreenTest {
 
         fun results(songs: List<Song>) = SearchResults(
             songs = songs,
-            albums = listOf(Album(id = 5L, title = "Night Album", artist = "Queen", songCount = 3, artworkUri = "")),
+            albums = listOf(Album(id = 5L, title = "Night Album", artist = "Queen", songCount = 3)),
             artists = listOf(Artist(id = 9L, name = "Queen", albumCount = 1, songCount = 3)),
         )
     }

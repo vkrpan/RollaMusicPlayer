@@ -533,7 +533,7 @@ IconButton(onClick = { play() }) {
 
 Image(
     painter = painterResource(R.drawable.album_art),
-    contentDescription = "Album artwork for ${album.title}",
+    contentDescription = "Artwork for ${song.title}",
     modifier = Modifier.size(200.dp)
 )
 

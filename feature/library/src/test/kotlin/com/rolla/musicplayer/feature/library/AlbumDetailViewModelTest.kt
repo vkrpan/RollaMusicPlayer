@@ -52,7 +52,6 @@ class AlbumDetailViewModelTest {
         title = "Test Album",
         artist = "Test Artist",
         songCount = 3,
-        artworkUri = "content://media/external/audio/albumart/$id",
     )
 
     private fun createTestSongs(count: Int, albumId: Long = 1L): List<Song> = (1..count).map { index ->

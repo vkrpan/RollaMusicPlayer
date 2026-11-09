@@ -25,7 +25,7 @@ Three wiring facts determine whether the widget works. Every other step exists t
 ## Prerequisites
 - `:core:media` exposes `PlaybackStateHolder` (single source of truth for current song, isPlaying, position, duration), `PlaybackController` (with `connect()` + transport commands routed through `withConnectedController` queuing — **main-thread only**, because it calls `MediaController` directly once connected), and the `PlaybackUpdateHook` seam (`fun interface` + `PlaybackUpdateDispatcher` + `@Multibinds` in `PlaybackUpdateModule`)
 - Hilt is configured (for `EntryPointAccessors` in the receiver/callbacks)
-- `AlbumArtworkCache` (in `:core:data`) is available for downscaled local artwork
+- `SongArtworkCache` (in `:core:data`) gives each track's embedded picture as a downscaled local JPEG
 - Minimum SDK 24; widget targets the same min/target as the app
 - Module direction is fixed: `:feature:widget` depends on `:core:media`; `:core:media` MUST NOT depend on `:feature:widget`
 
@@ -48,7 +48,7 @@ feature/widget/src/main/AndroidManifest.xml
 // feature/widget/build.gradle.kts
 dependencies {
     implementation(project(":core:media"))    // PlaybackStateHolder, PlaybackController, PlaybackUpdateHook
-    implementation(project(":core:data"))      // AlbumArtworkCache
+    implementation(project(":core:data"))      // SongArtworkCache
     implementation(libs.glance.appwidget)      // version catalog: glance = "1.1.0"
     implementation(libs.glance.material3)
     implementation(project(":core:designsystem")) // RollaDimens.widget* sizes
@@ -116,23 +116,22 @@ class WidgetStateProviderImpl @Inject constructor(
 > `current()` and `states` must share one mapping function (`WidgetStateProviderTest` asserts `states.first() == current()`), and `durationMs` comes from the holder's flow, never `Song.durationMs` (the service builds `Song` with `durationMs = 0` on transition).
 
 ### Step 3: Load and Downscale Local Artwork
-**Goal**: A memory-safe bitmap for the widget (no network, no oversized bitmaps), routed through the shared `AlbumArtworkCache`.
+**Goal**: A memory-safe bitmap for the widget (no network, no oversized bitmaps), routed through the shared per-track `SongArtworkCache`.
 
 ```kotlin
 // WidgetArtworkLoader.kt
 @Singleton
 class WidgetArtworkLoader @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val albumArtworkCache: AlbumArtworkCache,
+    private val songArtworkCache: SongArtworkCache,
     @WidgetIoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) {
     suspend fun load(artworkPath: String?): Bitmap? {
         if (artworkPath.isNullOrBlank()) return null
         return withContext(ioDispatcher) {
             try {
-                // Parse albumId off the content://.../albumart/{albumId} uri, ask the shared cache
-                // for an already-downscaled local JPEG file, then two-pass decode it with inSampleSize
-                // to a ~256px target. Unparseable paths fall back to a direct content:// decode.
+                // Parse the song's rolla-artwork://song/{id}?v={version} value (parseSongArtworkUri; any
+                // other path → null, never a content:// read), ask SongArtworkCache.get(ref) for an
+                // already-downscaled local JPEG, then two-pass decode it with inSampleSize to ~256px.
                 // Memoize the last decode by (path, lastModified) so the ~1s tick doesn't re-decode.
                 decodeDownscaled(artworkPath)   // returns null on any failure → placeholder
             } catch (e: CancellationException) {
@@ -472,7 +471,7 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 
 **Widget crashes when a song has large embedded art.**
 - Cause: full-resolution bitmap parceled through RemoteViews (`TransactionTooLargeException`).
-- Fix: route through `AlbumArtworkCache` + two-pass `BitmapFactory` decode with `inSampleSize` (~256px target).
+- Fix: route through `SongArtworkCache` + two-pass `BitmapFactory` decode with `inSampleSize` (~256px target).
 
 **Compile error: `:core:media` can't see `MusicWidget`.**
 - Cause: someone tried to call the widget from the service directly.
@@ -486,7 +485,7 @@ The hook needs no explicit state hand-off: `WidgetStateProvider` reads the holde
 - `feature/widget/src/test/.../WidgetStateProviderTest.kt` — `current()` mapping + live `states` emissions
 - `feature/widget/.../MusicWidgetState.kt` — render snapshot
 - `feature/widget/.../WidgetStateProvider.kt` — read-only adapter over `PlaybackStateHolder`
-- `feature/widget/.../WidgetArtworkLoader.kt` — local bitmap decode/downscale via `AlbumArtworkCache`
+- `feature/widget/.../WidgetArtworkLoader.kt` — local bitmap decode/downscale via `SongArtworkCache`
 - `feature/widget/.../WidgetEntryPoint.kt` — Hilt entry point
 - `feature/widget/.../WidgetModule.kt` — `@Binds` provider + `@Binds @IntoSet` hook
 - `feature/widget/.../WidgetPlaybackUpdateHook.kt` — coalesced `updateAll`

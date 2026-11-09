@@ -25,48 +25,37 @@ import kotlinx.coroutines.flow.Flow
 interface ArtistDao {
 
     /**
-     * Every artist (exact-name groups), ordered case-insensitively, then binary, so "Queen" and
-     * "queen" sit together in a stable order. artworkUri is the cover of the artist's alphabetically
-     * first album: the inner query has exactly one MIN() aggregate, so SQLite takes the bare
-     * artwork_uri column from that row (documented SQLite behaviour). One scan, with no per-artist
-     * subquery.
+     * Every artist (exact-name groups) with its album and song counts, ordered case-insensitively,
+     * then binary, so "Queen" and "queen" sit together in a stable order. One scan, with no
+     * per-artist subquery.
      */
     @Query(
         """
-        SELECT name, albumCount, songCount, artworkUri FROM (
-            SELECT
-                artist AS name,
-                COUNT(DISTINCT album_id) AS albumCount,
-                COUNT(*) AS songCount,
-                artwork_uri AS artworkUri,
-                MIN(album COLLATE NOCASE) AS firstAlbum
-            FROM songs
-            GROUP BY artist
-        )
+        SELECT
+            artist AS name,
+            COUNT(DISTINCT album_id) AS albumCount,
+            COUNT(*) AS songCount
+        FROM songs
+        GROUP BY artist
         ORDER BY name COLLATE NOCASE ASC, name ASC
         """,
     )
     fun observeArtists(): Flow<List<ArtistSearchRow>>
 
     /**
-     * The artist summary for [artistName] — the same derived-table shape as [observeArtists]
-     * (counts plus the cover of the artist's alphabetically first album, see [ArtistSearchRow]),
-     * filtered to one exact name. Emits `null` when no songs by that artist exist (e.g. the
-     * artist's songs were removed by a re-scan).
+     * The artist summary for [artistName] — the same shape as [observeArtists] (see
+     * [ArtistSearchRow]), filtered to one exact name. Emits `null` when no songs by that artist
+     * exist (e.g. the artist's songs were removed by a re-scan).
      */
     @Query(
         """
-        SELECT name, albumCount, songCount, artworkUri FROM (
-            SELECT
-                artist AS name,
-                COUNT(DISTINCT album_id) AS albumCount,
-                COUNT(*) AS songCount,
-                artwork_uri AS artworkUri,
-                MIN(album COLLATE NOCASE) AS firstAlbum
-            FROM songs
-            WHERE artist = :artistName
-            GROUP BY artist
-        )
+        SELECT
+            artist AS name,
+            COUNT(DISTINCT album_id) AS albumCount,
+            COUNT(*) AS songCount
+        FROM songs
+        WHERE artist = :artistName
+        GROUP BY artist
         """,
     )
     fun observeArtist(artistName: String): Flow<ArtistSearchRow?>
@@ -83,8 +72,7 @@ interface ArtistDao {
             album_id AS albumId,
             album AS title,
             MIN(artist) AS artist,
-            COUNT(*) AS songCount,
-            MAX(artwork_uri) AS artworkUri
+            COUNT(*) AS songCount
         FROM songs
         WHERE artist = :artistName
         GROUP BY album_id

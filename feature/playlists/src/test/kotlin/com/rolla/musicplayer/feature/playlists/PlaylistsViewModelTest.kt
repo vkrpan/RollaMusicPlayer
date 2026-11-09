@@ -140,13 +140,14 @@ class PlaylistsViewModelTest {
         collectJob.cancel()
     }
 
+    // Spec goal 8: the collage is the first four tracks, each tile that track's own picture or the placeholder, so the
+    // preview neither skips a track nor drops a repeated value. Control: the fifth track's value is left out (the cap
+    // still holds). Mutation: restore `.filter { it.isNotBlank() }` → [a, a, b, c] → RED; restore `.distinct()` →
+    // [a, "", b, c] → RED.
     @Test
-    fun smartPlaylists_previewArtworkUris_skipsSongsWithoutArtBeforeCapping() = runTest {
-        // The first four songs have no art and the fifth does: capping before filtering would leave every card a
-        // placeholder although the playlist has art to show.
-        val songs = createTestSongs(count = 5).mapIndexed { index, song ->
-            if (index < 4) song.copy(artworkUri = "") else song
-        }
+    fun summary_takesTheFirstFourTracksUnfiltered() = runTest {
+        val art = listOf("a", "", "a", "b", "c")
+        val songs = createTestSongs(count = art.size).mapIndexed { index, song -> song.copy(artworkUri = art[index]) }
         val received = mutableListOf<List<SmartPlaylistSummary>>()
         val collectJob = launch { viewModel.smartPlaylists.collect { received.add(it) } }
 
@@ -155,31 +156,8 @@ class PlaylistsViewModelTest {
 
         received.last().forEach { summary ->
             assertEquals(
-                "${summary.kind} preview must keep the fifth song's art",
-                listOf(songs[4].artworkUri),
-                summary.previewArtworkUris,
-            )
-        }
-
-        collectJob.cancel()
-    }
-
-    @Test
-    fun smartPlaylists_previewArtworkUris_dropsDuplicateAlbumArt() = runTest {
-        // artworkUri is per album: four tracks of one album plus one of another are two covers, not five.
-        val songs = createTestSongs(count = 5).mapIndexed { index, song ->
-            if (index < 4) song.copy(artworkUri = "content://media/external/audio/albumart/1") else song
-        }
-        val received = mutableListOf<List<SmartPlaylistSummary>>()
-        val collectJob = launch { viewModel.smartPlaylists.collect { received.add(it) } }
-
-        fakeSongRepository.emit(songs)
-        advanceUntilIdle()
-
-        received.last().forEach { summary ->
-            assertEquals(
-                "${summary.kind} preview must hold each album's art once",
-                listOf(songs[0].artworkUri, songs[4].artworkUri),
+                "${summary.kind} preview is the first four tracks' values, in order, unfiltered",
+                listOf("a", "", "a", "b"),
                 summary.previewArtworkUris,
             )
         }

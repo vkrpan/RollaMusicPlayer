@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.os.Build
 import androidx.annotation.VisibleForTesting
+import com.rolla.musicplayer.core.model.songArtworkUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,6 +50,7 @@ class MediaScanner @Inject constructor(
         while (cursor.moveToNext()) {
             val id = cursor.getLong(cols.id)
             val albumId = cursor.getLong(cols.albumId)
+            val dateModified = cursor.getLong(cols.dateModified)
             val rawTrack = cursor.getInt(cols.track)
             // MediaStore encodes disc*1000 + track; modulo extracts the actual track number.
             val trackNumber = if (rawTrack > 0) rawTrack % MediaStoreColumns.DISC_TRACK_MULTIPLIER else null
@@ -62,8 +64,9 @@ class MediaScanner @Inject constructor(
                 trackNumber = trackNumber,
                 year = cursor.getInt(cols.year).takeIf { it > 0 },
                 contentUri = ContentUris.withAppendedId(MediaStoreColumns.COLLECTION, id).toString(),
-                artworkUri = ContentUris.withAppendedId(MediaStoreColumns.ALBUM_ART_URI, albumId).toString(),
-                dateModified = cursor.getLong(cols.dateModified),
+                // The same value SongEntity.toDomain derives at read time (spec §5.4).
+                artworkUri = songArtworkUri(id.toString(), dateModified),
+                dateModified = dateModified,
                 folderPath = FolderPaths.fromColumn(Build.VERSION.SDK_INT, cursor.getString(cols.folder)),
             )
         }

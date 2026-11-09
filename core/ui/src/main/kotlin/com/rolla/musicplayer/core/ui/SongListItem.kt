@@ -20,12 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.rolla.musicplayer.core.designsystem.component.InsetDivider
@@ -47,9 +44,8 @@ import com.rolla.musicplayer.core.model.artistDisplayName
  * caller to redefine as "toggle selection" for as long as selection mode stays active. All three
  * parameters default to their single-song, non-selectable behavior.
  *
- * [trackNumber] swaps the leading artwork thumbnail for a fixed-width numeric label -- intended for
- * album detail, where every row already shares the same album art, so the disc track number is the
- * more useful leading affordance (see AlbumDetailContent in `:feature:library`). Defaults to null.
+ * The leading slot is always the song's own [ArtworkThumbnail]; album detail rows show it like every other track list
+ * (per-track artwork spec goal 2a).
  *
  * Geometry comes from [RollaDimens]: a [RollaDimens.listRowHeight] pitch, the thumbnail at
  * [RollaDimens.listThumbStart], text at [RollaDimens.listTextStart], and the trailing 48 dp target ending
@@ -61,7 +57,6 @@ fun SongListItem(
     song: Song,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    trackNumber: Int? = null,
     onMoreClick: () -> Unit = {},
     selected: Boolean = false,
     selectionModeActive: Boolean = false,
@@ -74,7 +69,6 @@ fun SongListItem(
         SongListItemContent(
             song = song,
             onClick = onClick,
-            trackNumber = trackNumber,
             onMoreClick = onMoreClick,
             selected = selected,
             selectionModeActive = selectionModeActive,
@@ -96,7 +90,6 @@ fun SongListItem(
 private fun SongListItemContent(
     song: Song,
     onClick: () -> Unit,
-    trackNumber: Int?,
     onMoreClick: () -> Unit,
     selected: Boolean,
     selectionModeActive: Boolean,
@@ -115,7 +108,7 @@ private fun SongListItemContent(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Spacer(modifier = Modifier.width(RollaDimens.listThumbStart))
-        SongItemLeading(song = song, trackNumber = trackNumber)
+        SongItemLeading(song = song)
         Spacer(modifier = Modifier.width(RollaDimens.listThumbTextGap))
         SongInfo(title = song.title, artist = artistDisplayName(song.artist), modifier = Modifier.weight(1f))
         SongItemTrailing(
@@ -218,44 +211,21 @@ private fun SongInfo(
     }
 }
 
-/**
- * Leading slot: a [TrackNumberLabel] when [trackNumber] is non-null (album detail rows, where the
- * shared album art makes the disc number the more useful affordance), else the [ArtworkThumbnail].
- */
+/** Leading slot: the song's own [ArtworkThumbnail]. */
 @Composable
-private fun SongItemLeading(song: Song, trackNumber: Int?) {
-    if (trackNumber != null) {
-        TrackNumberLabel(trackNumber = trackNumber)
-    } else {
-        // Decorative within the merged row: announcing the album name here made TalkBack read
-        // artwork-description + title + artist as one verbose run (same reasoning as MiniPlayer's
-        // null'd artwork). The row's own text carries the content.
-        ArtworkThumbnail(artworkUri = song.artworkUri, contentDescription = null)
-    }
+private fun SongItemLeading(song: Song) {
+    // Decorative within the merged row: announcing the album name here made TalkBack read
+    // artwork-description + title + artist as one verbose run (same reasoning as MiniPlayer's
+    // null'd artwork). The row's own text carries the content.
+    ArtworkThumbnail(
+        artworkUri = song.artworkUri,
+        contentDescription = null,
+        modifier = Modifier.testTag(SONG_ROW_ARTWORK_TEST_TAG),
+    )
 }
 
-/**
- * Leading track-number slot, swapped in for [ArtworkThumbnail] when the row is given a non-null
- * `trackNumber` (see [SongListItem]). Sized to the same [RollaDimens.listThumb] width so title/artist text
- * still starts at [RollaDimens.listTextStart], in line with artwork-led rows elsewhere.
- */
-@Composable
-private fun TrackNumberLabel(trackNumber: Int, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.width(RollaDimens.listThumb),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = trackNumber.toString(),
-            style = MaterialTheme.typography.artistName,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            // The merged row would otherwise open with a bare digit ("1, Death on Two Legs...");
-            // frame it so TalkBack reads "Track 1, ..." instead.
-            modifier = Modifier.clearAndSetSemantics { contentDescription = "Track $trackNumber" },
-        )
-    }
-}
+/** Test tag on a song row's leading artwork thumbnail. */
+const val SONG_ROW_ARTWORK_TEST_TAG = "song_row_artwork"
 
 private fun previewSong(id: String, title: String, trackNumber: Int): Song = Song(
     id = id,
@@ -271,21 +241,20 @@ private fun previewSong(id: String, title: String, trackNumber: Int): Song = Son
 )
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Song List Item - Track Number - Light")
-@Preview(name = "Song List Item - Track Number - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Song List Item - Light")
+@Preview(name = "Song List Item - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
-private fun PreviewSongListItemTrackNumber() {
+private fun PreviewSongListItem() {
     RollaMusicPlayerTheme {
         Column {
             SongListItem(
                 song = previewSong("1", "Bohemian Rhapsody", trackNumber = 1),
                 onClick = {},
-                trackNumber = 1,
             )
             SongListItem(
                 song = previewSong("2", "You're My Best Friend", trackNumber = 2),
                 onClick = {},
-                trackNumber = 2,
+                showDivider = false,
             )
         }
     }

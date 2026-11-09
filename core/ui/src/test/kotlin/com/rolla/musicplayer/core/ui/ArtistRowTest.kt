@@ -77,7 +77,7 @@ class ArtistRowTest {
     // circle.
     @Test
     fun `avatar is a circle`() {
-        setRow(Artist(id = 1L, name = "Queen", albumCount = 1, songCount = 1, artworkUri = ""))
+        setRow(Artist(id = 1L, name = "Queen", albumCount = 1, songCount = 1))
         // Guard: if a token change made the two colours equal, the probes below would prove nothing.
         assertFalse(
             "background and placeholder must be distinguishable",

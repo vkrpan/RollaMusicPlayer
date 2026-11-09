@@ -1,6 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor
 
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.data.scanner.LibraryIndexer
 import com.rolla.musicplayer.core.media.PlaybackController
@@ -23,22 +23,24 @@ import javax.inject.Inject
  * 2. **Targeted re-sync** -- [LibraryIndexer.syncSongs] for just the saved songs' MediaStore ids,
  *    so the library reflects the new tags without a full rescan and without losing per-song user
  *    state (favourite/play count -- the indexer's merge guarantees that).
- * 3. **Invalidate cached artwork** -- [AlbumArtworkCache.invalidate] for each distinct
- *    `albumId` among the saved songs. This runs BEFORE step 4 (refresh playback) on purpose:
- *    `refreshPlayback` fires the playback-metadata update that re-renders now-playing and the
- *    widget, so the stale cached cover must already be gone by then -- dropping it first means
- *    those re-renders (and Coil, via the file's changed last-modified) re-decode the freshly
- *    embedded art instead of serving the evicted copy. Multiple saved songs can share an album,
- *    so `distinct()` avoids redundant invalidations.
+ * 3. **Invalidate cached artwork** -- [SongArtworkCache.invalidate] for every saved song's id
+ *    (spec §5.3): each track has its own picture, so each drops its own cached entry, positive or
+ *    "no picture". This runs BEFORE step 4 (refresh playback) on purpose: the refresh re-renders
+ *    now-playing, the notification and the widget, and a save within the same second leaves the
+ *    row's `dateModified` (and so the artwork value's version) unchanged (ruling R6), so the stale
+ *    entry must already be gone for the next load to read the file again. It also runs when steps
+ *    1-2 failed: the file changed regardless, so its cached picture is stale either way.
  * 4. **Refresh playback** -- for each saved song, [PlaybackController.updateSongMetadata] with the
- *    freshly re-synced row, so the now-playing UI, queue, and media notification (and the widget,
- *    once Phase 6 builds it on the same playback state) re-render the new tags if that song is
- *    loaded. Songs the re-sync removed (file vanished between write and sync) are skipped.
+ *    freshly re-synced row, so the now-playing UI, queue, media notification and widget re-render
+ *    the new tags if that song is loaded. Songs the re-sync removed (file vanished between write
+ *    and sync) are skipped. Skipped when steps 1-2 failed: there is no re-synced row to push.
  *
  * The whole pipeline is **best-effort by design**: the user's file write has already succeeded by
- * the time this runs, so a failure here (scanner hiccup, DB error, cache eviction failure) must
- * never be reported as a failed save -- it is swallowed, and the next full library sync repairs
- * the staleness. Callers should still `await` this before closing their screen: it runs in the
+ * the time this runs, so a failure here (scanner hiccup, DB error, cache failure) must never be
+ * reported as a failed save -- it is swallowed, and the next full library sync repairs the
+ * staleness. Steps 1-2 share one guard; each song's invalidation has its own, and so does the
+ * refresh, so one failing invalidation neither skips the other songs' nor the refresh (v1.0 review
+ * follow-up #1). Callers should still `await` this before closing their screen: it runs in the
  * caller's scope, and the library list the user returns to should already show the new tags.
  *
  * Call from the main dispatcher (any `viewModelScope` launch): each collaborator hops to its own
@@ -50,26 +52,37 @@ class TagSaveFinalizer @Inject constructor(
     private val libraryIndexer: LibraryIndexer,
     private val songRepository: SongRepository,
     private val playbackController: PlaybackController,
-    private val albumArtworkCache: AlbumArtworkCache,
+    private val songArtworkCache: SongArtworkCache,
 ) {
 
     suspend fun onSongsSaved(songs: List<Song>) {
         if (songs.isEmpty()) return
-        try {
-            val paths = songs.mapNotNull { songFileResolver.resolveFilePath(it) }
-            mediaScanNotifier.awaitScan(paths)
-            libraryIndexer.syncSongs(songs.mapNotNull { it.id.toLongOrNull() })
-            songs.map { it.albumId }.distinct().forEach { albumArtworkCache.invalidate(it) }
-            refreshPlayback(songs)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
-            // Best-effort: the file write already succeeded; never surface this as a save error.
+        val songIds = songs.mapNotNull { it.id.toLongOrNull() }
+        val reSynced = bestEffort {
+            mediaScanNotifier.awaitScan(songs.mapNotNull { songFileResolver.resolveFilePath(it) })
+            libraryIndexer.syncSongs(songIds)
+        }
+        songIds.forEach { songId -> bestEffort { songArtworkCache.invalidate(songId) } }
+        if (reSynced) {
+            bestEffort { refreshPlayback(songs) }
         }
     }
 
     private suspend fun refreshPlayback(saved: List<Song>) {
         val updatedById = songRepository.observeSongs().first().associateBy(Song::id)
         saved.forEach { song -> updatedById[song.id]?.let(playbackController::updateSongMetadata) }
+    }
+
+    /**
+     * Runs one pipeline step, swallowing any failure but cancellation: the file write already succeeded, so a step's
+     * failure is never surfaced as a save error. Returns whether the step completed.
+     */
+    private inline fun bestEffort(step: () -> Unit): Boolean = try {
+        step()
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
+        false
     }
 }

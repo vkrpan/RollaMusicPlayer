@@ -9,7 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import javax.inject.Qualifier
 
 /**
- * Qualifies the [CoroutineDispatcher] used for [WidgetArtworkLoader]'s local `content://` bitmap
+ * Qualifies the [CoroutineDispatcher] used for [WidgetArtworkLoader]'s local cache-file bitmap
  * decode. Nothing here is Android-specific, so tests supply their own dispatcher directly to the
  * constructor instead of going through Hilt.
  *

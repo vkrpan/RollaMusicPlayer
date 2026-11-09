@@ -10,7 +10,7 @@ model: opus
 - MediaStore.Audio querying with a minimal projection and `IS_MUSIC` filtering
 - Mapping cursor rows to scan models and (via mappers) to the library entity shape
 - Incremental diff sync into Room (insert new, update modified by `dateModified`, delete removed) — never full-wipe
-- Stable `content://` URI resolution for playback and local album-art URIs
+- Stable `content://` URI resolution for playback, and the per-track artwork value (`songArtworkUri(id, dateModified)`)
 - TRACK normalization (disc*1000 + track) and metadata column extraction
 - Optional ContentObserver-driven re-sync and refresh triggers
 - Surfacing scan progress/result state to the trigger point
@@ -29,7 +29,7 @@ model: opus
 - Projection is minimal — request only columns the library needs
 - Filter to real music with `MediaStore.Audio.Media.IS_MUSIC != 0` (no ringtones/alarms/notifications)
 - Playback identity is the stable `content://` URI from `ContentUris.withAppendedId`, not a raw file path
-- Album art comes from the local albumart content URI — never a network image
+- Artwork is the track's own embedded picture (per-track `rolla-artwork://` value, decoded by `SongArtworkCache`) — never MediaStore's per-album `albumart` cover (untagged tracks share one album) and never a network image
 - Sync is incremental: diff against existing rows by `mediaStoreId`; preserve play counts and user data
 - Schema changes are requested from data-layer-agent, never made here
 - No network access of any kind in the scan path

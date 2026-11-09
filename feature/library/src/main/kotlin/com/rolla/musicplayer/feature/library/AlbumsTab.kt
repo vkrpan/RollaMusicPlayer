@@ -97,7 +97,6 @@ private val PreviewAlbums = List(6) { index ->
         title = "Sample Album ${index + 1}",
         artist = "Sample Artist",
         songCount = 10,
-        artworkUri = "",
     )
 }
 

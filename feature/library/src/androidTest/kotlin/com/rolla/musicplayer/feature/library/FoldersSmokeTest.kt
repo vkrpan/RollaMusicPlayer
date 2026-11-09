@@ -28,8 +28,8 @@ class FoldersSmokeTest {
 
     // In library order (spec §9.0), as FolderRepository delivers them: the A–Z rail's sections rely on it.
     private val folders = listOf(
-        Folder(path = "Music/Jazz", name = "Jazz", songCount = 1, artworkUri = ""),
-        Folder(path = "Music/Rock", name = "Rock", songCount = 2, artworkUri = ""),
+        Folder(path = "Music/Jazz", name = "Jazz", songCount = 1),
+        Folder(path = "Music/Rock", name = "Rock", songCount = 2),
     )
     private val songsByFolder = mapOf(
         "Music/Rock" to listOf(song("1", "Bohemian Rhapsody"), song("2", "Hotel California")),

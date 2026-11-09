@@ -51,7 +51,13 @@ class PlaybackControllerTest {
 
     private val context: Context = mockk(relaxed = true)
     private val playbackStateHolder = PlaybackStateHolder()
-    private val controller = PlaybackController(context, playbackStateHolder)
+
+    /** The current song as the hook saw it, one entry per hook run: proves both the count and holder-first order. */
+    private val hookSaw = mutableListOf<Song?>()
+    private val playbackUpdateDispatcher = PlaybackUpdateDispatcher(
+        setOf(PlaybackUpdateHook { hookSaw += playbackStateHolder.currentSong.value }),
+    )
+    private val controller = PlaybackController(context, playbackStateHolder, playbackUpdateDispatcher)
 
     private val future: ListenableFuture<MediaController> = mockk(relaxed = true)
     private val mediaController: MediaController = mockk(relaxed = true)
@@ -287,6 +293,39 @@ class PlaybackControllerTest {
             mediaController.seekToDefaultPosition(1)
             mediaController.play()
         }
+    }
+
+    // Final review I1: replaceMediaItem keeps the window uid, so no transition fires and a paused widget would keep the
+    // old picture. Trivial stub (updateSongMetadata does nothing) → the holder keeps v1 and the hook never runs → RED.
+    // Mutations: drop the dispatch → hook runs 0 times → RED; dispatch before setCurrentSong → the hook sees v1 → RED.
+    @Test
+    fun `updateSongMetadata on the current song runs the update hooks once, after the holder write`() = withStubbedUri {
+        resolveFuture()
+        every { mediaController.mediaItemCount } returns 0
+        val v1 = testSong("cur").copy(artworkUri = "rolla-artwork://song/1?v=1")
+        val v2 = v1.copy(artworkUri = "rolla-artwork://song/1?v=2")
+        playbackStateHolder.setCurrentSong(v1)
+
+        controller.updateSongMetadata(v2)
+
+        assertEquals("the holder carries the re-synced song", v2, playbackStateHolder.currentSong.value)
+        assertEquals("the hooks run exactly once, and see the new song", listOf<Song?>(v2), hookSaw)
+    }
+
+    // Absence half: a save of a track that is not playing changes nothing the widget shows. Control: the same call on
+    // the current song runs the hook. Mutation: dispatch outside the `current` branch → the first call runs it → RED.
+    @Test
+    fun `updateSongMetadata on a song that is not current runs no update hook`() = withStubbedUri {
+        resolveFuture()
+        every { mediaController.mediaItemCount } returns 0
+        val current = testSong("cur")
+        playbackStateHolder.setCurrentSong(current)
+
+        controller.updateSongMetadata(testSong("other"))
+        assertEquals("a song that is not current runs no hook", emptyList<Song?>(), hookSaw)
+
+        controller.updateSongMetadata(current)
+        assertEquals("control: the current song does run the hook", listOf<Song?>(current), hookSaw)
     }
 
     // Mutation: expose a fresh MutableStateFlow instead of the holder's → RED.

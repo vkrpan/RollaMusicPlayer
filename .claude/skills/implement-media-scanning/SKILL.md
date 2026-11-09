@@ -1,12 +1,12 @@
 ---
 name: implement-media-scanning
-description: "Step-by-step workflow for scanning local audio with the MediaStore API and indexing it into the Room library database — querying songs, extracting metadata and album-art URIs, incremental re-scans, and exposing the library as Flow. Fully offline, no network metadata lookups."
+description: "Step-by-step workflow for scanning local audio with the MediaStore API and indexing it into the Room library database — querying songs, extracting metadata and the per-track artwork value, incremental re-scans, and exposing the library as Flow. Fully offline, no network metadata lookups."
 ---
 
 # Skill: Implement Media Scanning
 
 ## Overview
-A workflow for discovering the user's local audio via `MediaStore.Audio` and indexing it into the Room database so the rest of the app reads from a fast local source of truth. Covers the projection/query, mapping cursor rows to entities, album-art URIs, incremental re-scans (only changed files), and exposing the indexed library as a reactive `Flow`. All metadata comes from local files and MediaStore — there are no online lookups.
+A workflow for discovering the user's local audio via `MediaStore.Audio` and indexing it into the Room database so the rest of the app reads from a fast local source of truth. Covers the projection/query, mapping cursor rows to entities, the per-track artwork value, incremental re-scans (only changed files), and exposing the indexed library as a reactive `Flow`. All metadata comes from local files and MediaStore — there are no online lookups.
 
 ## When to Use
 - First launch after the audio permission is granted
@@ -77,7 +77,7 @@ data class ScannedSong(
     val dateAdded: Long,
     val dateModified: Long,
     val contentUri: String,   // stable content:// uri for playback
-    val artworkUri: String    // album-art content uri (local)
+    val artworkUri: String    // per-track value rolla-artwork://song/{id}?v={dateModified}
 )
 
 class MediaScanner @Inject constructor(
@@ -110,10 +110,8 @@ class MediaScanner @Inject constructor(
                 val contentUri = ContentUris.withAppendedId(
                     MediaStoreColumns.COLLECTION, id
                 ).toString()
-                val artworkUri = ContentUris.withAppendedId(
-                    Uri.parse("content://media/external/audio/albumart"),
-                    c.getLong(albumIdCol)
-                ).toString()
+                // Per-track artwork (never MediaStore's per-album albumart: untagged tracks share one album)
+                val artworkUri = songArtworkUri(id.toString(), dateModified)
 
                 // TRACK is encoded as disc*1000 + track; normalize
                 val rawTrack = c.getInt(trackCol)
@@ -276,7 +274,7 @@ class MediaStoreObserver(
 ## Notes
 - Map `ScannedSong` → `SongEntity` with an extension; the entity shape is owned by data-layer-agent.
 - Store `mediaStoreId` on the entity so incremental sync can diff and delete precisely.
-- Album art via the `albumart` content uri is local; Coil/Glance can render it without network.
+- Artwork is each track's embedded picture, decoded locally by `SongArtworkCache`; Coil (`SongArtworkInterceptor`), Glance and the notification render it without network.
 - Heavy libraries: keep the projection minimal and batch upserts; consider a `@Transaction` for the upsert+delete pair.
 - Do not request WRITE permission here — scanning is read-only.
 

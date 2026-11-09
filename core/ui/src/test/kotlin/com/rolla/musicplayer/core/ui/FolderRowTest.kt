@@ -36,7 +36,7 @@ class FolderRowTest {
     // Mutations: subtitle = folder.path → "Music/Chill" → RED; title = folder.path → RED.
     @Test
     fun `shows the folder name over its display path`() {
-        setRow(Folder(path = "Music/Chill", name = "Chill", songCount = 3, artworkUri = ""))
+        setRow(Folder(path = "Music/Chill", name = "Chill", songCount = 3))
         composeRule.onNodeWithText("Chill").assertExists()
         composeRule.onNodeWithText("/Internal storage/Music/Chill").assertExists()
     }
@@ -46,7 +46,7 @@ class FolderRowTest {
     // the padding → width reads 22 dp → RED (the right-edge check trips first, 66 vs 64 dp).
     @Test
     fun `the badge sits inset in the thumbnail's bottom-end corner`() {
-        setRow(Folder(path = "Music", name = "Music", songCount = 1, artworkUri = ""))
+        setRow(Folder(path = "Music", name = "Music", songCount = 1))
         val thumb = composeRule.onNodeWithTag(FOLDER_THUMB_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
         val badge = composeRule.onNodeWithTag(FOLDER_BADGE_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertEquals(thumb.right - RollaDimens.folderBadgeInset, badge.right)
@@ -58,7 +58,7 @@ class FolderRowTest {
     @Test
     fun `tapping the row calls onClick once`() {
         var clicks = 0
-        setRow(Folder(path = "Music", name = "Music", songCount = 1, artworkUri = ""), onClick = { clicks++ })
+        setRow(Folder(path = "Music", name = "Music", songCount = 1), onClick = { clicks++ })
         composeRule.onNodeWithText("Music").performClick()
         assertEquals(1, clicks)
     }

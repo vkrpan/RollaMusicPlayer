@@ -58,11 +58,10 @@ class FolderDaoTest {
         folderPath = folderPath,
     )
 
-    // Fixture: in "Music" the alphabetically first title ("alpha") is the MIDDLE insert, and binary order would pick
-    // "Mid" ('M' < 'a'). Mutations: drop the MIN() column → the bare column comes from an arbitrary (last) row "Mid" →
-    // RED; MIN(title) without COLLATE NOCASE → "Mid" → RED; COUNT(*) → COUNT(DISTINCT album_id) → 1 → RED.
+    // A folder carries no artwork (per-track artwork spec goal 3), so the row is the path and its song count.
+    // Mutation: COUNT(*) → COUNT(DISTINCT album_id) → 1 → RED.
     @Test
-    fun observeFolders_countsSongsAndTakesTheFirstTitlesArtwork() = runTest {
+    fun observeFolders_countsSongs() = runTest {
         songDao.upsertSongs(
             listOf(
                 song("1", "Zeta", "Music", artworkUri = "art-zeta"),
@@ -70,7 +69,7 @@ class FolderDaoTest {
                 song("3", "Mid", "Music", artworkUri = "art-mid"),
             ),
         )
-        assertEquals(listOf(FolderSummary("Music", 3, "art-alpha")), folderDao.observeFolders().first())
+        assertEquals(listOf(FolderSummary("Music", 3)), folderDao.observeFolders().first())
     }
 
     // Review Focus 1. Mutations: drop `WHERE folder_path IS NOT NULL` → a NULL-path group appears (or the mapping to a
@@ -85,13 +84,13 @@ class FolderDaoTest {
             ),
         )
         assertEquals(
-            listOf(FolderSummary("", 1, "art-root"), FolderSummary("Music", 1, "art-music")),
+            listOf(FolderSummary("", 1), FolderSummary("Music", 1)),
             folderDao.observeFolders().first(),
         )
     }
 
     // Fixture: insertion order is neither the expected order nor binary order. Mutation: drop COLLATE NOCASE from the
-    // outer ORDER BY → [Alpha, Charlie, beta] → RED.
+    // ORDER BY → [Alpha, Charlie, beta] → RED.
     @Test
     fun observeFolders_ordersPathsCaseInsensitively() = runTest {
         songDao.upsertSongs(
@@ -101,8 +100,7 @@ class FolderDaoTest {
     }
 
     // Plan ruling 15: folders group by the exact path. Fixture: the insertion order (music, Music, Music) is the
-    // reverse of the expected order, and "Music"'s artwork comes from its first title "b" (song 2), not its first
-    // insert.
+    // reverse of the expected order.
     // Device mutation: `GROUP BY folder_path COLLATE NOCASE` → the two paths fold into one row → RED.
     @Test
     fun observeFolders_groupsByExactPath() = runTest {
@@ -110,7 +108,7 @@ class FolderDaoTest {
             listOf(song("1", "a", "music"), song("2", "b", "Music"), song("3", "c", "Music")),
         )
         assertEquals(
-            listOf(FolderSummary("Music", 2, "art-2"), FolderSummary("music", 1, "art-1")),
+            listOf(FolderSummary("Music", 2), FolderSummary("music", 1)),
             folderDao.observeFolders().first(),
         )
     }

@@ -25,13 +25,14 @@ class TagReader @Inject constructor(
 ) {
 
     /**
-     * Reads [file]'s tag, creating an in-memory default tag (never written to disk) via
-     * [org.jaudiotagger.audio.AudioFile.getTagOrCreateAndSetDefault] when the file has none --
-     * that path yields an all-blank [SongTags], not an error.
+     * Reads [file]'s tag through [editableTag], the same tag the writer edits: an in-memory
+     * default tag (never written to disk) when the file has none -- that path yields an all-blank
+     * [SongTags], not an error -- and, for an MP3 with only an ID3v1 tag, an in-memory ID3v2 tag
+     * built from it, so the editor shows the file's existing text (ruling P18). Never writes.
      */
     suspend fun read(file: File): SongTags = withContext(ioDispatcher) {
         val audioFile = AudioFileIO.read(file)
-        val tag = audioFile.tagOrCreateAndSetDefault
+        val tag = audioFile.editableTag()
         SongTags(
             title = tag.firstOrBlank(FieldKey.TITLE),
             artist = tag.firstOrBlank(FieldKey.ARTIST),
@@ -42,6 +43,15 @@ class TagReader @Inject constructor(
             trackNumber = tag.firstOrBlank(FieldKey.TRACK),
             composer = tag.firstOrBlank(FieldKey.COMPOSER),
         )
+    }
+
+    /**
+     * Whether [file]'s own tag embeds at least one picture, including a FLAC picture stored as a Vorbis-comment field
+     * ([hasAnyArtwork], ruling P17). Reads the tag as it is on disk (no default tag is created), so an untagged file
+     * answers false.
+     */
+    suspend fun hasArtwork(file: File): Boolean = withContext(ioDispatcher) {
+        AudioFileIO.read(file).tag?.hasAnyArtwork() == true
     }
 }
 

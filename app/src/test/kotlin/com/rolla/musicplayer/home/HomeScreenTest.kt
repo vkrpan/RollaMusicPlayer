@@ -17,19 +17,25 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
@@ -48,18 +54,33 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.Insets
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.component.homeListBottomPadding
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.designsystem.theme.chipLabel
+import com.rolla.musicplayer.core.designsystem.theme.screenTitle
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.ui.SongSelectionState
 import com.rolla.musicplayer.core.ui.rememberSongSelectionState
+import com.rolla.musicplayer.feature.tageditor.SelectionArtworkActions
+import com.rolla.musicplayer.feature.tageditor.SelectionArtworkResult
+import com.rolla.musicplayer.feature.tageditor.SelectionArtworkUiState
+import com.rolla.musicplayer.feature.tageditor.SelectionArtworkViewModel
+import io.mockk.every
+import io.mockk.mockk
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -104,6 +125,19 @@ class HomeScreenTest {
     // text style (MenuTokens.ListItemLabelTextFont). The Home menu test tells the two apart by rendered text height.
     private var songTitleLineHeight = Dp.Unspecified
     private var menuDefaultLineHeight = Dp.Unspecified
+
+    // setHomeWithActions: what HomeScreen hands the artwork-actions slot, the working flag fed back to it, and a
+    // snackbar host with a scope to show messages on.
+    private var actionIds: List<Long> = emptyList()
+    private var actionResult: (SelectionArtworkResult) -> Unit = {}
+    private var busy by mutableStateOf(false)
+
+    // setHomeAtLargeFont: its font scale (one composition flips it) and the two title sizes read inside the theme.
+    private var fontScale by mutableStateOf(LARGE_FONT)
+    private var screenTitleSize = TextUnit.Unspecified
+    private var chipLabelSize = TextUnit.Unspecified
+    private val snackbarHostState = SnackbarHostState()
+    private lateinit var snackbarScope: CoroutineScope
 
     @Test
     fun startsOnTracksAndTitleIsRollaMusic() {
@@ -407,6 +441,254 @@ class HomeScreenTest {
         assertEquals("Search must fire once", 1, searchClicks)
     }
 
+    // Spec §5.5 / ruling P2: the selection bar hands the selection to the artwork actions as MediaStore ids, and their
+    // result keeps only the failed tracks selected; an empty failed set clears the selection. The fake slot holds the
+    // callback HomeScreen gives it. Trivial stub: the slot never composed → no ids → RED. Mutation: clear on every
+    // result → "2" is not kept → RED.
+    @Test
+    fun result_keepsOnlyFailedSelected() {
+        setHomeWithActions()
+        composeRule.runOnIdle {
+            selection.toggle("1")
+            selection.toggle("2")
+        }
+        composeRule.runOnIdle {
+            assertEquals("the actions get the selection as ids", listOf(1L, 2L), actionIds)
+            actionResult(SelectionArtworkResult(setOf("2")))
+        }
+        composeRule.runOnIdle {
+            assertEquals("only the failed track stays selected", setOf("2"), selection.selectedIds)
+        }
+        composeRule.onNodeWithText("1 selected").assertExists("the bar counts the kept track")
+
+        composeRule.runOnIdle { actionResult(SelectionArtworkResult(emptySet())) }
+        composeRule.runOnIdle { assertFalse("control: an empty failed set clears the selection", selection.isActive) }
+    }
+
+    // Plan Task 8: while the actions are working, ✕, Back and "Edit tags" are disabled, and the bar stays even if the
+    // selection empties (its effects deliver the result). Control: all three work while idle. Trivial stub: busy
+    // ignored → ✕ stays enabled → RED. Mutations: drop navigationEnabled → RED on ✕; Back clears while busy → RED.
+    @Test
+    fun busy_locksCloseEditTagsAndBack() {
+        setHomeWithActions()
+        composeRule.runOnIdle { selection.toggle("1") }
+        composeRule.onNodeWithContentDescription("Close selection").assertIsEnabled()
+        composeRule.onNodeWithText("Edit tags").assertIsEnabled()
+
+        composeRule.runOnIdle { busy = true }
+        composeRule.onNodeWithContentDescription("Close selection").assertIsNotEnabled()
+        composeRule.onNodeWithText("Edit tags").assertIsNotEnabled()
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+        assertTrue("Back does not clear the selection while working", selection.isActive)
+        composeRule.runOnIdle { selection.clear() }
+        composeRule.onNodeWithContentDescription("Close selection").assertExists("the bar stays while working")
+
+        composeRule.runOnIdle { busy = false }
+        composeRule.waitForIdle() // the lock is released by the recomposition that follows busy = false
+        composeRule.runOnIdle { selection.toggle("1") }
+        composeRule.runOnIdle { assertTrue("control: selecting again works after the work", selection.isActive) }
+        composeRule.runOnUiThread { composeRule.activity.onBackPressedDispatcher.onBackPressed() }
+        composeRule.waitForIdle()
+        assertFalse("control: Back clears once the work is over", selection.isActive)
+    }
+
+    // Insets table (Home row): the snackbar host sits inside HomeBelowHeader, padded by homeListBottomPadding(), so its
+    // container ends exactly on top of the pill (64 dp here) above the navigation bar (48 dp). The host's own bounds
+    // are measured, not the text's. Control: the message shows inside the host. Trivial stub: no SnackbarHost → RED.
+    // Mutation: drop the bottom padding → the host ends at the navigation bar → RED.
+    @Test
+    fun snackbar_clearsTheNavigationBarAndThePill() {
+        setHomeWithActions()
+        val navigationBar = 48.dp
+        sendNavigationBar(navigationBar)
+        composeRule.runOnIdle { snackbarScope.launch { snackbarHostState.showSnackbar(SNACKBAR_TEXT) } }
+
+        val root = composeRule.onRoot().getBoundsInRoot()
+        val text = composeRule.onNodeWithText(SNACKBAR_TEXT).assertExists("the message shows").getBoundsInRoot()
+        val host = composeRule.onNodeWithTag(HOME_SNACKBAR_HOST_TAG).getBoundsInRoot()
+        assertTrue("control: the message is inside the host", text.top >= host.top && text.bottom <= host.bottom)
+        host.bottom.assertIsEqualTo(root.bottom - navigationBar - PILL, "snackbar host bottom", 0.5.dp)
+    }
+
+    // Ruling P23 (spec §5.5: the selection stays until the write ends): while busy, tapping a selected row keeps it
+    // selected and long-pressing an unselected row does not select it. The rows toggle the way TracksTab's do. Control:
+    // the same gestures toggle once the work is over. Trivial stub: lock ignored → the tap deselects → RED. Mutations:
+    // toggle() ignores isLocked → RED; HomeScreen never sets the lock → RED.
+    @Test
+    fun busy_freezesTheSelection() {
+        setHomeWithActions(page = { tab -> if (tab == HomeTab.TRACKS) SelectableRows() else TaggedPage(tab) })
+        composeRule.onNodeWithTag(rowTag(0)).performTouchInput { longClick() }
+        composeRule.runOnIdle { assertEquals("control: a long press selects", setOf(rowTag(0)), selection.selectedIds) }
+
+        composeRule.runOnIdle { busy = true }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(rowTag(0)).performClick()
+        composeRule.onNodeWithTag(rowTag(1)).performTouchInput { longClick() }
+        composeRule.runOnIdle {
+            assertEquals("while busy the selection does not change", setOf(rowTag(0)), selection.selectedIds)
+        }
+
+        composeRule.runOnIdle { busy = false }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(rowTag(1)).performClick()
+        composeRule.runOnIdle {
+            assertEquals(
+                "control: taps toggle again after the work",
+                setOf(rowTag(0), rowTag(1)),
+                selection.selectedIds,
+            )
+        }
+    }
+
+    // Ruling P23: the tabs and pager stay locked while busy, even if the selection empties (only the result, rescan
+    // pruning or access loss can empty it). Control: unlocked once the work is over. Trivial stub: lock follows the
+    // selection only → the tab click pages → RED. Mutation: HomeTabsAndPager locked = selection.isActive → RED.
+    @Test
+    fun busy_keepsThePagerLocked() {
+        setHomeWithActions()
+        composeRule.runOnIdle {
+            selection.toggle("1")
+            busy = true
+        }
+        composeRule.waitForIdle()
+        composeRule.runOnIdle { selection.clear() }
+        composeRule.onNodeWithText("Playlists").assertIsNotEnabled()
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.onNodeWithText("page-TRACKS").performTouchInput { swipeRight() }
+        composeRule.waitForIdle()
+        assertEquals("the pager stays on Tracks while busy", HomeTab.TRACKS.ordinal, pagerState.currentPage)
+
+        composeRule.runOnIdle { busy = false }
+        composeRule.onNodeWithText("Playlists").performClick()
+        composeRule.waitForIdle()
+        assertEquals("control: a tab click pages after the work", HomeTab.PLAYLISTS.ordinal, pagerState.currentPage)
+    }
+
+    // Observation from Task 7: at fontScale 1.5 on a 360 dp width the bar's controls ("N selected", ✕, "Edit tags", ⋮)
+    // must not overlap or leave the screen. The real SelectionArtworkActions draws the ⋮, on a stubbed ViewModel.
+    // The title's own fit is selectionBar_titleStepsDownOnlyWhenItWouldNotFit's (ruling P24); this test pins the
+    // controls. Trivial stub: no ⋮ → RED. Mutation: drop the title's weight(1f) → the title takes the row and "Edit
+    // tags" and ⋮ are squeezed → RED on their sizes.
+    @Test
+    fun selectionBar_atLargeFont_controlsDoNotOverlap() {
+        setHomeAtLargeFont()
+        // A four-digit count: the longest title a large library gives, so a title that is not weighted squeezes ⋮.
+        composeRule.runOnIdle { (1..1000).forEach { selection.toggle("$it") } }
+
+        val root = composeRule.onRoot().getBoundsInRoot()
+        val close = composeRule.onNodeWithContentDescription("Close selection").getBoundsInRoot()
+        val title = composeRule.onNodeWithText("1000 selected").getBoundsInRoot()
+        val editTags = composeRule.onNodeWithText("Edit tags").getBoundsInRoot()
+        val more = composeRule.onNodeWithContentDescription("More options").getBoundsInRoot()
+        val order = listOf("✕" to close, "title" to title, "Edit tags" to editTags, "⋮" to more)
+        order.zipWithNext().forEach { (left, right) ->
+            assertTrue(
+                "${left.first} (right ${left.second.right}) ends before ${right.first} (left ${right.second.left})",
+                left.second.right <= right.second.left + 0.5.dp,
+            )
+        }
+        assertTrue("✕ starts on screen (${close.left})", close.left >= root.left)
+        assertTrue("⋮ ends on screen (${more.right} <= ${root.right})", more.right <= root.right + 0.5.dp)
+        assertTrue("⋮ keeps its size (${more.right - more.left})", more.right - more.left >= RollaDimens.iconSize)
+        val editLabel = textLayout(composeRule.onNodeWithText("Edit tags", useUnmergedTree = true))
+        assertEquals("\"Edit tags\" stays on one line", 1, editLabel.lineCount)
+        // didOverflowWidth reads true at needs == width (84.0 vs 84 px), so the width is compared with a 1 px margin.
+        val needs = editLabel.multiParagraph.intrinsics.maxIntrinsicWidth
+        assertTrue(
+            "\"Edit tags\" gets its full width (needs $needs px, has ${editLabel.size.width} px)",
+            needs <= editLabel.size.width + 1f,
+        )
+    }
+
+    // Ruling P24: "N selected" keeps screenTitle when it fits and steps down to chipLabel only when it would not, never
+    // ellipsized or on two lines. Read from the title node's own TextLayoutResult (its laid-out width, not the bar's).
+    // Control: at 1x "120 selected" keeps screenTitle. Trivial stub: no step-down → "120 selected" is ellipsized at
+    // 1.5x (156 dp needed, 134 dp given) → RED. Mutation: FittingDetailTitle always uses the default style → RED.
+    @Test
+    fun selectionBar_titleStepsDownOnlyWhenItWouldNotFit() {
+        fontScale = 1f
+        setHomeAtLargeFont()
+        composeRule.runOnIdle { (1..120).forEach { selection.toggle("$it") } }
+        val atOne = textLayout(composeRule.onNodeWithText("120 selected"))
+        assertEquals("control: at 1x the title keeps screenTitle", screenTitleSize, atOne.layoutInput.style.fontSize)
+        assertFalse("control: at 1x the title is whole", atOne.isLineEllipsized(0))
+
+        composeRule.runOnIdle { fontScale = LARGE_FONT }
+        val atLarge = textLayout(composeRule.onNodeWithText("120 selected"))
+        assertFalse("at 1.5x \"120 selected\" is not ellipsized", atLarge.isLineEllipsized(0))
+        assertEquals("at 1.5x the title is one line", 1, atLarge.lineCount)
+        assertEquals("at 1.5x the title steps down to chipLabel", chipLabelSize, atLarge.layoutInput.style.fontSize)
+    }
+
+    private fun textLayout(node: SemanticsNodeInteraction): TextLayoutResult {
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.fetchSemanticsNode().config[SemanticsActions.GetTextLayoutResult].action?.invoke(layouts)
+        return layouts.first()
+    }
+
+    /** Home at [fontScale] (default [LARGE_FONT]); its bar draws the real SelectionArtworkActions on a stub. */
+    private fun setHomeAtLargeFont() {
+        val viewModel: SelectionArtworkViewModel = mockk(relaxed = true) {
+            every { uiState } returns MutableStateFlow(SelectionArtworkUiState())
+        }
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                screenTitleSize = MaterialTheme.typography.screenTitle.fontSize
+                chipLabelSize = MaterialTheme.typography.chipLabel.fontSize
+                val density = LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale = fontScale)) {
+                    selection = rememberSongSelectionState()
+                    HomeScreen(
+                        pagerState = rememberHomePagerState(),
+                        selection = selection,
+                        onSearchClick = {},
+                        onSettingsClick = {},
+                        onCreatePlaylistClick = {},
+                        onEditTagsForSelection = {},
+                        selectionActions = { ids, onResult ->
+                            SelectionArtworkActions(selectedIds = ids, onResult = onResult, viewModel = viewModel)
+                        },
+                    ) { tab -> Text("page-${tab.name}") }
+                }
+            }
+        }
+    }
+
+    /**
+     * Home with a fake artwork-actions slot that records the ids and the result callback HomeScreen hands it, a
+     * [busy] flag fed to HomeScreen the way HomeRoute feeds SelectionArtworkActions' working state, and a snackbar
+     * host the test can show messages on. The pill footprint is [PILL], as MiniPlayerHost would provide it.
+     */
+    private fun setHomeWithActions(page: @Composable (HomeTab) -> Unit = { tab -> TaggedPage(tab) }) {
+        composeRule.setContent {
+            view = LocalView.current
+            snackbarScope = rememberCoroutineScope()
+            RollaMusicPlayerTheme(darkTheme = true) {
+                CompositionLocalProvider(LocalMiniPlayerInset provides PILL) {
+                    pagerState = rememberHomePagerState()
+                    selection = rememberSongSelectionState()
+                    HomeScreen(
+                        pagerState = pagerState,
+                        selection = selection,
+                        onSearchClick = {},
+                        onSettingsClick = {},
+                        onCreatePlaylistClick = {},
+                        onEditTagsForSelection = {},
+                        selectionActions = { ids, onResult ->
+                            actionIds = ids
+                            actionResult = onResult
+                            Text("actions")
+                        },
+                        selectionBusy = busy,
+                        snackbarHostState = snackbarHostState,
+                        pageContent = page,
+                    )
+                }
+            }
+        }
+    }
+
     /**
      * Tracks page = a list of full-width combinedClickable rows (like SongListItem) that count taps. A long press also
      * toggles the row into the selection, as SongListItem's long press does.
@@ -486,6 +768,29 @@ class HomeScreenTest {
                                 rowLongClicks++
                                 selection.toggle(rowTag(index))
                             },
+                        ),
+                )
+            }
+        }
+    }
+
+    /** Rows that select the way TracksTab's do: a tap toggles while selecting, a long press always toggles. */
+    // A composable member: detekt's FunctionNaming wants camelCase, Compose wants PascalCase.
+    @Suppress("FunctionNaming")
+    @OptIn(ExperimentalFoundationApi::class)
+    @Composable
+    private fun SelectableRows() {
+        Column(modifier = Modifier.fillMaxSize()) {
+            (0 until 3).forEach { index ->
+                Text(
+                    text = "row $index",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp)
+                        .testTag(rowTag(index))
+                        .combinedClickable(
+                            onClick = { if (selection.isActive) selection.toggle(rowTag(index)) },
+                            onLongClick = { selection.toggle(rowTag(index)) },
                         ),
                 )
             }
@@ -579,5 +884,8 @@ class HomeScreenTest {
         const val CREATE_DIALOG = "create-dialog"
         const val ROW_COUNT = 40
         const val TEXT_HEIGHT_TOLERANCE_DP = 0.75f
+        const val SNACKBAR_TEXT = "Artwork set on 2 tracks"
+        const val LARGE_FONT = 1.5f
+        val PILL = 64.dp
     }
 }

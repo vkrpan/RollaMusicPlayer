@@ -192,7 +192,7 @@ private fun MiniPlayerArtwork(
     val boundsTransform = remember(reducedMotion) { artworkBoundsTransform(reducedMotion) }
     val placeholderColor = MaterialTheme.colorScheme.miniPlayerArtPlaceholder
     // The grey disc marks "no artwork" (no uri, or a load that failed), never "still loading". A cover already in the
-    // artwork cache can resolve in the same frame (AlbumArtworkInterceptor peeks synchronously), but a cache miss still
+    // artwork cache can resolve in the same frame (SongArtworkInterceptor peeks synchronously), but a cache miss still
     // decodes on IO and returns frames later, and the pill is composed afresh when it comes back from Now Playing, as
     // the shared element's target: only it is drawn, so a loading placeholder would replace the flying artwork with a
     // grey disc on the first frame.

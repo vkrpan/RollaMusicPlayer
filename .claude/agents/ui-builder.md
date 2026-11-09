@@ -238,7 +238,7 @@ Specialized agent for designing and implementing user interfaces using Jetpack C
 ### Library Screens
 **Tabs:**
 - Songs (list with artwork thumbnails)
-- Albums (grid with album covers)
+- Albums (grid; albums show the placeholder, never a cover — per-track artwork)
 - Artists (list with artist images)
 - Playlists (list with playlist covers)
 

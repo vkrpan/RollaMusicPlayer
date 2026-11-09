@@ -21,23 +21,27 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
+import com.rolla.musicplayer.core.designsystem.theme.destructiveText
 
 /**
  * The One UI pill button (spec §8.7; Phase 6b ruling 1): a CircleShape at least [RollaDimens.minTouchTarget] tall,
  * with its [text] in labelLarge. Filled (the default) is primary with an onPrimary label (4.51:1 in both themes);
- * [tonal] is surfaceContainerHigh with an onSurface label (13.41:1 dark / 15.41:1 light). [loading] swaps the label for
- * a progress ring in the label colour, ignores taps, and describes the button as [loadingDescription] for TalkBack
- * ([text] when it is null, so a loading pill always has an accessible name).
- * When disabled it renders at [DISABLED_CONTENT_ALPHA] and ignores input.
+ * [tonal] is surfaceContainerHigh with an onSurface label (13.41:1 dark / 15.41:1 light). [destructive] (tonal only)
+ * draws the tonal label in destructiveText instead (4.64:1 dark / 5.28:1 light), for an action that deletes something,
+ * such as the tag editor's "Remove artwork"; a filled pill ignores it, because destructiveText on primary is not an
+ * audited pairing. [loading] swaps the label for a progress ring in the label colour, ignores taps, and describes the
+ * button as [loadingDescription] for TalkBack ([text] when it is null, so a loading pill always has an accessible
+ * name). When disabled it renders at [DISABLED_CONTENT_ALPHA] and ignores input.
  *
  * Usage (the tag editor's buttons):
  * ```
  * OneUiPillButton(text = "Cancel", onClick = onCancel, tonal = true)
  * OneUiPillButton(text = "Save", onClick = onSave, loading = isSaving, loadingDescription = "Saving")
+ * OneUiPillButton(text = "Remove artwork", onClick = onRemove, tonal = true, destructive = true)
  * ```
  */
-// The ruling 1 contract: label, action, modifier, and the four states it fixes (enabled, tonal, loading and its
-// description). A holder type would only add indirection.
+// The ruling 1 contract: label, action, modifier, and the states it fixes (enabled, tonal, destructive, loading and
+// its description). A holder type would only add indirection.
 @Suppress("LongParameterList")
 @Composable
 fun OneUiPillButton(
@@ -46,12 +50,17 @@ fun OneUiPillButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     tonal: Boolean = false,
+    destructive: Boolean = false,
     loading: Boolean = false,
     loadingDescription: String? = null,
 ) {
     val colors = MaterialTheme.colorScheme
     val container = if (tonal) colors.surfaceContainerHigh else colors.primary
-    val content = if (tonal) colors.onSurface else colors.onPrimary
+    val content = when {
+        !tonal -> colors.onPrimary
+        destructive -> colors.destructiveText
+        else -> colors.onSurface
+    }
     Box(
         modifier = modifier
             .heightIn(min = RollaDimens.minTouchTarget)

@@ -40,14 +40,14 @@ class AlbumRowTest {
     // Mutation: subtitle keeps the old "${artist} · ${songCount} songs" → RED.
     @Test
     fun `subtitle is artist and track count`() {
-        setRow(Album(id = 7L, title = "Jazz", artist = "Queen", songCount = 12, artworkUri = ""))
+        setRow(Album(id = 7L, title = "Jazz", artist = "Queen", songCount = 12))
         composeRule.onNodeWithText("Queen, 12 tracks").assertExists()
     }
 
     // Mutation: keep the old 56 dp thumbnail and 16 dp padding → text starts at 84 dp → RED.
     @Test
     fun `title starts at the list text column`() {
-        setRow(Album(id = 7L, title = "Jazz", artist = "Queen", songCount = 1, artworkUri = ""))
+        setRow(Album(id = 7L, title = "Jazz", artist = "Queen", songCount = 1))
         assertEquals(
             RollaDimens.listTextStart.value,
             composeRule.onNodeWithText("Jazz", useUnmergedTree = true).getUnclippedBoundsInRoot().left.value,

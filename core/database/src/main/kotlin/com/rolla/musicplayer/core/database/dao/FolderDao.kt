@@ -17,23 +17,17 @@ import kotlinx.coroutines.flow.Flow
 interface FolderDao {
 
     /**
-     * Every folder that directly holds songs, grouped by exact path, ordered by path case-insensitively and then
-     * exactly. artworkUri is the cover of the folder's alphabetically first song: the inner query has exactly one
-     * MIN() aggregate, so SQLite takes the bare artwork_uri column from that row (the same documented behaviour
-     * ArtistDao.observeArtists relies on).
+     * Every folder that directly holds songs, grouped by exact path, with its song count, ordered by path
+     * case-insensitively and then exactly.
      */
     @Query(
         """
-        SELECT path, songCount, artworkUri FROM (
-            SELECT
-                folder_path AS path,
-                COUNT(*) AS songCount,
-                artwork_uri AS artworkUri,
-                MIN(title COLLATE NOCASE) AS firstTitle
-            FROM songs
-            WHERE folder_path IS NOT NULL
-            GROUP BY folder_path
-        )
+        SELECT
+            folder_path AS path,
+            COUNT(*) AS songCount
+        FROM songs
+        WHERE folder_path IS NOT NULL
+        GROUP BY folder_path
         ORDER BY path COLLATE NOCASE ASC, path ASC
         """,
     )

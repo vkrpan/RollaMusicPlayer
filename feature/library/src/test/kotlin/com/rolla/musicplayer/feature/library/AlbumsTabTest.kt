@@ -136,7 +136,6 @@ class AlbumsTabTest {
             title = title,
             artist = "Artist of $title #$id",
             songCount = 1,
-            artworkUri = "",
         )
     }
 }

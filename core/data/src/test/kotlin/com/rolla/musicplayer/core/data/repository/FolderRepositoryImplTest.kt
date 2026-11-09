@@ -27,9 +27,9 @@ class FolderRepositoryImplTest {
     fun observeFolders_sortsAccentedNamesWithTheirLetter() = runTest {
         every { folderDao.observeFolders() } returns flowOf(
             listOf(
-                FolderSummary("Music/Abba", 1, "a"),
-                FolderSummary("Music/Zed", 1, "z"),
-                FolderSummary("Éclair", 1, "e"),
+                FolderSummary("Music/Abba", 1),
+                FolderSummary("Music/Zed", 1),
+                FolderSummary("Éclair", 1),
             ),
         )
         assertEquals(listOf("Abba", "Éclair", "Zed"), repository.observeFolders().first().map { it.name })
@@ -41,18 +41,18 @@ class FolderRepositoryImplTest {
     fun observeFolders_sortsByDisplayNameNotPath() = runTest {
         every { folderDao.observeFolders() } returns flowOf(
             listOf(
-                FolderSummary("", 4, "art-root"),
-                FolderSummary("Alarms", 1, "art-alarms"),
-                FolderSummary("Download", 2, "art-download"),
-                FolderSummary("Music/Abba", 3, "art-abba"),
+                FolderSummary("", 4),
+                FolderSummary("Alarms", 1),
+                FolderSummary("Download", 2),
+                FolderSummary("Music/Abba", 3),
             ),
         )
         assertEquals(
             listOf(
-                Folder("Music/Abba", "Abba", 3, "art-abba"),
-                Folder("Alarms", "Alarms", 1, "art-alarms"),
-                Folder("Download", "Download", 2, "art-download"),
-                Folder("", "Internal storage", 4, "art-root"),
+                Folder("Music/Abba", "Abba", 3),
+                Folder("Alarms", "Alarms", 1),
+                Folder("Download", "Download", 2),
+                Folder("", "Internal storage", 4),
             ),
             repository.observeFolders().first(),
         )
@@ -64,7 +64,7 @@ class FolderRepositoryImplTest {
     @Test
     fun observeFolders_breaksNameTiesByPath() = runTest {
         every { folderDao.observeFolders() } returns flowOf(
-            listOf(FolderSummary("Music", 1, "a"), FolderSummary("Download/music", 1, "b")),
+            listOf(FolderSummary("Music", 1), FolderSummary("Download/music", 1)),
         )
         assertEquals(listOf("Download/music", "Music"), repository.observeFolders().first().map { it.path })
     }
@@ -75,7 +75,7 @@ class FolderRepositoryImplTest {
     @Test
     fun observeFolders_breaksNameTiesByPathCaseInsensitivelyFirst() = runTest {
         every { folderDao.observeFolders() } returns flowOf(
-            listOf(FolderSummary("B/music", 1, "b"), FolderSummary("a/Music", 1, "a")),
+            listOf(FolderSummary("B/music", 1), FolderSummary("a/Music", 1)),
         )
         assertEquals(listOf("a/Music", "B/music"), repository.observeFolders().first().map { it.path })
     }
@@ -87,7 +87,7 @@ class FolderRepositoryImplTest {
     @Test
     fun observeFolders_breaksUnicodeCaseTiesByExactPath() = runTest {
         every { folderDao.observeFolders() } returns flowOf(
-            listOf(FolderSummary("aÚ", 1, "x"), FolderSummary("Aú", 1, "y")),
+            listOf(FolderSummary("aÚ", 1), FolderSummary("Aú", 1)),
         )
         assertEquals(listOf("Aú", "aÚ"), repository.observeFolders().first().map { it.path })
     }

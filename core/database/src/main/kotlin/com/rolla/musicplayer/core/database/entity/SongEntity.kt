@@ -5,6 +5,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.songArtworkUri
 
 @Entity(
     tableName = "songs",
@@ -47,6 +48,8 @@ data class SongEntity(
     @ColumnInfo(name = "content_uri")
     val contentUri: String,
 
+    // Written by the scanner (the per-track value) but never read: toDomain derives it (ruling R1). Rows from before
+    // per-track artwork still hold MediaStore album-art uris here.
     @ColumnInfo(name = "artwork_uri")
     val artworkUri: String,
 
@@ -84,5 +87,7 @@ fun SongEntity.toDomain(): Song = Song(
     trackNumber = trackNumber,
     year = year,
     contentUri = contentUri,
-    artworkUri = artworkUri,
+    // Read-time derivation (spec §5.4, ruling R1): the stored artwork_uri column is ignored, so rows written before
+    // per-track artwork (MediaStore album-art uris) never reach a screen and no Room migration is needed.
+    artworkUri = songArtworkUri(id, dateModified),
 )

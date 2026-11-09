@@ -15,8 +15,8 @@ android {
 dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:media"))
-    // AlbumArtworkCache -- the shared, albumId-keyed downscaled-art disk cache (wave 2 of the
-    // artwork-caching feature). One-directional: :core:data does not depend on :feature:widget.
+    // SongArtworkCache -- the shared, per-track downscaled-art disk cache (per-track artwork).
+    // One-directional: :core:data does not depend on :feature:widget.
     implementation(project(":core:data"))
     // RollaDimens: the widget's sizes are design-system tokens (Phase 6c ruling 4).
     implementation(project(":core:designsystem"))

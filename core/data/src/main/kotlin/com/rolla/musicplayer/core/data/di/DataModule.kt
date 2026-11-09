@@ -1,11 +1,11 @@
 package com.rolla.musicplayer.core.data.di
 
 import android.content.Context
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCacheDir
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCacheImpl
-import com.rolla.musicplayer.core.data.artwork.ArtworkDecoder
-import com.rolla.musicplayer.core.data.artwork.BitmapArtworkDecoder
+import com.rolla.musicplayer.core.data.artwork.EmbeddedArtworkDecoder
+import com.rolla.musicplayer.core.data.artwork.RetrieverArtworkDecoder
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCacheDir
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCacheImpl
 import com.rolla.musicplayer.core.data.repository.AlbumRepository
 import com.rolla.musicplayer.core.data.repository.AlbumRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.ArtistRepository
@@ -69,21 +69,25 @@ abstract class DataModule {
 
     @Binds
     @Singleton
-    abstract fun bindAlbumArtworkCache(impl: AlbumArtworkCacheImpl): AlbumArtworkCache
+    abstract fun bindSongArtworkCache(impl: SongArtworkCacheImpl): SongArtworkCache
 
     @Binds
     @Singleton
-    abstract fun bindArtworkDecoder(impl: BitmapArtworkDecoder): ArtworkDecoder
+    abstract fun bindEmbeddedArtworkDecoder(impl: RetrieverArtworkDecoder): EmbeddedArtworkDecoder
 
     companion object {
 
-        /** App-specific cache dir (auto-reclaimable by the OS) -- see `AlbumArtworkCacheImpl`. */
+        /**
+         * App-specific cache dir (auto-reclaimable by the OS) -- see `SongArtworkCacheImpl`. The `album_art`
+         * directory of the album cache it replaces is never deleted by code (ruling R3: that would be main-thread IO at
+         * injection); the OS reclaims it.
+         */
         @Provides
         @Singleton
-        @AlbumArtworkCacheDir
-        fun provideAlbumArtworkCacheDir(@ApplicationContext context: Context): File =
-            File(context.cacheDir, ALBUM_ART_CACHE_DIR_NAME)
+        @SongArtworkCacheDir
+        fun provideSongArtworkCacheDir(@ApplicationContext context: Context): File =
+            File(context.cacheDir, SONG_ART_CACHE_DIR_NAME)
 
-        private const val ALBUM_ART_CACHE_DIR_NAME = "album_art"
+        private const val SONG_ART_CACHE_DIR_NAME = "song_art"
     }
 }

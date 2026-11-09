@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.data.repository
 
 import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.songArtworkUri
 import com.rolla.musicplayer.core.testing.FakeSongDao
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -92,7 +93,8 @@ class SongRepositoryImplTest {
         assertEquals("trackNumber mapping", entity.trackNumber, song.trackNumber)
         assertEquals("year mapping", entity.year, song.year)
         assertEquals("contentUri mapping", entity.contentUri, song.contentUri)
-        assertEquals("artworkUri mapping", entity.artworkUri, song.artworkUri)
+        // Read-time derivation (spec §5.4): the stored column is ignored.
+        assertEquals("artworkUri mapping", songArtworkUri(entity.id, entity.dateModified), song.artworkUri)
     }
 
     @Test

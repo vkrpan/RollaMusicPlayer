@@ -46,7 +46,7 @@ class DetailArtworkHeaderTest {
     fun artworkIsDetailArtworkSizeAndTheSubtitleIsOneLine() {
         composeRule.setContent {
             RollaMusicPlayerTheme(darkTheme = true) {
-                DetailArtworkHeader(artworkUri = "", subtitle = "Queen · 12 tracks")
+                DetailArtworkHeader(subtitle = "Queen · 12 tracks")
             }
         }
         composeRule.onNodeWithText("Queen · 12 tracks").assertExists()
@@ -74,8 +74,8 @@ class DetailArtworkHeaderTest {
                 background = MaterialTheme.colorScheme.background
                 placeholder = MaterialTheme.colorScheme.artworkPlaceholderLarge
                 Column(Modifier.fillMaxWidth().background(background)) {
-                    DetailArtworkHeader(artworkUri = "", subtitle = "Artist", circular = true)
-                    DetailArtworkHeader(artworkUri = "", subtitle = "Album", circular = false)
+                    DetailArtworkHeader(subtitle = "Artist", circular = true)
+                    DetailArtworkHeader(subtitle = "Album", circular = false)
                 }
             }
         }

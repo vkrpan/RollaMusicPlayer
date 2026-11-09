@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaLibraryService.MediaLibrarySession
 import androidx.media3.session.MediaSession
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.media.equalizer.EqualizerSessionManager
@@ -52,6 +53,9 @@ class PlaybackService : MediaLibraryService() {
 
     @Inject
     lateinit var playbackStateRepository: PlaybackStateRepository
+
+    @Inject
+    lateinit var songArtworkCache: SongArtworkCache
 
     private lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaLibrarySession
@@ -215,14 +219,15 @@ class PlaybackService : MediaLibraryService() {
             queuePersister.enable()
             mediaButtonStartFallback.onRestoreSettled()
         }
-        val callback = PlaybackSessionCallback(
-            serviceScope,
-            main,
+        val session = buildPlaybackSession(
+            this,
+            player,
             restoreCoordinator,
             restoredShuffleOrder,
             mediaButtonStartFallback::onNothingToResume,
+            songArtworkCache,
+            serviceScope,
         )
-        val session = MediaLibrarySession.Builder(this, player, callback).build()
         restoreCoordinator.restoreInto(player, restoredShuffleOrder, playbackStateHolder)
         return session
     }
@@ -308,3 +313,47 @@ internal fun playbackPlayerBuilder(context: Context): ExoPlayer.Builder =
         )
         .setWakeMode(C.WAKE_MODE_LOCAL)
         .setUsePlatformDiagnostics(false)
+
+/**
+ * The service's session, assembled as `PlaybackService` runs it (and as the session tests drive it): one
+ * [SongArtworkBitmapLoader] over [artworkCache] in [scope] is both the session's bitmap loader and the source of the
+ * resume card's start-item `artworkData` (ruling P12), so the two share one placeholder. By user decision (ruling P14)
+ * the resume card always gets the placeholder, whatever the song: the provider ignores the song's artwork value and
+ * never reads [artworkCache]. The [PlaybackSessionCallback] runs its bodies on `Dispatchers.Main.immediate`, Media3's
+ * application thread.
+ */
+@Suppress("LongParameterList") // the service's whole session wiring, in one place so the tests drive the same one
+@androidx.annotation.OptIn(UnstableApi::class)
+internal fun buildPlaybackSession(
+    context: Context,
+    player: Player,
+    coordinator: RestoreCoordinator,
+    restoredOrder: RestoredShuffleOrder,
+    onNothingToResume: () -> Unit,
+    artworkCache: SongArtworkCache,
+    scope: CoroutineScope,
+): MediaLibrarySession {
+    val artworkLoader = SongArtworkBitmapLoader(context, artworkCache, scope)
+    val callback = PlaybackSessionCallback(
+        scope,
+        Dispatchers.Main.immediate,
+        coordinator,
+        restoredOrder,
+        { _ -> artworkLoader.resumeCardArtworkData() },
+        onNothingToResume,
+    )
+    return playbackSessionBuilder(context, player, callback, artworkLoader).build()
+}
+
+/**
+ * The session builder's configuration. Its bitmap loader is [artworkLoader], so the notification, lock screen and media
+ * card show each track's own picture or the white-note placeholder (per-track artwork spec §5.1).
+ */
+@androidx.annotation.OptIn(UnstableApi::class)
+internal fun playbackSessionBuilder(
+    context: Context,
+    player: Player,
+    callback: MediaLibrarySession.Callback,
+    artworkLoader: SongArtworkBitmapLoader,
+): MediaLibrarySession.Builder =
+    MediaLibrarySession.Builder(context, player, callback).setBitmapLoader(artworkLoader)

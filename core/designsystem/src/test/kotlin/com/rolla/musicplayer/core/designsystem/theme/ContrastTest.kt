@@ -84,6 +84,9 @@ private fun pairingsOf(p: RollaPalette): List<Pairing> = listOf(
     Pairing("accentText on background", p.accentText, p.background, TEXT),
     Pairing("accentText on surfaceContainer", p.accentText, p.surfaceContainer, TEXT),
     Pairing("accentText on surfaceContainerHigh", p.accentText, p.surfaceContainerHigh, TEXT),
+    // Also the tonal destructive OneUiPillButton's label on its surfaceContainerHigh container, the tag editor's
+    // "Remove artwork" (per-track artwork Task 7): 4.64:1 dark (#FF6060 on #2D2D2F), 5.28:1 light (#BA1A1A on
+    // #E8E8EA). Mutation: dark destructiveText = error (#FF5A5A, 4.49:1) → RED.
     Pairing("destructiveText on surfaceContainerHigh", p.destructiveText, p.surfaceContainerHigh, TEXT),
     // Also OneUiTextField's error supporting text on a tag-editor card (Phase 6b ruling 2).
     Pairing("destructiveText on surfaceContainer", p.destructiveText, p.surfaceContainer, TEXT),

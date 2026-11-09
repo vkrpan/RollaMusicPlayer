@@ -26,6 +26,7 @@ import kotlin.random.Random
 class PlaybackController @Inject constructor(
     @ApplicationContext private val context: Context,
     private val playbackStateHolder: PlaybackStateHolder,
+    private val playbackUpdateDispatcher: PlaybackUpdateDispatcher,
 ) {
     val audioSessionId: StateFlow<Int> = playbackStateHolder.audioSessionId
     val currentSong: StateFlow<Song?> = playbackStateHolder.currentSong
@@ -118,10 +119,16 @@ class PlaybackController @Inject constructor(
      * refreshed directly so the mini-player/now-playing UI re-renders the new tags immediately
      * (the service's own transition callback echoes the same values shortly after). A no-op when
      * no controller is connected and the song isn't current.
+     *
+     * When [song] is current, the [PlaybackUpdateDispatcher] runs right after the holder write (the
+     * hook ordering contract: holder first, then hooks). `replaceMediaItem` keeps the item's window
+     * uid, so Media3 reports no media-item transition and the service fires no hook of its own; without
+     * this call a paused home-screen widget would keep the old picture and tags.
      */
     fun updateSongMetadata(song: Song) {
         if (playbackStateHolder.currentSong.value?.id == song.id) {
             playbackStateHolder.setCurrentSong(song)
+            playbackUpdateDispatcher.dispatch()
         }
         val c = controller ?: return
         val item = song.toMediaItem()

@@ -8,6 +8,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -21,6 +23,7 @@ import com.rolla.musicplayer.core.designsystem.component.LocalMiniPlayerInset
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Album
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.ui.SONG_ROW_ARTWORK_TEST_TAG
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -150,6 +153,34 @@ class AlbumDetailScreenTest {
         composeRule.onNodeWithText("Edit tags").assertDoesNotExist()
     }
 
+    // Spec goal 2a: album rows lead with each track's own picture, not its number. Control: the rows exist (by title).
+    // The number is probed both as text and as the "Track N" description the old number label carried. SongListItem no
+    // longer has a number mode (final review M8), so the thumbnail count is the assertion that can still fail: render
+    // the rows without their artwork thumbnail → RED.
+    @Test
+    fun rows_showArtworkNotTrackNumbers() {
+        setContent(loaded(songs(3)))
+        composeRule.onNodeWithText("Track 1").assertExists("control: the first row is rendered")
+        composeRule.onNodeWithText("Track 3").assertExists("control: the last row is rendered")
+        assertEquals(
+            "no node shows the bare track number",
+            0,
+            composeRule.onAllNodesWithText("1", useUnmergedTree = true).fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "no row leads with a track-number label",
+            0,
+            composeRule.onAllNodesWithContentDescription("Track 1", useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            "each of the three rows leads with its artwork thumbnail",
+            3,
+            composeRule.onAllNodesWithTag(SONG_ROW_ARTWORK_TEST_TAG, useUnmergedTree = true)
+                .fetchSemanticsNodes().size,
+        )
+    }
+
     // Defaulted test-host knobs: each test overrides only the inputs it probes.
     @Suppress("LongParameterList")
     private fun setContent(
@@ -193,8 +224,6 @@ class AlbumDetailScreenTest {
             title = title,
             artist = "Queen",
             songCount = songCount,
-            // Empty so the hero renders ArtworkPlaceholder and Coil never starts a load under Robolectric.
-            artworkUri = "",
         )
 
         fun songs(n: Int): List<Song> = (1..n).map { index ->

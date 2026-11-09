@@ -112,7 +112,7 @@ class PlaybackResumptionThroughSessionTest {
         )
         val main = Dispatchers.Main.immediate
         val coordinator = RestoreCoordinator(repository, serviceScope, main) {}
-        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder) {}
+        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder, { null }) {}
         val realSession = MediaLibrarySession.Builder(context, player, callback).build()
         session = realSession
         val controllerFuture = MediaController.Builder(context, realSession.token).buildAsync()
@@ -145,7 +145,7 @@ class PlaybackResumptionThroughSessionTest {
         var nothingToResumeCount = 0
         val main = Dispatchers.Main.immediate
         val coordinator = RestoreCoordinator(repository, serviceScope, main) {}
-        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder) {
+        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder, { null }) {
             nothingToResumeCount++
         }
         val realSession = MediaLibrarySession.Builder(context, player, callback).build()
@@ -167,16 +167,18 @@ class PlaybackResumptionThroughSessionTest {
 
     // Panel-resume spec §3 and §5.3, Review Focus 5. A browser that is not the System UI gets no root: neither the
     // plain root nor the recent root. Media3 serves the recent ROOT only to the System UI, but it answers that root's
-    // CHILDREN (the saved current track's title, artist, album and artwork URI) for any connected browser (spec §10;
-    // see aRecentRootChildrenRequest_describesTheSavedTrackReadOnly). Control: the browser connected (the future
-    // resolved). Mutations (an item without isBrowsable is rejected by LibraryResult.ofItem, so the root is valid):
-    // override onGetLibraryRoot to return a browsable, non-playable root for every request → RED at the plain-root
-    // assertion; return it only when params?.isRecent == true, else super → RED at the recent-root assertion.
+    // CHILDREN (the saved current track's title, artist, album and artwork URI and, for the start item, the
+    // placeholder's picture bytes, ruling P14) for any connected browser (spec §10; see
+    // aRecentRootChildrenRequest_describesTheSavedTrackReadOnly).
+    // Control: the browser connected (the future resolved). Mutations (an item without isBrowsable is rejected by
+    // LibraryResult.ofItem, so the root is valid): override onGetLibraryRoot to return a browsable, non-playable root
+    // for every request → RED at the plain-root assertion; return it only when params?.isRecent == true, else super →
+    // RED at the recent-root assertion.
     @Test
     fun aBrowserThatIsNotSystemUi_getsNoLibraryRoot() {
         val main = Dispatchers.Main.immediate
         val coordinator = RestoreCoordinator(repository, serviceScope, main) {}
-        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder) {}
+        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder, { null }) {}
         val realSession = MediaLibrarySession.Builder(context, player, callback).build()
         session = realSession
         val browserFuture = MediaBrowser.Builder(context, realSession.token).buildAsync()
@@ -213,7 +215,7 @@ class PlaybackResumptionThroughSessionTest {
         var nothingToResumeCount = 0
         val main = Dispatchers.Main.immediate
         val coordinator = RestoreCoordinator(repository, serviceScope, main) {}
-        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder) {
+        val callback = PlaybackSessionCallback(serviceScope, main, coordinator, restoredOrder, { null }) {
             nothingToResumeCount++
         }
         val browser = connectBrowser(callback)

@@ -6,17 +6,17 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import coil.ImageLoader
 import coil.ImageLoaderFactory
-import com.rolla.musicplayer.artwork.AlbumArtworkInterceptor
-import com.rolla.musicplayer.core.data.artwork.AlbumArtworkCache
+import com.rolla.musicplayer.artwork.SongArtworkInterceptor
+import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
 import com.rolla.musicplayer.core.media.PlaybackController
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
 /**
  * Implements [ImageLoaderFactory] so Coil's singleton loader (used by every `AsyncImage`) is built
- * with [AlbumArtworkInterceptor], routing album artwork through the app-local downscaled
- * [AlbumArtworkCache]. Coil calls [newImageLoader] lazily on the first image request — long after
- * `onCreate` has run Hilt field injection — so [albumArtworkCache] is always populated by then.
+ * with [SongArtworkInterceptor], routing each track's artwork value through the app-local, per-track
+ * [SongArtworkCache]. Coil calls [newImageLoader] lazily on the first image request — long after
+ * `onCreate` has run Hilt field injection — so [songArtworkCache] is always populated by then.
  */
 @HiltAndroidApp
 class RollaApp : Application(), ImageLoaderFactory {
@@ -25,7 +25,7 @@ class RollaApp : Application(), ImageLoaderFactory {
     lateinit var playbackController: PlaybackController
 
     @Inject
-    lateinit var albumArtworkCache: AlbumArtworkCache
+    lateinit var songArtworkCache: SongArtworkCache
 
     override fun onCreate() {
         super.onCreate()
@@ -40,6 +40,6 @@ class RollaApp : Application(), ImageLoaderFactory {
 
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
-            .components { add(AlbumArtworkInterceptor(albumArtworkCache)) }
+            .components { add(SongArtworkInterceptor(songArtworkCache)) }
             .build()
 }

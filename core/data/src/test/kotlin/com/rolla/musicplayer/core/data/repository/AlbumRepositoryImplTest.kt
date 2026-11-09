@@ -27,7 +27,6 @@ class AlbumRepositoryImplTest {
         title = title,
         artist = "Artist",
         songCount = 1,
-        artworkUri = "art/$albumId",
     )
 
     // Ruling 5. The DAO order is NOCASE: "Émile" after "Zappa". Mutation: drop the sort → RED.
@@ -62,7 +61,6 @@ class AlbumRepositoryImplTest {
                 title = "Greatest Hits",
                 artist = "Artist A",
                 songCount = 2,
-                artworkUri = "art",
             ),
         )
 
@@ -72,7 +70,6 @@ class AlbumRepositoryImplTest {
         assertEquals("Greatest Hits", album?.title)
         assertEquals("Artist A", album?.artist)
         assertEquals(2, album?.songCount)
-        assertEquals("art", album?.artworkUri)
     }
 
     @Test
@@ -126,14 +123,12 @@ class AlbumRepositoryImplTest {
                     title = "Greatest Hits",
                     artist = "Y",
                     songCount = 3,
-                    artworkUri = "a/30",
                 ),
                 AlbumSearchRow(
                     albumId = 40L,
                     title = "Greatest Hits",
                     artist = "X",
                     songCount = 1,
-                    artworkUri = "a/40",
                 ),
             ),
         )

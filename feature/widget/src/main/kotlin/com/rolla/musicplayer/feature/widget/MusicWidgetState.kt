@@ -4,8 +4,9 @@ package com.rolla.musicplayer.feature.widget
  * Immutable snapshot of everything the home-screen widget renders: the current song's
  * title/artist, transport state, playback position, and a *local* artwork reference.
  *
- * [artworkPath] is a local `content://`/file path string only -- the widget is fully offline and
- * never resolves artwork from a URL. It is null when there is no current song or no local art.
+ * [artworkPath] is the current song's per-track artwork value (`rolla-artwork://song/{id}?v={version}`,
+ * `Song.artworkUri`) -- the widget is fully offline and never resolves artwork from a URL. It is null
+ * when there is no current song.
  *
  * Design note: this is a plain Kotlin `data class`, deliberately **not** annotated with
  * `androidx.compose.runtime.Immutable`. Two reasons: (1) every stored property is a `String`,
