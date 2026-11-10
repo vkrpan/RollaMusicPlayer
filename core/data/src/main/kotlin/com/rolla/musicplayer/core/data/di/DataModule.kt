@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.core.data.di
 
 import android.content.Context
+import android.util.Log
 import com.rolla.musicplayer.core.data.artwork.EmbeddedArtworkDecoder
 import com.rolla.musicplayer.core.data.artwork.RetrieverArtworkDecoder
 import com.rolla.musicplayer.core.data.artwork.SongArtworkCache
@@ -10,6 +11,8 @@ import com.rolla.musicplayer.core.data.repository.AlbumRepository
 import com.rolla.musicplayer.core.data.repository.AlbumRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.ArtistRepository
 import com.rolla.musicplayer.core.data.repository.ArtistRepositoryImpl
+import com.rolla.musicplayer.core.data.repository.CustomTagRepository
+import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.FolderRepository
 import com.rolla.musicplayer.core.data.repository.FolderRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.PlaybackStateRepository
@@ -22,12 +25,19 @@ import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import com.rolla.musicplayer.core.data.repository.SettingsRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.data.repository.SongRepositoryImpl
+import com.rolla.musicplayer.core.data.scanner.AndroidSongFileSource
+import com.rolla.musicplayer.core.data.scanner.FileTagPass
+import com.rolla.musicplayer.core.data.scanner.SongFileSource
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import java.io.File
 import javax.inject.Singleton
 
@@ -42,6 +52,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindPlaylistRepository(impl: PlaylistRepositoryImpl): PlaylistRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCustomTagRepository(impl: CustomTagRepositoryImpl): CustomTagRepository
 
     @Binds
     @Singleton
@@ -75,6 +89,10 @@ abstract class DataModule {
     @Singleton
     abstract fun bindEmbeddedArtworkDecoder(impl: RetrieverArtworkDecoder): EmbeddedArtworkDecoder
 
+    @Binds
+    @Singleton
+    abstract fun bindSongFileSource(impl: AndroidSongFileSource): SongFileSource
+
     companion object {
 
         /**
@@ -88,6 +106,21 @@ abstract class DataModule {
         fun provideSongArtworkCacheDir(@ApplicationContext context: Context): File =
             File(context.cacheDir, SONG_ART_CACHE_DIR_NAME)
 
+        /**
+         * The scope [FileTagPass.request] runs the pass on; it lives as long as the app, so it is never cancelled.
+         * The pass catches its own failures; the handler is the last line of defence, logging anything that still
+         * escapes instead of letting it crash the app.
+         */
+        @Provides
+        @Singleton
+        @FileTagPassScope
+        fun provideFileTagPassScope(): CoroutineScope = CoroutineScope(
+            SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, throwable ->
+                Log.e(FILE_TAG_PASS_LOG_TAG, "uncaught failure in the file tag pass", throwable)
+            },
+        )
+
         private const val SONG_ART_CACHE_DIR_NAME = "song_art"
+        private const val FILE_TAG_PASS_LOG_TAG = "FileTagPass"
     }
 }

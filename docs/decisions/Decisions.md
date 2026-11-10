@@ -13,6 +13,7 @@ Product and architecture decisions, newest area first. Small execution-time ruli
 - [[Artwork comes from the track's own file]]
 - [[Albums, artists and folders show the placeholder]]
 - [[Set artwork for many tracks from the selection menu]]
+- [[LLM wiki beside the vault]]
 - [[Album artwork disk cache]] — superseded
 
 ## One UI redesign (2026-10)
@@ -39,4 +40,5 @@ Product and architecture decisions, newest area first. Small execution-time ruli
 - [[Tag writes go through a cache copy]]
 - [[Release build fails on INTERNET permission]]
 - [[Release ships unsigned without a signing config]]
-- [[Custom tag system is cut]]
+- [[Custom tag system is cut]] (superseded 2026-11-09)
+- [[Custom tags live in the file's ROLLA_TAGS field]]

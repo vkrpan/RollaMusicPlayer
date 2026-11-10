@@ -443,6 +443,45 @@ class MigrationTest {
         migratedDb.close()
     }
 
+    // Custom tags phase 1 (Task 4). Mutation: drop the `ALTER TABLE songs ADD COLUMN file_tags_read` → Room's
+    // validation finds the column missing (IllegalStateException "Migration didn't properly handle: songs") → RED.
+    @Test
+    fun migrate5To6_keepsSongRowAndAddsTablesAndColumns() {
+        helper.createDatabase(testDbName, 5).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms, track_number, year,
+                    content_uri, artwork_uri, date_modified, date_added, is_favorite, play_count, last_played,
+                    folder_path
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000, 1, 2024,
+                    'content://media/external/audio/media/1', 'content://media/external/audio/albumart/10',
+                    1500000000000, 1400000000000, 1, 7, 1600000000000, 'Music'
+                )
+                """.trimIndent(),
+            )
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 6, true, MIGRATION_5_6)
+
+        migratedDb.query("SELECT title, is_favorite, genre, file_tags_read FROM songs WHERE id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(0))
+            assertEquals(1, cursor.getInt(1))
+            assertTrue(cursor.isNull(2))
+            assertEquals(0, cursor.getInt(3))
+        }
+        for (table in listOf("custom_tags", "custom_tag_counters", "song_custom_tags")) {
+            migratedDb.query("SELECT COUNT(*) FROM $table").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(table, 0, cursor.getInt(0))
+            }
+        }
+        migratedDb.close()
+    }
+
     // Review Focus 2: the list DatabaseModule installs opens a v1 file at the current version. Mutation: drop
     // MIGRATION_4_5 from ALL_MIGRATIONS → "A migration from 1 to 5 was required but not found" → RED.
     @Test

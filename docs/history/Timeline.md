@@ -10,7 +10,9 @@ Dates from `git log` and the specs. Newest first.
 
 | Date | What | Notes |
 |---|---|---|
-| 2026-11-09 | Per-track artwork built (Tasks 1–9), final review ready to merge, device walk passed; not committed yet | [[Per-track artwork]]; [[2026-11-08-per-track-artwork rulings]] |
+| 2026-11-09 → 11-10 | Custom tags phase 1 (foundation) built subagent-driven (Tasks 1–6, each reviewed; final review fixes); JVM gate green; device 117/117 and first scan of 91 files in 3 s on the Motorola; waiting for the user's commit | [[2026-11-09-custom-tags-phase1-foundation rulings]]; [[Custom tags]]; [[2026-11-09-custom-tags-phase1-foundation]]; [[core-tagio]] |
+| 2026-11-09 | Custom tags: brainstormed, spec approved, roadmap and phase 1 plan written | [[Custom tags]]; [[2026-11-09-custom-tags-design]]; [[2026-11-09-custom-tags-roadmap]] |
+| 2026-11-09 | Per-track artwork committed (`e129f3e`, with the knowledge vault; the compaction hook in `4dd862a`) and pushed to `origin/feat/oneui-redesign` | [[Per-track artwork]]; [[2026-11-08-per-track-artwork rulings]] |
 | 2026-11-08 | Per-track artwork: bug found, spec approved, plan written | [[Per-track artwork]]; knowledge vault created ([[Record knowledge in the vault]]) |
 | 2026-11-04 | One UI Phase 7 committed (`15821b4`) and pushed | calibration, kit polish, docs, release gate; [[2026-10-27-oneui-phase7-calibration-release rulings]] |
 | 2026-10-22 → 10-27 | One UI Phase 6c: widget (`8f4ce3a`) | [[Widget design rules]]; [[2026-10-22-oneui-phase6c-widget rulings]] |

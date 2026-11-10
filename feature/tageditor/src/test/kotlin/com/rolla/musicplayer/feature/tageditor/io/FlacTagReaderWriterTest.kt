@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
+import com.rolla.musicplayer.core.testing.audio.AudioFixtures
 import kotlinx.coroutines.test.runTest
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.flac.FlacTag

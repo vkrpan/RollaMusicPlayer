@@ -22,6 +22,7 @@ Dependency direction: `:feature → :core → :core:model` ([[Module dependency 
 | [[core-ui]] | `:core:ui` | [[ui-builder]] |
 | [[core-permissions]] | `:core:permissions` | [[permissions-agent]] |
 | [[core-testing]] | `:core:testing` | [[test-writer]] |
+| [[core-tagio]] | `:core:tagio` | [[tag-editor-agent]] |
 | [[feature-library]] | `:feature:library` | [[ui-builder]], [[viewmodel-architect]] |
 | [[feature-search]] | `:feature:search` | [[ui-builder]], [[viewmodel-architect]] |
 | [[feature-player]] | `:feature:player` | [[ui-builder]], [[viewmodel-architect]], [[compose-animation-agent]] |

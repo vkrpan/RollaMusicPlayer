@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.rolla.musicplayer.core.database.MusicDatabase
 import com.rolla.musicplayer.core.database.dao.AlbumDao
 import com.rolla.musicplayer.core.database.dao.ArtistDao
+import com.rolla.musicplayer.core.database.dao.CustomTagDao
 import com.rolla.musicplayer.core.database.dao.EqualizerPresetDao
 import com.rolla.musicplayer.core.database.dao.FolderDao
 import com.rolla.musicplayer.core.database.dao.PlaybackQueueDao
@@ -19,6 +20,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+// One provider per DAO plus the database itself; splitting the module would only scatter the one-line providers.
+@Suppress("TooManyFunctions")
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -56,4 +59,7 @@ object DatabaseModule {
 
     @Provides
     fun providePlaybackQueueDao(database: MusicDatabase): PlaybackQueueDao = database.playbackQueueDao()
+
+    @Provides
+    fun provideCustomTagDao(database: MusicDatabase): CustomTagDao = database.customTagDao()
 }

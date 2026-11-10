@@ -1,5 +1,6 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
+import com.rolla.musicplayer.core.testing.audio.AudioFixtures
 import com.rolla.musicplayer.feature.tageditor.SongTags
 import com.rolla.musicplayer.feature.tageditor.TagField
 import kotlinx.coroutines.test.runTest

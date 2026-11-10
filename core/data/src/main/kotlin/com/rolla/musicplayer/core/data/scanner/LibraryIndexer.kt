@@ -26,11 +26,20 @@ import javax.inject.Singleton
  * different in-flight call's play-count/favourite update commits, and that stale snapshot would
  * then flow through [ScannedSong.toEntity]'s merge for any row whose `dateModified` also changed in
  * that same window.
+ *
+ * After its upserts and deletes, each entry point requests [FileTagPass] ([FileTagPass.request]),
+ * which reads the custom tags and genre of every row left unread. The request is made after
+ * [mutex] is released, and the call returns without waiting for the pass. The pass never diffs
+ * MediaStore and has its own lock, so it needs none of this one's guarantees, and a long first
+ * read of the whole library never blocks a sync or the tag editor's post-save [syncSongs]. The read
+ * lands shortly after a sync returns: callers that show a song's custom tags or genre observe them
+ * rather than assuming they are fresh when the sync returns.
  */
 @Singleton
 class LibraryIndexer @Inject constructor(
     private val scanner: MediaScanner,
     private val songDao: SongDao,
+    private val fileTagPass: FileTagPass,
 ) {
 
     private val mutex = Mutex()
@@ -44,9 +53,15 @@ class LibraryIndexer @Inject constructor(
      *
      * Safe to call while another [sync] or [syncSongs] is in flight -- see the class-level KDoc for
      * the serialization guarantee. Always runs on [Dispatchers.IO] regardless of the caller's
-     * dispatcher.
+     * dispatcher. Requests [FileTagPass] and returns without waiting for it (see the class-level KDoc).
      */
-    suspend fun sync(): SyncResult = mutex.withLock {
+    suspend fun sync(): SyncResult {
+        val result = syncLocked()
+        fileTagPass.request()
+        return result
+    }
+
+    private suspend fun syncLocked(): SyncResult = mutex.withLock {
         withContext(Dispatchers.IO) {
             val scanned = scanner.scan()
             val scannedById = scanned.associateBy { it.mediaStoreId }
@@ -62,7 +77,7 @@ class LibraryIndexer @Inject constructor(
                         existingEntity.dateModified != song.dateModified ||
                         existingEntity.folderPath != song.folderPath
                 }
-                .map { it.toEntity(existing[it.mediaStoreId]) }
+                .map { it.toEntity(existing[it.mediaStoreId], rereadFileTags = false) }
 
             val toDeleteIds = (existing.keys - scannedById.keys).toList()
 
@@ -86,25 +101,30 @@ class LibraryIndexer @Inject constructor(
      * targeted sync is only ever triggered because the caller already knows the file changed, so
      * that guard is both unnecessary and actively harmful here.
      *
+     * For the same reason the merge is told to re-read the files (`rereadFileTags = true`): the
+     * read flag resets even when `dateModified` did not move, so [FileTagPass] picks up the tags
+     * the caller just wrote.
+     *
      * User-state columns are preserved via the same [ScannedSong.toEntity] merge [sync] uses. Any
      * id present in [mediaStoreIds] but no longer present in MediaStore (file deleted/moved) is
      * removed from the library. An empty [mediaStoreIds] is a no-op that returns `SyncResult(0, 0)`
-     * without touching the scanner or the DAO -- and without waiting on [mutex].
+     * without touching the scanner or the DAO -- and without waiting on [mutex] or requesting
+     * [FileTagPass].
      *
      * Safe to call while another [sync] or [syncSongs] is in flight -- see the class-level KDoc for
      * the serialization guarantee. Always runs on [Dispatchers.IO] regardless of the caller's
-     * dispatcher.
+     * dispatcher. Requests [FileTagPass] and returns without waiting for it (see the class-level KDoc).
      */
     suspend fun syncSongs(mediaStoreIds: List<Long>): SyncResult {
         if (mediaStoreIds.isEmpty()) return SyncResult(added = 0, removed = 0)
 
-        return mutex.withLock {
+        val result = mutex.withLock {
             withContext(Dispatchers.IO) {
                 val scanned = scanner.scan(mediaStoreIds)
                 val scannedIds = scanned.map { it.mediaStoreId }.toSet()
                 val existing = songDao.getAllSongs().associateBy { it.mediaStoreId }
 
-                val toUpsert = scanned.map { it.toEntity(existing[it.mediaStoreId]) }
+                val toUpsert = scanned.map { it.toEntity(existing[it.mediaStoreId], rereadFileTags = true) }
                 val toDeleteIds = mediaStoreIds.filter { it !in scannedIds }
 
                 if (toUpsert.isNotEmpty()) songDao.upsertSongs(toUpsert)
@@ -113,5 +133,7 @@ class LibraryIndexer @Inject constructor(
                 SyncResult(added = toUpsert.size, removed = toDeleteIds.size)
             }
         }
+        fileTagPass.request()
+        return result
     }
 }

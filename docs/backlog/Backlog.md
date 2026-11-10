@@ -13,8 +13,8 @@ Open work, newest first. Each item links to its source.
 
 ## In flight (2026-11-08)
 
-- [ ] **Per-track artwork**: built and device-verified 2026-11-09; **commit waits for the user**. See [[Per-track artwork]].
-  Commit `.claude/hooks/compact_to_vault.py` separately from the feature.
+- [x] **Per-track artwork**: committed `e129f3e` and pushed 2026-11-09 (hook script `4dd862a`). See [[Per-track artwork]].
+- [ ] **Merge `feat/oneui-redesign` into `main`** (the One UI redesign and per-track artwork): the user's call.
   - Done 2026-11-09: `:core:database:connectedDebugAndroidTest` on the Motorola, 104 tests, 0 failures (Task 5's
     reshaped Artist, Folder and artist-search SQL).
   - Outside changes (final review M3/M4, ruling P28): after another app edits a track's tags, or a startup sync finds
@@ -25,6 +25,34 @@ Open work, newest first. Each item links to its source.
     decode per save, M6 undecodable pictures re-read per bind): left by ruling P28; see the run's final review.
 - [ ] **Merge `feat/oneui-redesign` into `main`** and tag the release (the user's call). See [[One UI redesign]].
 - [ ] **Install the staged superpowers-extras update** (`~/.claude/task-observer-workspace/skill-updates/2026-11-08/`).
+- [ ] **Custom tags and subtags** (asked 2026-11-09): replaces [[Custom tag system is cut]]. Spec approved
+  ([[2026-11-09-custom-tags-design]]); four phases ([[2026-11-09-custom-tags-roadmap]]). Phase 1
+  ([[2026-11-09-custom-tags-phase1-foundation]]) complete and device-verified, waiting for the user's commit. Progress
+  and phase-2 notes in [[Custom tags]].
+  - Batch the `FileTagPass` writes (one transaction per 50 files instead of per file) if the device probe shows the
+    first pass costs CPU or scroll smoothness (final review I3, Ruling 11).
+  - Before phase 2: decide M4A writes; fix the apply-after-reset race ([[Custom tags]] "Known limits").
+  - R8 keep rule for `RollaTagsFileIo`'s static jaudiotagger logger field (`:core:tagio` consumer rules), so release
+    keeps jaudiotagger at WARNING (final fix re-review).
+  - Phase 3: make `insertNew` report "full" in its transaction (last-ID race, [[Custom tags]] "Known limits").
+- [ ] **Bug (existing, found 2026-11-09): saving tags on an M4A erases other apps' custom fields.** jaudiotagger's
+  commit drops every freeform atom its `Mp4FieldKey` enum does not list
+  ([[jaudiotagger cannot write unknown M4A freeform atoms]]). Affects the [[Tag editor]] now and blocks writing
+  `ROLLA_TAGS` to M4A ([[Custom tags]]). Decide with the M4A question before custom tags phase 2.
+- [ ] **LLM wiki follow-ups** (first ingest 2026-11-09, [[LLM wiki beside the vault]]), all the user's call:
+  - `docs/log.md` (a stray log scaffold at the vault root, not made by Claude) clashes by name with `docs/wiki/log.md`;
+    delete it or rename it.
+  - Commit or git-ignore the plugin code (`docs/.obsidian/plugins/karpathywiki`, 4.8 MB) and
+    `docs/.obsidian/community-plugins.json`. Its `data.json` is already git-ignored.
+  - The plugin's extraction granularity is `standard`; the user's notes suggest Coarse or Minimal to save API cost.
+  - Uncommitted: the wiki scaffold, the CLAUDE.md schema section, the `/wiki-*` commands, the `.gitignore` lines.
+- [ ] **Drift the first wiki ingest found** (fix in the raw sources, not the wiki):
+  - [[Ownership map]] lists `:app/.../di/**` modules; `:app` has no `di/`. `DatabaseModule` is in
+    `:core:database/di`, `PreferencesModule` in `:core:datastore/di`; `MediaModule` and `ImageModule` do not exist.
+  - `CLAUDE.md` Notes say "Use Material Design 3 components throughout"; [[Build UI from tokens and the kit]] wins.
+  - `CLAUDE.md` Current Status still calls `15821b4` the redesign's last commit; the branch is at `e129f3e`.
+- [ ] **Hooks block**: the compaction hooks live in `.claude/settings.local.json`; move them into the committed
+  `.claude/settings.json` if the user wants them shared.
 
 ## Moved from CLAUDE.md
 
@@ -33,16 +61,15 @@ Open work, newest first. Each item links to its source.
 One thing described in this repo's specs was consciously scoped out. If a future prompt flags it as "missing", it is
 deferred, not broken; don't build it without an explicit ask:
 
-- **Custom tag system:** deferred during Phase 5, formally cut at v1.0. The shipped tag editor covers the full standard
-  field set (title/artist/album/genre/year/track/album artist/composer + artwork) for MP3/FLAC/M4A; a user-defined
-  custom-tag layer on top of that is the only piece not built.
+- **Custom tag system:** deferred during Phase 5, formally cut at v1.0 — **superseded 2026-11-09**: the user asked for
+  it and it is being built as [[Custom tags]].
 
 The other three v1.0 cuts (the A–Z fast-scroll index, the centre-weighted tab bar and Folders browsing) were built by
 the One UI redesign at the user's request (Phases 2, 4b and 5) and are shipped on `feat/oneui-redesign`.
 
 ### What remains (backlog)
 
-- The custom tag system cut above: revisit only on explicit ask.
+- The custom tag system: now in progress as [[Custom tags]] (see In flight).
 - **Scroll performance:** on the `pixel6Api31Frames` emulator the Tracks list's frame-duration P90 (with the baseline
   profile) is 96.3 ms against v1.0.0's 70.9 ms (+35.9 %; startup +13.4 %). The final review found no cause in the
   Phase 7 diff; the gap spans the whole redesign (pager, panel, rail, overlay pill). Next step: benchmark 8f4ce3a

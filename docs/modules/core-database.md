@@ -24,3 +24,14 @@ related: ["[[Modules]]", "[[Playback and queue]]", "[[Playlists]]", "[[Search]]"
 - 2026-11-08 (per-track artwork Task 5): `AlbumDao`, `ArtistDao`, `FolderDao`, `SearchDao` drop the `artwork_uri` projections and their
   representative-row `MIN(...)` picks; the Artist, Folder and artist-search queries are flattened (same columns, counts,
   grouping and order). Schema unchanged (v5; the column stays). The device DAO run (`connectedDebugAndroidTest`) is owed.
+- 2026-11-09 (custom tags phase 1, Task 4): **v6** (`MIGRATION_5_6`): tables `custom_tags` (PK kind+id, unique
+  `(kind, name_key)`), `custom_tag_counters` (per-kind highest ID ever issued; only rises, via `INSERT OR REPLACE …
+  MAX(…)` because API 24's SQLite has no upsert), `song_custom_tags` (FK `song_id` → `songs.id` ON DELETE CASCADE; no
+  FK to `custom_tags`, so unknown IDs are kept); `songs` gains `genre` and `file_tags_read`. `CustomTagDao` (interface
+  with `@Transaction` defaults: `insertNew`, `applyFileTags`). `FakeCustomTagDao` in [[core-testing]]. The instrumented
+  tests (10 DAO + the 5→6 migration) compile; their device run is owed (Motorola not connected). See [[Custom tags]].
+- 2026-11-10 (final fix wave): `CustomTagDao.insertNew` refuses (`IllegalStateException`) instead of wrapping past
+  `MAX_CUSTOM_TAG_ID`; new instrumented tests `insertNew_atCeiling_throwsAndInsertsNothing` and
+  `applyFileTags_onDeletedSong_rollsBackAndKeepsCounter`.
+- 2026-11-10: device run on the Motorola: `:core:database:connectedDebugAndroidTest` 117/117, every planned mutation
+  caught; the v6 upgrade ran on the user's real database without trouble.

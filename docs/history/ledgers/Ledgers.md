@@ -24,3 +24,4 @@ decisions made while building; the big, user-facing ones are promoted to [[Decis
 | [[2026-10-22-oneui-phase6c-widget rulings\|One UI Phase 6c — widget]] | 2026-10-22 | 21 | 5 |
 | [[2026-10-27-oneui-phase7-calibration-release rulings\|One UI Phase 7 — calibration and release gate]] | 2026-10-27 | 44 | 24 |
 | [[2026-11-08-per-track-artwork rulings\|Per-track artwork]] | 2026-11-08 | 28 | 11 |
+| [[2026-11-09-custom-tags-phase1-foundation rulings\|Custom tags phase 1 — foundation]] | 2026-11-09 | 13 | 6 |

@@ -1,1 +1,13 @@
-{}
+{
+  "userIgnoreFilters": [
+    "build/",
+    ".gradle/",
+    "app/",
+    "core/",
+    "features/",
+    "baselineprofile/",
+    "build-logic/",
+    "gradle/",
+    "config/"
+  ]
+}

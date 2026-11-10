@@ -26,3 +26,7 @@ related: ["[[Modules]]", "[[Tag editor]]", "[[Per-track artwork]]", "[[Tag write
 - 2026-11-09 (per-track artwork Task 8): `SelectionArtworkViewModel` (per-song loop modelled on the batch editor:
   copy → supportsArtwork → write/remove → persist → delete copy; consent, API 29 recovery; finalizer once with the
   succeeded songs) and `SelectionArtworkActions` (⋮ menu, picker, confirm dialog, progress ring); `SelectionArtworkResult`.
+- 2026-11-09 (custom tags phase 1, Task 1): `TagAccess.kt` (`editableTag`, `hasAnyArtwork`, `deleteEveryArtwork`,
+  `setFieldIfNotBlank`) moved to [[core-tagio]]; the audio test fixtures moved to [[core-testing]]
+  (`core.testing.audio`). Depends on `:core:tagio`. Known existing bug: an M4A save drops other apps' freeform atoms
+  ([[jaudiotagger cannot write unknown M4A freeform atoms]], [[Backlog]]).

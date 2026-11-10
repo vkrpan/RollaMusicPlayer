@@ -26,6 +26,7 @@ Traps and facts learned the hard way. Each note: symptom, cause, fix. Query: `gr
 
 ## Tag editing
 - [[jaudiotagger and ID3v1-only MP3s]]
+- [[jaudiotagger cannot write unknown M4A freeform atoms]]
 
 ## Compose and UI
 - [[Focused dialog text fields]]

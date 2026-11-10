@@ -1,12 +1,12 @@
 filters:
   and:
-    - 'type == "decision"'
+    - type == "decision"
 views:
   - type: table
     name: Active decisions
     filters:
       and:
-        - 'status == "active"'
+        - status == "active"
     order:
       - file.name
       - date
@@ -16,7 +16,7 @@ views:
     name: Superseded
     filters:
       and:
-        - 'status == "superseded"'
+        - status == "superseded"
     order:
       - file.name
       - date

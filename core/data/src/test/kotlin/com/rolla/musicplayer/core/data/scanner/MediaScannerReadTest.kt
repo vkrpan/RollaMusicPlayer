@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.model.songArtworkUri
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -70,14 +71,36 @@ class MediaScannerReadTest {
         )
     }
 
-    private fun cursorWith(folderColumn: String, folderValue: String): MatrixCursor {
-        val columns = arrayOf(
+    // GENRE exists from API 30. Mutations: never read the column (genre = null) → RED; leave GENRE out of PROJECTION →
+    // the projection assertion is RED.
+    @Test
+    @Config(sdk = [30])
+    fun api30ReadsTheGenre() {
+        val songs = scanner.readSongs(cursorWith(MediaStore.Audio.Media.RELATIVE_PATH, "Music/", genre = "Techno"))
+
+        assertEquals("Techno", songs.single().genre)
+        assertTrue(MediaStoreColumns.PROJECTION.contains(MediaStore.Audio.Media.GENRE))
+    }
+
+    // Mutation: keep the raw value (drop the blank check) → "  " → RED.
+    @Test
+    @Config(sdk = [30])
+    fun api30BlankGenreReadsAsNull() {
+        val songs = scanner.readSongs(cursorWith(MediaStore.Audio.Media.RELATIVE_PATH, "Music/", genre = "  "))
+
+        assertNull(songs.single().genre)
+    }
+
+    /** A one-row cursor; [genre] adds the API 30+ GENRE column, which the scanner asks for only there. */
+    private fun cursorWith(folderColumn: String, folderValue: String, genre: String? = null): MatrixCursor {
+        val columns = listOfNotNull(
             MediaStoreColumns.ID, MediaStoreColumns.TITLE, MediaStoreColumns.ARTIST, MediaStoreColumns.ALBUM,
             MediaStoreColumns.ALBUM_ID, MediaStoreColumns.DURATION, MediaStoreColumns.TRACK, MediaStoreColumns.YEAR,
-            MediaStoreColumns.DATE_MODIFIED, folderColumn,
-        )
+            MediaStoreColumns.DATE_MODIFIED, folderColumn, genre?.let { MediaStore.Audio.Media.GENRE },
+        ).toTypedArray()
+        val values = listOf<Any?>(1L, "Title", "Artist", "Album", 10L, 200_000L, 1, 2020, 1_000L, folderValue)
         return MatrixCursor(columns).apply {
-            addRow(arrayOf<Any?>(1L, "Title", "Artist", "Album", 10L, 200_000L, 1, 2020, 1_000L, folderValue))
+            addRow((if (genre == null) values else values + genre).toTypedArray())
         }
     }
 }

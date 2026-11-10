@@ -9,7 +9,8 @@ related: ["[[Modules]]", "[[Per-track artwork]]", "[[Song in code, Tracks on scr
 
 # core-model
 
-`:core:model` — Domain models and enums, pure Kotlin: `Song`, `Album`, `Artist`, `Folder`, `Playlist`, `EqualizerPreset`, `SavedPlayback`, `RepeatMode`, `ShuffleMode`, `artistDisplayName`. A shared contract: changes follow the model vocabulary and need code-reviewer and consumer review.
+`:core:model` — Domain models and enums, pure Kotlin: `Song`, `Album`, `Artist`, `Folder`, `Playlist`, `EqualizerPreset`, `SavedPlayback`, `RepeatMode`, `ShuffleMode`, `artistDisplayName`, and (since 2026-11-09, [[Custom tags]])
+`CustomTagKind`, `CustomTag`, `CustomTagIds`, `MAX_CUSTOM_TAG_ID`. A shared contract: changes follow the model vocabulary and need code-reviewer and consumer review.
 
 - **Owner agent(s):** [[code-reviewer]]
 - **Features:** [[Per-track artwork]]

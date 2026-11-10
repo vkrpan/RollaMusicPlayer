@@ -75,6 +75,16 @@ data class SongEntity(
     // fills it (spec §9.4).
     @ColumnInfo(name = "folder_path", defaultValue = "NULL")
     val folderPath: String? = null,
+
+    // The genre (v6): the file's own genre once the file pass has read it, else the scanned MediaStore value; null
+    // when neither has one. Not part of the Song model yet.
+    @ColumnInfo(name = "genre", defaultValue = "NULL")
+    val genre: String? = null,
+
+    // True once the file pass has read this file's custom tags and genre (v6). The scanner resets it when the file
+    // changes, so the next pass reads it again.
+    @ColumnInfo(name = "file_tags_read", defaultValue = "0")
+    val fileTagsRead: Boolean = false,
 )
 
 fun SongEntity.toDomain(): Song = Song(

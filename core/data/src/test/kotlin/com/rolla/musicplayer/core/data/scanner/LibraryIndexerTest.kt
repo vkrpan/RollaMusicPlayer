@@ -2,14 +2,24 @@ package com.rolla.musicplayer.core.data.scanner
 
 import com.rolla.musicplayer.core.database.dao.SongDao
 import com.rolla.musicplayer.core.database.entity.SongEntity
+import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.coVerifyOrder
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -26,7 +36,8 @@ class LibraryIndexerTest {
 
     private val scanner: MediaScanner = mockk()
     private val songDao: SongDao = mockk(relaxed = true)
-    private val indexer = LibraryIndexer(scanner, songDao)
+    private val fileTagPass: FileTagPass = mockk(relaxed = true)
+    private val indexer = LibraryIndexer(scanner, songDao, fileTagPass)
 
     // ── sync ──────────────────────────────────────────────────────────────
 
@@ -274,6 +285,59 @@ class LibraryIndexerTest {
         coVerify(exactly = 0) { songDao.deleteByMediaStoreIds(any()) }
     }
 
+    // ── the file tag pass ─────────────────────────────────────────────────
+
+    @Test
+    fun sync_requestsThePassAfterUpserting() = runTest {
+        coEvery { scanner.scan() } returns listOf(scannedSong(mediaStoreId = 1L))
+        coEvery { songDao.getAllSongs() } returns emptyList()
+
+        indexer.sync()
+
+        coVerifyOrder {
+            songDao.upsertSongs(any())
+            fileTagPass.request()
+        }
+    }
+
+    // A pass that never finishes stands for a long first read of the whole library: sync must still return.
+    @Test
+    fun sync_returnsWithoutWaitingForThePass() = runTest {
+        coEvery { scanner.scan() } returns listOf(scannedSong(mediaStoreId = 1L))
+        coEvery { songDao.getAllSongs() } returns emptyList()
+        coEvery { fileTagPass.run() } coAnswers { awaitCancellation() }
+
+        // Real time, not runTest's virtual clock: sync hops to the real Dispatchers.IO, and while it is away the
+        // virtual clock would skip straight to the timeout.
+        val result = withContext(Dispatchers.Default) { withTimeout(TIMEOUT_MS) { indexer.sync() } }
+
+        assertEquals(SyncResult(added = 1, removed = 0), result)
+    }
+
+    // The tag editor just wrote the file, possibly within the same DATE_MODIFIED second, so the pass reads it again.
+    @Test
+    fun syncSongs_rereadsTheSavedFiles() = runTest {
+        val upserted = slot<List<SongEntity>>()
+        coEvery { scanner.scan(listOf(1L)) } returns
+            listOf(scannedSong(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED))
+        coEvery { songDao.getAllSongs() } returns
+            listOf(entityWithUserState(mediaStoreId = 1L, dateModified = OLD_DATE_MODIFIED, fileTagsRead = true))
+        coEvery { songDao.upsertSongs(capture(upserted)) } just Runs
+
+        indexer.syncSongs(listOf(1L))
+
+        assertFalse(upserted.captured.single().fileTagsRead)
+        verify(exactly = 1) { fileTagPass.request() }
+    }
+
+    @Test
+    fun syncSongs_empty_doesNotRunThePass() = runTest {
+        indexer.syncSongs(emptyList())
+
+        verify(exactly = 0) { fileTagPass.request() }
+        coVerify(exactly = 0) { fileTagPass.run() }
+    }
+
     private fun SongEntity.preservesUserStateOf(existing: SongEntity, expectedTitle: String): Boolean {
         assertEquals(expectedTitle, title)
         assertEquals(existing.dateAdded, dateAdded)
@@ -287,6 +351,9 @@ class LibraryIndexerTest {
 
 private const val OLD_DATE_MODIFIED = 1_000L
 private const val NEW_DATE_MODIFIED = 2_000L
+
+// Real time. A sync that waits for a never-ending pass always hits it; one that does not returns in milliseconds.
+private const val TIMEOUT_MS = 5_000L
 
 private fun scannedSong(
     mediaStoreId: Long,
@@ -306,12 +373,14 @@ private fun scannedSong(
     artworkUri = "content://media/external/audio/albumart/10",
     dateModified = dateModified,
     folderPath = folderPath,
+    genre = null,
 )
 
 private fun entityWithUserState(
     mediaStoreId: Long,
     dateModified: Long,
     folderPath: String? = "Music",
+    fileTagsRead: Boolean = false,
 ): SongEntity = SongEntity(
     id = mediaStoreId.toString(),
     mediaStoreId = mediaStoreId,
@@ -330,4 +399,5 @@ private fun entityWithUserState(
     playCount = 4,
     lastPlayed = 900L,
     folderPath = folderPath,
+    fileTagsRead = fileTagsRead,
 )

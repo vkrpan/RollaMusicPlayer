@@ -1,6 +1,6 @@
 ---
 type: decision
-status: active
+status: superseded
 date: 2026-07-23
 source: "deferred in v1 Phase 5, formally cut at v1.0; CLAUDE.md Post-1.0 cuts"
 tags: [tag-editor, scope]
@@ -15,6 +15,9 @@ and M4A.
 
 **How to apply:** if a prompt flags it as "missing", it is a deliberate cut, not a defect. Building it is a new
 feature request, through brainstorming and a spec.
+
+**Superseded 2026-11-09:** the user asked for custom tags and subtags and approved the design
+([[2026-11-09-custom-tags-design]]); see [[Custom tags live in the file's ROLLA_TAGS field]] and [[Custom tags]].
 
 **History:** three other v1.0 cuts (the centre-weighted tab bar, Folders browsing, the A–Z fast-scroll index) were
 built by the One UI redesign at the user's request ([[One UI redesign decisions]]).

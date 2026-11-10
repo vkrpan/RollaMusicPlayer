@@ -43,7 +43,9 @@ Rules use **Rule / Why / How to apply**. Knowledge uses **Symptom / Cause / Fix*
 
 - Link every note to its folder index and to every entity it mentions: features ↔ modules ↔ agents ↔ decisions ↔ rules.
 - Link by file name (`[[Song in code, Tracks on screen]]`). File names are unique across the vault.
-- Code, specs and plans are cited by repo path in backticks (`docs/superpowers/specs/...`), not copied.
+- Every Markdown file Claude writes links other Markdown notes with `[[wikilinks]]`, specs and plans included
+  (`[[2026-11-09-custom-tags-design]]`), so Obsidian's graph and backlinks connect them
+  ([[Link Markdown notes with wikilinks]]). Source code is cited by repo path in backticks, not copied.
 - `.claude/rules/*`, `.claude/agents/*` and `.claude/skills/*` stay where the harness loads them. Their notes here link
   to them and carry only the must-obeys; the files are the source of truth.
 

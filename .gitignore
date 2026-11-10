@@ -44,3 +44,11 @@ Thumbs.db
 docs/.obsidian/workspace*.json
 docs/.obsidian/cache
 docs/.trash/
+
+# Obsidian opened at the repo root: per-machine state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/cache
+# Plugin settings can hold API keys (e.g. the Karpathy LLM Wiki plugin's provider key)
+.obsidian/plugins/*/data.json
+docs/.obsidian/plugins/*/data.json

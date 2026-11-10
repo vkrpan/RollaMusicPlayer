@@ -12,7 +12,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         // JitPack: required for the Android-compatible JAudiotagger fork
-        // (com.github.Adonai:jaudiotagger) used by :feature:tageditor. Local, on-device
+        // (com.github.Adonai:jaudiotagger) used by :core:tagio and :feature:tageditor. Local, on-device
         // tag parsing library only — see build-tooling-agent for the local-only vetting.
         maven(url = "https://jitpack.io")
     }
@@ -35,6 +35,7 @@ include(
     ":core:designsystem",
     ":core:ui",
     ":core:permissions",
+    ":core:tagio",
     ":core:testing",
 )
 

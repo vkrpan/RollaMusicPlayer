@@ -1,0 +1,39 @@
+package com.rolla.musicplayer.core.model
+
+/**
+ * The two lists a custom tag belongs to. A custom tag is a user-defined label, separate from the ID3 fields the tag
+ * editor writes; each kind issues its own IDs, so a [TAG] and a [SUBTAG] can share an ID.
+ */
+enum class CustomTagKind { TAG, SUBTAG }
+
+/**
+ * The highest custom tag ID a list issues or accepts from a file. An ID read from a file above it is dropped, so a
+ * hand-edited value cannot push a list's counter towards `Long` overflow; it also keeps IDs short and readable in the
+ * `ROLLA_TAGS` field.
+ */
+const val MAX_CUSTOM_TAG_ID: Long = 999_999_999L
+
+/** One user-defined label: its list ([kind]), its ID within that list, and its display name. */
+data class CustomTag(
+    val kind: CustomTagKind,
+    val id: Long,
+    val name: String,
+)
+
+/**
+ * The custom tags a song carries, as IDs per kind: [tagIds] for [CustomTagKind.TAG], [subTagIds] for
+ * [CustomTagKind.SUBTAG]. An ID with no matching [CustomTag] is kept as it is.
+ */
+data class CustomTagIds(
+    val tagIds: Set<Long>,
+    val subTagIds: Set<Long>,
+) {
+    /** True when the song carries no custom tag of either kind. */
+    val isEmpty: Boolean
+        get() = tagIds.isEmpty() && subTagIds.isEmpty()
+
+    companion object {
+        /** No custom tags. */
+        val EMPTY = CustomTagIds(emptySet(), emptySet())
+    }
+}

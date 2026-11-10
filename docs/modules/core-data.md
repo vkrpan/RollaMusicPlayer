@@ -27,3 +27,16 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Alb
 - 2026-11-08 (per-track artwork Task 6): the per-album cache is deleted (`AlbumArtworkCache`, its impl and dir
   qualifier, `ArtworkDecoder`, `BitmapArtworkDecoder`, their test and `DataModule` bindings). `SongArtworkCache` is the
   only artwork cache; no Kotlin code reads MediaStore's `audio/albumart` any more.
+- 2026-11-10 (custom tags phase 1, Task 5): the scan reads `ROLLA_TAGS` and the genre from files. `FileTagPass`
+  (batches of 50, newest `date_modified` first) runs on its own long-lived scope (`@FileTagPassScope`); `LibraryIndexer`
+  calls the non-suspending `request()` after its upsert and returns at once (requests during a run coalesce into one
+  more run; any Throwable per row marks the row read and is counted, never crashes; SDD rulings 7–8).
+  `SongFileSource`/`AndroidSongFileSource` reads in place when the `DATA` path is readable, else copies to
+  `cacheDir/file_tag_reads/` (always on API 29) and deletes the copy. `ScannedSong.toEntity` keeps `genre` and
+  `file_tags_read` only for an unchanged file; `syncSongs` forces a re-read. MediaStore `GENRE` on API 30+ only. Log tag
+  `FileTagPass`: `read N files (F failed) in T ms`. Depends on [[core-tagio]].
+- 2026-11-10 (custom tags phase 1, Task 6): `CustomTagRepository` (observe lists in library order, create, rename,
+  per-song IDs incl. unknown ones; names trimmed, 1–40 code points, unique per list ignoring case).
+- 2026-11-10 (final fix wave): `CustomTagNameResult.LimitReached` when the list's next ID would pass
+  `MAX_CUSTOM_TAG_ID`; lists tie-break by name then ID, as playlists do; `rename` validates the name before the ID
+  lookup (KDoc, Ruling 9).

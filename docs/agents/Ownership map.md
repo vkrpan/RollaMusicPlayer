@@ -40,6 +40,7 @@ This is also the up-to-date "owned files" mapping — it supersedes the older si
 :core:datastore/**                 data-layer-agent
 :core:data/** (repositories)       data-layer-agent
 :core:data/**/scanner/**           media-scanning-agent
+:core:tagio/**                     tag-editor-agent                      # jaudiotagger IO shared below features (2026-11-09)
 :core:media/** (playback)          audio-engineer
 :core:media/**/equalizer/**        equalizer-agent
 :core:designsystem/**              m3-design-system-agent

@@ -15,6 +15,8 @@ internal data class ScannedSong(
     val artworkUri: String,
     val dateModified: Long,
     val folderPath: String,
+    /** MediaStore's genre (API 30+), null below 30 or when blank. */
+    val genre: String?,
 )
 
 /**
@@ -33,9 +35,17 @@ internal data class ScannedSong(
  *
  * The folder path always comes from the scan, never from [existing]: a stored NULL or a moved file must take the
  * scanned value.
+ *
+ * The file pass's two columns, `fileTagsRead` and `genre`, are carried forward only while the file is unchanged: the
+ * read flag survives when [existing] had it set, its `dateModified` equals the scanned one and [rereadFileTags] is
+ * false, and the genre then stays the one the pass read from the file. Otherwise the flag resets, so [FileTagPass]
+ * reads the file again, and the genre falls back to the scanned MediaStore value until it does. [LibraryIndexer.sync]
+ * passes false; [LibraryIndexer.syncSongs] passes true, because its caller knows the file changed even when
+ * `DATE_MODIFIED`, which has second granularity, did not (the same reason it upserts unconditionally).
  */
-internal fun ScannedSong.toEntity(existing: SongEntity?): SongEntity =
-    SongEntity(
+internal fun ScannedSong.toEntity(existing: SongEntity?, rereadFileTags: Boolean = false): SongEntity {
+    val keepsFileTags = !rereadFileTags && existing?.fileTagsRead == true && existing.dateModified == dateModified
+    return SongEntity(
         id = mediaStoreId.toString(),
         mediaStoreId = mediaStoreId,
         title = title,
@@ -53,4 +63,7 @@ internal fun ScannedSong.toEntity(existing: SongEntity?): SongEntity =
         playCount = existing?.playCount ?: 0,
         lastPlayed = existing?.lastPlayed,
         folderPath = folderPath,
+        genre = if (keepsFileTags) existing?.genre else genre,
+        fileTagsRead = keepsFileTags,
     )
+}

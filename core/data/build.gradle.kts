@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":core:database"))
     implementation(project(":core:datastore"))
     implementation(project(":core:common"))
+    implementation(project(":core:tagio"))
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)

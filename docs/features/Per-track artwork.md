@@ -11,7 +11,7 @@ plan: "docs/superpowers/plans/2026-11-08-per-track-artwork.md"
 
 # Per-track artwork
 
-**Status (2026-11-09):** **built and device-verified, not yet committed.** All nine tasks done subagent-driven (user's
+**Status (2026-11-09):** **built, device-verified, committed (`e129f3e`) and pushed** to `feat/oneui-redesign` (2026-11-09). All nine tasks done subagent-driven (user's
 choice), each reviewed; final whole-branch review: ready to merge after one fix wave; the user's device walk on the
 Motorola passed ("everything seems perfect"). Ledger: `.superpowers/sdd/2026-11-08-per-track-artwork/progress.md` (pre-flight rulings
 P1–P6, later P7–P9; archived as [[2026-11-08-per-track-artwork rulings]]). Ruling P9: `SongArtworkCache.get` can throw on a disk

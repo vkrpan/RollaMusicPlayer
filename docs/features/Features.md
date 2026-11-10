@@ -14,11 +14,12 @@ related: ["[[Home]]"]
 | [[Playlists]] | shipped | [[feature-playlists]] | `history/v1-phases/PHASE2-PLAYLISTS.md` |
 | [[Equaliser]] | shipped | [[feature-equalizer]], [[core-media]] | `history/v1-phases/PHASE3-EQUALIZER.md` |
 | [[Tag editor]] | shipped | [[feature-tageditor]] | `history/v1-phases/PHASE4-TAGEDITOR.md` |
+| [[Custom tags]] | phase 1 of 4 built, uncommitted (2026-11-10) | [[feature-tageditor]], [[feature-search]], [[core-data]], [[core-database]] | [[2026-11-09-custom-tags-design]], [[2026-11-09-custom-tags-roadmap]] |
 | [[Search]] | shipped | [[feature-search]] | `history/v1-phases/PHASE5-SEARCH.md` |
 | [[Settings]] | shipped | [[feature-settings]] | `history/v1-phases/PHASE6-SETTINGS.md` |
 | [[Home-screen widget]] | shipped | [[feature-widget]] | redesign spec §13 |
 | [[Permissions]] | shipped | [[core-permissions]] | — |
-| [[Per-track artwork]] | planned | many | `superpowers/specs/2026-11-08-per-track-artwork-design.md`, `superpowers/plans/2026-11-08-per-track-artwork.md` |
+| [[Per-track artwork]] | done (`e129f3e`, 2026-11-09) | many | [[2026-11-08-per-track-artwork-design]], [[2026-11-08-per-track-artwork]] |
 
 The redesign spec is `superpowers/specs/2026-10-06-oneui-redesign-design.md`; its phase plans are listed in
 [[One UI redesign]].

@@ -1,5 +1,7 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
+import com.rolla.musicplayer.core.tagio.editableTag
+import com.rolla.musicplayer.core.tagio.hasAnyArtwork
 import com.rolla.musicplayer.feature.tageditor.SongTags
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.withContext

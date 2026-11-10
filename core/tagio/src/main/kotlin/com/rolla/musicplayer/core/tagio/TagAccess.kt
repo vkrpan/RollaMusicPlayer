@@ -1,4 +1,4 @@
-package com.rolla.musicplayer.feature.tageditor.io
+package com.rolla.musicplayer.core.tagio
 
 import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.mp3.MP3File
@@ -10,8 +10,8 @@ import org.jaudiotagger.tag.vorbiscomment.VorbisCommentFieldKey
 import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
 
 /*
- * Tag-access helpers shared by [TagReader] and [TagWriter], covering the places jaudiotagger's generic [Tag] API does
- * not reach:
+ * Tag-access helpers shared by `TagReader` and `TagWriter` (in :feature:tageditor), covering the places
+ * jaudiotagger's generic [Tag] API does not reach:
  *
  * - A FLAC picture can be a PICTURE metadata block (what [FlacTag] reports and deletes) or a Vorbis-comment field,
  *   `METADATA_BLOCK_PICTURE` or the legacy `COVERART` (what only [FlacTag.getVorbisCommentTag] reports and deletes).
@@ -28,27 +28,27 @@ import org.jaudiotagger.tag.vorbiscomment.VorbisCommentTag
  * Whether this tag holds any picture: an ordinary artwork field or, for FLAC, a Vorbis-comment picture field. Never
  * throws on a malformed Vorbis picture (see the file header).
  */
-internal fun Tag.hasAnyArtwork(): Boolean =
+fun Tag.hasAnyArtwork(): Boolean =
     firstArtwork != null || (this as? FlacTag)?.vorbisCommentTag?.hasPictureField() == true
 
 /** Deletes every picture this tag holds, in every form [hasAnyArtwork] counts. Text fields are untouched. */
-internal fun Tag.deleteEveryArtwork() {
+fun Tag.deleteEveryArtwork() {
     deleteArtworkField()
     (this as? FlacTag)?.vorbisCommentTag?.deleteArtworkField()
 }
 
 /**
- * The tag every read and write of this file works on ([TagReader.read], [TagWriter.writeFields],
- * [TagWriter.writeArtwork]; rulings P16 and P18). For an MP3 with an ID3v1 tag and no ID3v2 tag, first sets, in memory
- * only, an ID3v2.3 tag (the version jaudiotagger creates by default) built from the ID3v1 tag, so the editor shows the
- * file's title, artist, album, year, track and genre, and a save keeps every field it does not change. The ID3v1 tag
- * stays as it was. Every other file gets jaudiotagger's usual tag-or-new-default. Nothing is written here; only a
- * caller's `commit()` writes.
+ * The tag every read and write of this file works on (`TagReader.read`, `TagWriter.writeFields`,
+ * `TagWriter.writeArtwork`, all in :feature:tageditor; rulings P16 and P18). For an MP3 with an ID3v1 tag and no
+ * ID3v2 tag, first sets, in memory only, an ID3v2.3 tag (the version jaudiotagger creates by default) built from the
+ * ID3v1 tag, so the editor shows the file's title, artist, album, year, track and genre, and a save keeps every field
+ * it does not change. The ID3v1 tag stays as it was. Every other file gets jaudiotagger's usual tag-or-new-default.
+ * Nothing is written here; only a caller's `commit()` writes.
  *
  * The genre is set again from the ID3v1 tag after the conversion: jaudiotagger converts it to a TCON of `(17) Rock`,
  * which reads back as `Rock  Rock` until committed, while setting it gives the normal ID3v2.3 form, which reads `Rock`.
  */
-internal fun AudioFile.editableTag(): Tag {
+fun AudioFile.editableTag(): Tag {
     if (this is MP3File && hasID3v1Tag() && !hasID3v2Tag()) {
         val v1 = iD3v1Tag
         val v2 = ID3v23Tag(v1)
@@ -56,6 +56,14 @@ internal fun AudioFile.editableTag(): Tag {
         setID3v2Tag(v2)
     }
     return tagOrCreateAndSetDefault
+}
+
+/**
+ * Sets [key] to [value] when non-blank, otherwise deletes it -- the blank-means-clear contract
+ * documented on `TagWriter.writeFields` and on `SongTags` (in :feature:tageditor).
+ */
+fun Tag.setFieldIfNotBlank(key: FieldKey, value: String) {
+    if (value.isNotBlank()) setField(key, value) else deleteField(key)
 }
 
 /** A picture field is present, in either Vorbis-comment form; its value is never decoded. */

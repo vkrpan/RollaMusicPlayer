@@ -134,6 +134,9 @@ frontmatter and query commands in `docs/_meta/Vault conventions.md`.
 - **Settings**: DataStore (Preferences) for app configuration and equalizer active-state
 - **Artwork**: each track's own embedded picture, decoded once into a per-track cache in app-specific storage
   (`SongArtworkCache`, `cacheDir/song_art`); albums, artists and folders have no artwork and show the placeholder
+- **Custom tags** (in progress): a track's tag and subtag IDs live in its own file's `ROLLA_TAGS` field (MP3, FLAC; M4A
+  read-only); the two lists, per-list ID counters and the song links are in Room v6, rebuilt from the files by the
+  library scan
 - **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. A System UI media card that keeps the saved track after the process has died, with a Play that resumes the queue the same way, is designed for the stock-Android System UI (AOSP `MediaResumeListener`) and is **not yet device-verified** (`PlaybackService` is a `MediaLibraryService`; no library is browsable). On Samsung One UI (SM-S901B, Android 14) it is not delivered, because One UI never adds new apps to its media resume list, so on that phone the card disappears when the process dies
 
 ### Technical Implications
@@ -190,7 +193,9 @@ frontmatter and query commands in `docs/_meta/Vault conventions.md`.
 - Folders browsing (every folder that directly holds tracks) and Folder, Album and Artist detail screens, reached from
   the Home tabs, Search and Now Playing's ⋮
 
-> A **custom user-defined tag system** was scoped for Phase 5 but cut from v1.0 — see `docs/decisions/Custom tag system is cut.md`.
+> A **custom user-defined tag system** was cut from v1.0, then asked for again on 2026-11-09 and is in progress: tags
+> and subtags stored in each file's `ROLLA_TAGS` field — see `docs/features/Custom tags.md` and
+> `docs/decisions/Custom tags live in the file's ROLLA_TAGS field.md`.
 
 ### Home Screen Widget
 - The current track's own artwork (or the white note)
@@ -219,6 +224,7 @@ See the `setup-modularization` skill for the full graph, convention plugins, and
 ├── :core:media         # Media3 PlaybackService (a MediaLibraryService), MediaSession, the queue (QueueState/QueuePublisher), queue save/restore, audio session, equalizer effect
 ├── :core:designsystem  # Theme (Color/Type/Shape) + model-agnostic components
 ├── :core:ui            # Model-aware shared composables (SongListItem, list rows, AlbumCard, FeatureCard, SongOptionsHost)
+├── :core:tagio         # jaudiotagger IO shared below features: tag helpers, the ROLLA_TAGS custom-tag field (MP3, FLAC; M4A read-only)
 ├── :core:permissions   # Runtime media permission gate + flow
 └── :core:testing       # Fakes, fixtures, test rules
 
@@ -245,7 +251,7 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 - `:core:media` → audio-engineer · equalizer effect → equalizer-agent
 - `:core:designsystem` → m3-design-system-agent · `:core:ui` & `:feature:*` screens → ui-builder
 - `:core:permissions` → permissions-agent · `:feature:widget` → widget-agent
-- `:feature:tageditor` IO → tag-editor-agent · `:feature:*` ViewModels → viewmodel-architect
+- `:feature:tageditor` IO and `:core:tagio` → tag-editor-agent · `:feature:*` ViewModels → viewmodel-architect
 - `:app` NavHost + per-feature nav entries → navigation-agent
 - `build-logic/`, root Gradle, version catalog, `:baselineprofile` → build-tooling-agent
 - `:core:model` is a shared contract — settle model names once (the codebase uses **`Song`**, not `Track`)
@@ -282,14 +288,17 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
 - **v1.0.0** shipped on `main` (2026-07-23). Detail: `docs/history/v1.0 release.md`.
 - **One UI redesign** Phases 1–7 complete on `feat/oneui-redesign` (last commit `15821b4`, pushed), waiting for the
   user's merge into `main`. Detail: `docs/history/One UI redesign.md`.
-- **Per-track artwork**: built on `feat/oneui-redesign` (2026-11-08/09), final review ready to merge, device walk passed;
-  not committed yet. Spec
+- **Per-track artwork**: committed (`e129f3e`) and pushed on `feat/oneui-redesign` (2026-11-09), device-verified. Spec
   `docs/superpowers/specs/2026-11-08-per-track-artwork-design.md`, plan `docs/superpowers/plans/2026-11-08-per-track-artwork.md`,
   status `docs/features/Per-track artwork.md`.
-- Backlog, review follow-ups, the custom-tag-system cut and next steps: `docs/backlog/Backlog.md`. History by date:
+- **Custom tags** phase 1 of 4 (foundation: `:core:tagio`, Room v6, the scan's file pass, `CustomTagRepository`) built,
+  reviewed and device-verified on `feat/oneui-redesign`, waiting for the user's commit (2026-11-10). Spec
+  `docs/superpowers/specs/2026-11-09-custom-tags-design.md`, roadmap `docs/superpowers/plans/2026-11-09-custom-tags-roadmap.md`,
+  status `docs/features/Custom tags.md`.
+- Backlog, review follow-ups and next steps: `docs/backlog/Backlog.md`. History by date:
   `docs/history/Timeline.md`.
 
-**Last Updated**: 2026-11-09
+**Last Updated**: 2026-11-10
 
 ## Notes
 
@@ -299,3 +308,61 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
 - Write unit tests for business logic
 - Use Coil for image loading
 - Implement proper error handling and user feedback
+
+## Knowledge wiki (Karpathy LLM-wiki pattern)
+
+`docs/wiki/` is an LLM-maintained knowledge base about this project, viewed in Obsidian inside the `docs/` vault (the
+"Karpathy LLM Wiki" plugin is installed there with `wikiFolder: wiki`). The plugin or Claude Code writes it; humans read
+it. Operations: `/wiki-ingest`, `/wiki-query`, `/wiki-lint` (in `.claude/commands/`) or the plugin's Ingest, Query wiki
+and Lint wiki. It is a derived view; the rest of the `docs/` vault stays the authored record ("Knowledge vault" above).
+
+### Layers
+- **Raw sources (read-only during wiki work — never edit them as part of a wiki operation):**
+  `CLAUDE.md`, `docs/agents/Ownership map.md` (formerly `OWNERSHIP.md`), `README.md`,
+  `docs/history/v1-phases/PHASE*.md`, `docs/superpowers/specs/*.md`, `docs/superpowers/plans/*.md`,
+  `.claude/rules/*.md`, `.claude/agents/*.md`, `.claude/skills/*/SKILL.md`. The code itself is the final authority.
+- **Wiki:** `docs/wiki/` — `sources/` (one page per raw doc), `entities/` (concrete things: modules,
+  classes, screens, routes, agents, DB tables), `concepts/` (decisions, patterns, rules, rejected
+  alternatives), `answers/` (filed query answers), plus `index.md` and `log.md`.
+- **Schema:** this section.
+
+### Page format
+- Filename: kebab-case, unique across the whole `docs/` vault, because Obsidian resolves `[[links]]` by name. Module
+  pages are `module-<name>.md` (`module-core-media.md`), since the vault's own module notes use the bare names.
+- Frontmatter:
+  ```yaml
+  ---
+  type: source | entity | concept | answer
+  summary: One sentence saying what this page is.
+  aliases: [AlbumArtworkCacheImpl]
+  tags: [module, media]
+  sources: ["[[claude-md]]", "[[phase8-polish-release]]"]
+  updated: YYYY-MM-DD
+  ---
+  ```
+- Body: `# Title`, the summary repeated as the first line, then content. Link every mention of
+  another wiki page with `[[slug]]`. End with `## Related` (links) and, when needed,
+  `## Disagreements & open questions`.
+- Use the vocabulary in `.claude/rules/model-vocabulary.md` (`Song`, never `Track`).
+
+### Rules
+1. **Extend, don't duplicate.** Before creating a page, check `docs/wiki/index.md` and grep `docs/wiki/`
+   for the name and its aliases. Update the existing page if there is one.
+2. **Rewrite, don't append.** Keep each page a coherent current summary, not a changelog.
+3. **Never silently overwrite a conflict.** Record both claims with their sources under
+   `## Disagreements & open questions`. If the code can settle it, check the code and say which
+   claim is right (cite the file path).
+4. **Never hand-edit wiki pages.** The only manual edit is `reviewed: true` in a curated page's frontmatter; such a
+   page is protected: don't edit it, propose changes in chat instead.
+5. **Code and CLAUDE.md win.** The wiki is a derived view; when it disagrees with them, the wiki
+   is wrong.
+6. Every operation updates `docs/wiki/index.md` (if pages changed) and appends to `docs/wiki/log.md` as
+   `## [YYYY-MM-DD] ingest | Title` (or `query` / `lint`) followed by bullets.
+7. Wiki operations never touch code, build files, or raw sources.
+8. **Keep it current.** After each phase or major commit, ingest that phase's doc. File a good query answer back as
+   a page in `answers/`. Run lint before starting each new phase, and review its counts before applying fixes (in the
+   plugin, before "Smart Fix All").
+
+### For other agents
+For project context, read `docs/wiki/index.md` first, then the linked pages, before reading a
+wiki-covered topic from scratch.

@@ -12,6 +12,8 @@ Standing instructions from the user. Every session obeys them; a conflict with a
 - [[Commits are user-triggered]] — report "ready to commit"; commit only when asked.
 - [[Record knowledge in the vault]] — the vault is the first source of information; every code or doc change is
   recorded in every vault note it touches, in the same turn.
+- [[Wiki pages are generated, never hand-edited]] — `wiki/` is LLM-written; only `reviewed: true` by hand; code and
+  CLAUDE.md win.
 - [[Save compaction summaries to the vault]] — after every compaction, distil the saved summary into the vault before
   continuing (hooks save it automatically).
 - [[Subagents run on Opus]] — every dispatch passes `model: opus`; the orchestrator verifies results.
@@ -29,6 +31,7 @@ Standing instructions from the user. Every session obeys them; a conflict with a
 - [[Module dependency direction]] — feature → core → model; features never depend on each other.
 - [[Spec wins over plan]] — specs bind plans, plans bind CLAUDE.md claims.
 - [[Keep docs honest]] — sweep claims at every merge; grep before saying "gone everywhere".
+- [[Link Markdown notes with wikilinks]] — every `.md` Claude writes links other notes with `[[wikilinks]]`.
 - [[Judge motion on a release-like build]] — animation verdicts come from `assembleBenchmark`.
 
 ## Tools and devices

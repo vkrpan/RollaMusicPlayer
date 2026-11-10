@@ -1,4 +1,4 @@
-package com.rolla.musicplayer.feature.tageditor.io
+package com.rolla.musicplayer.core.testing.audio
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -15,7 +15,8 @@ import java.nio.charset.StandardCharsets
  * again with the real offset now that ftyp+moov's total length is known. Both builds are
  * byte-identical in length; only that one field's value differs, so this is safe.
  */
-internal object M4aFixture {
+@Suppress("MagicNumber", "TooManyFunctions") // Fixture layouts use literal offsets and box codes; one builder per box.
+object M4aFixture {
 
     private val US_ASCII = StandardCharsets.US_ASCII
 
@@ -35,15 +36,48 @@ internal object M4aFixture {
     private const val ES_ID = 0
     private const val SL_CONFIG_PREDEFINED_MP4 = 0x02
 
-    fun bytes(): ByteArray {
+    /**
+     * The M4A stream, with no metadata by default. With a [title] or [freeformAtoms], moov also carries the iTunes
+     * metadata another program writes: udta > meta > (hdlr `mdir`, ilst), the ilst holding a `©nam` atom for [title]
+     * and one `----` atom (mean, name, UTF-8 data) per freeform entry.
+     */
+    fun bytes(freeformAtoms: List<FreeformAtom> = emptyList(), title: String? = null): ByteArray {
+        val ilstItems = (title?.let { textAtom(TITLE_ATOM, it) } ?: ByteArray(0)) +
+            freeformAtoms.fold(ByteArray(0)) { acc, atom -> acc + freeformBox(atom) }
         val ftyp = ftypBox()
-        val moovAtPlaceholderOffset = moovBox(chunkOffset = 0)
+        val moovAtPlaceholderOffset = moovBox(chunkOffset = 0, ilstItems)
         val mdatHeaderSize = 8
         val mdatOffset = ftyp.size + moovAtPlaceholderOffset.size + mdatHeaderSize
-        val moov = moovBox(chunkOffset = mdatOffset)
+        val moov = moovBox(chunkOffset = mdatOffset, ilstItems)
         val mdat = box("mdat", ByteArray(DUMMY_SAMPLE_BYTE_COUNT))
         return ftyp + moov + mdat
     }
+
+    /** One iTunes freeform (`----`) metadata atom: its [mean] (issuer), [name] and UTF-8 text [value]. */
+    data class FreeformAtom(val mean: String, val name: String, val value: String)
+
+    private const val DATA_TYPE_UTF8 = 1L
+    private const val TITLE_ATOM = "©nam"
+
+    private fun udtaBox(ilstItems: ByteArray): ByteArray {
+        val hdlr = box(
+            "hdlr",
+            uint32(0) + uint32(0) + "mdir".toByteArray(US_ASCII) + "appl".toByteArray(US_ASCII) + ByteArray(9),
+        )
+        val meta = box("meta", uint32(0) + hdlr + box("ilst", ilstItems))
+        return box("udta", meta)
+    }
+
+    private fun textAtom(type: String, value: String): ByteArray = box(type, utf8DataBox(value))
+
+    private fun freeformBox(atom: FreeformAtom): ByteArray {
+        val mean = box("mean", uint32(0) + atom.mean.toByteArray(StandardCharsets.UTF_8))
+        val name = box("name", uint32(0) + atom.name.toByteArray(StandardCharsets.UTF_8))
+        return box("----", mean + name + utf8DataBox(atom.value))
+    }
+
+    private fun utf8DataBox(value: String): ByteArray =
+        box("data", uint32(DATA_TYPE_UTF8) + uint32(0) + value.toByteArray(StandardCharsets.UTF_8))
 
     private fun ftypBox(): ByteArray {
         val majorBrand = "M4A ".toByteArray(US_ASCII)
@@ -54,10 +88,11 @@ internal object M4aFixture {
         return box("ftyp", majorBrand + minorVersion + compatibleBrands)
     }
 
-    private fun moovBox(chunkOffset: Int): ByteArray {
+    private fun moovBox(chunkOffset: Int, ilstItems: ByteArray): ByteArray {
         val mvhd = mvhdBox()
         val trak = trakBox(chunkOffset)
-        return box("moov", mvhd + trak)
+        val udta = if (ilstItems.isEmpty()) ByteArray(0) else udtaBox(ilstItems)
+        return box("moov", mvhd + trak + udta)
     }
 
     private fun mvhdBox(): ByteArray {
@@ -208,7 +243,7 @@ internal object M4aFixture {
         require(type.length == 4) { "Box type must be exactly 4 characters" }
         val out = ByteArrayOutputStream()
         out.write(uint32((payload.size + 8).toLong()))
-        out.write(type.toByteArray(US_ASCII))
+        out.write(type.toByteArray(StandardCharsets.ISO_8859_1)) // ISO-8859-1: iTunes atom types such as ©nam
         out.write(payload)
         return out.toByteArray()
     }

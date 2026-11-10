@@ -31,7 +31,14 @@ internal object MediaStoreColumns {
             MediaStore.Audio.Media.DATA
         }
 
-    val PROJECTION: Array<String> = arrayOf(
+    /**
+     * MediaStore's genre column, which exists from API 30; null below it, where asking for it would make the query
+     * throw. The file tag pass later replaces the value with the file's own genre when the file has one.
+     */
+    val GENRE: String? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) MediaStore.Audio.Media.GENRE else null
+
+    val PROJECTION: Array<String> = listOfNotNull(
         ID,
         TITLE,
         ARTIST,
@@ -42,7 +49,8 @@ internal object MediaStoreColumns {
         YEAR,
         DATE_MODIFIED,
         FOLDER,
-    )
+        GENRE,
+    ).toTypedArray()
 
     val SELECTION: String = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
     val SORT_ORDER: String = "$TITLE COLLATE NOCASE ASC"

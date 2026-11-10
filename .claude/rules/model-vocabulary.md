@@ -73,6 +73,21 @@ data class EqualizerPreset(
     val gainsMillibel: List<Short>
 )
 
+enum class CustomTagKind { TAG, SUBTAG }   // the two lists; each issues its own IDs
+
+data class CustomTag(
+    val kind: CustomTagKind,
+    val id: Long,                 // unique within its kind only
+    val name: String
+) // a user-defined label, not an ID3 field
+
+data class CustomTagIds(
+    val tagIds: Set<Long>,
+    val subTagIds: Set<Long>
+) // the custom tags one song carries; isEmpty, CustomTagIds.EMPTY
+
+const val MAX_CUSTOM_TAG_ID: Long = 999_999_999L // the highest ID a list issues or accepts from a file
+
 enum class RepeatMode { OFF, ONE, ALL }
 enum class ShuffleMode { OFF, ON }
 ```
@@ -85,6 +100,9 @@ Naming conventions:
 - An artist's identity is its raw `name` (Phase 4a ruling 12).
 - Artwork is per track only (per-track artwork, 2026-11-08): `Song.artworkUri` is the track's own picture, resolved
   through `SongArtworkCache`; `Album`, `Artist` and `Folder` have no artwork and always show the placeholder.
+- A **custom tag** (`CustomTag`, `CustomTagKind`, `CustomTagIds`; custom tags, 2026-11-09) is a user-defined label,
+  distinct from the ID3 fields in `SongTags`. Its identity is `kind` plus `id`: each kind issues its own IDs, so a
+  `TAG` and a `SUBTAG` can share one. Variables say `customTag`, `tagIds`, `subTagIds`; never "TrackTag".
 
 ## UI label exception ("Tracks" on screen, `Song` in code)
 

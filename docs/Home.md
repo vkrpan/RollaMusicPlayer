@@ -23,13 +23,14 @@ How notes are shaped and how to query them: [[Vault conventions]].
 | What is open | [[Backlog]] |
 | Rulings made while building each phase | [[Ledgers]] |
 | Compaction summaries saved after each context compaction | [[Sessions]] |
+| The LLM-generated wiki (`docs/wiki/`, derived, never hand-edited; start at `wiki/index.md`) | [[LLM wiki beside the vault]] |
 
 ## Current state (2026-11-09)
 
 - v1.0.0 shipped on `main` (2026-07-23): [[v1.0 release]].
 - The One UI redesign (Phases 1–7) is complete on `feat/oneui-redesign`, pushed, waiting for the user's merge:
   [[One UI redesign]].
-- [[Per-track artwork]] — built and device-verified (2026-11-09), waiting for the user's commit.
+- [[Per-track artwork]] — committed (`e129f3e`) and pushed on `feat/oneui-redesign` (2026-11-09).
 
 ## Other folders
 

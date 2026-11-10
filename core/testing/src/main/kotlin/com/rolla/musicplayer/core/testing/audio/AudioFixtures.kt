@@ -1,15 +1,16 @@
-package com.rolla.musicplayer.feature.tageditor.io
+package com.rolla.musicplayer.core.testing.audio
 
 import java.io.ByteArrayOutputStream
 
 /**
- * Hand-built, structurally-valid minimal audio byte streams used to exercise [TagReader]/
- * [TagWriter] against real jaudiotagger format readers/writers, without shipping binary fixture
+ * Hand-built, structurally-valid minimal audio byte streams used to exercise `TagReader`/
+ * `TagWriter` (in :feature:tageditor) against real jaudiotagger format readers/writers, without shipping binary fixture
  * files. Every builder produces the smallest stream that a real decoder's/tag-library's format
  * sniffing accepts -- the audio payload itself is silence/dummy bytes, since only the *container
  * and tag structure* matters for these tests.
  */
-internal object AudioFixtures {
+@Suppress("MagicNumber") // Fixture byte layouts use literal offsets and header values.
+object AudioFixtures {
 
     private const val MP3_FRAME_SYNC_BYTE_0 = 0xFF
     private const val MP3_FRAME_HEADER_BYTE_1 = 0xFB // MPEG1, Layer III, no CRC
@@ -100,7 +101,7 @@ internal object AudioFixtures {
      * frame data. jaudiotagger's FLAC reader derives sample rate/channels/bit depth/duration
      * entirely from STREAMINFO, and reads/writes Vorbis comments as a separate metadata block, so
      * this fixture intentionally carries no VORBIS_COMMENT block -- the "file with no tag at all"
-     * case -- and lets [TagWriter.write] insert one on first save.
+     * case -- and lets `TagWriter.write` (in :feature:tageditor) insert one on first save.
      */
     fun flacBytes(): ByteArray {
         val out = ByteArrayOutputStream()

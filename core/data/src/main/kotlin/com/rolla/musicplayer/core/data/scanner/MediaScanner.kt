@@ -68,6 +68,7 @@ class MediaScanner @Inject constructor(
                 artworkUri = songArtworkUri(id.toString(), dateModified),
                 dateModified = dateModified,
                 folderPath = FolderPaths.fromColumn(Build.VERSION.SDK_INT, cursor.getString(cols.folder)),
+                genre = cols.genre?.let(cursor::getString)?.takeIf { it.isNotBlank() },
             )
         }
         return results
@@ -84,6 +85,8 @@ class MediaScanner @Inject constructor(
         val year: Int,
         val dateModified: Int,
         val folder: Int,
+        /** Null below API 30, where the projection has no genre column. */
+        val genre: Int?,
     ) {
         companion object {
             fun from(cursor: Cursor) = ColumnIndices(
@@ -97,6 +100,7 @@ class MediaScanner @Inject constructor(
                 year = cursor.getColumnIndexOrThrow(MediaStoreColumns.YEAR),
                 dateModified = cursor.getColumnIndexOrThrow(MediaStoreColumns.DATE_MODIFIED),
                 folder = cursor.getColumnIndexOrThrow(MediaStoreColumns.FOLDER),
+                genre = MediaStoreColumns.GENRE?.let(cursor::getColumnIndexOrThrow),
             )
         }
     }

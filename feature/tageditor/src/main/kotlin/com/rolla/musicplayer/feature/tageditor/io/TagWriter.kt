@@ -1,6 +1,10 @@
 package com.rolla.musicplayer.feature.tageditor.io
 
 import android.os.Build
+import com.rolla.musicplayer.core.tagio.deleteEveryArtwork
+import com.rolla.musicplayer.core.tagio.editableTag
+import com.rolla.musicplayer.core.tagio.hasAnyArtwork
+import com.rolla.musicplayer.core.tagio.setFieldIfNotBlank
 import com.rolla.musicplayer.feature.tageditor.SongTags
 import com.rolla.musicplayer.feature.tageditor.TagField
 import kotlinx.coroutines.CoroutineDispatcher
@@ -142,14 +146,6 @@ class TagWriter @Inject constructor(
 fun File.supportsArtwork(): Boolean = extension.lowercase() in ARTWORK_EXTENSIONS
 
 private val ARTWORK_EXTENSIONS = setOf("mp3", "flac", "m4a")
-
-/**
- * Sets [key] to [value] when non-blank, otherwise deletes it -- the blank-means-clear contract
- * documented on [TagWriter.writeFields] and on [SongTags].
- */
-internal fun Tag.setFieldIfNotBlank(key: FieldKey, value: String) {
-    if (value.isNotBlank()) setField(key, value) else deleteField(key)
-}
 
 /** Every [SongTags] field, keyed by its [TagField] -- the single-editor's "all fields in scope" map. */
 private fun SongTags.toFieldMap(): Map<TagField, String> = mapOf(
