@@ -208,6 +208,12 @@ object RollaDimens {
     val chipGridStart = 28.dp
     val chipHorizontalPadding = 16.dp
 
+    /**
+     * Vertical padding inside a LabelChip (custom tags fix round 1): keeps a wrapped label off the chip's edges, and
+     * is half of chipHeight minus the chipLabel line height (40 − 22), so a one-line chip stays chipHeight tall.
+     */
+    val labelChipVerticalPadding = 9.dp
+
     /** Visual gap between chip rows (calibrated 2026-10-31: measured 14 dp). Columns stay [chipGap] apart. */
     val chipRowGap = 14.dp
 

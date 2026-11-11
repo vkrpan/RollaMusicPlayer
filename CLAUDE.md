@@ -135,8 +135,8 @@ frontmatter and query commands in `docs/_meta/Vault conventions.md`.
 - **Artwork**: each track's own embedded picture, decoded once into a per-track cache in app-specific storage
   (`SongArtworkCache`, `cacheDir/song_art`); albums, artists and folders have no artwork and show the placeholder
 - **Custom tags** (in progress): a track's tag and subtag IDs live in its own file's `ROLLA_TAGS` field (MP3, FLAC; M4A
-  read-only); the two lists, per-list ID counters and the song links are in Room v6, rebuilt from the files by the
-  library scan
+  read-only); the two lists, per-list ID counters and the song links are in Room (v6; v7 adds a per-row read
+  generation), rebuilt from the files by the library scan
 - **Playback State**: The queue, current track, position, shuffle order and repeat mode are saved in Room (v5 `playback_queue`/`playback_state`) and restored, paused, on the next start; Play from a headset or Bluetooth resumes them without opening the app. A System UI media card that keeps the saved track after the process has died, with a Play that resumes the queue the same way, is designed for the stock-Android System UI (AOSP `MediaResumeListener`) and is **not yet device-verified** (`PlaybackService` is a `MediaLibraryService`; no library is browsable). On Samsung One UI (SM-S901B, Android 14) it is not delivered, because One UI never adds new apps to its media resume list, so on that phone the card disappears when the process dies
 
 ### Technical Implications
@@ -292,13 +292,15 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
   `docs/superpowers/specs/2026-11-08-per-track-artwork-design.md`, plan `docs/superpowers/plans/2026-11-08-per-track-artwork.md`,
   status `docs/features/Per-track artwork.md`.
 - **Custom tags** phase 1 of 4 (foundation: `:core:tagio`, Room v6, the scan's file pass, `CustomTagRepository`) built,
-  reviewed and device-verified on `feat/oneui-redesign`, waiting for the user's commit (2026-11-10). Spec
+  reviewed, device-verified and committed (`dce76dd`, 2026-11-10) on `feat/oneui-redesign`. Phase 2 (assigning: the
+  picker sheet, tags in the single and batch tag editors, Room v7) complete and device-walked, uncommitted
+  (2026-11-11). Spec
   `docs/superpowers/specs/2026-11-09-custom-tags-design.md`, roadmap `docs/superpowers/plans/2026-11-09-custom-tags-roadmap.md`,
   status `docs/features/Custom tags.md`.
 - Backlog, review follow-ups and next steps: `docs/backlog/Backlog.md`. History by date:
   `docs/history/Timeline.md`.
 
-**Last Updated**: 2026-11-10
+**Last Updated**: 2026-11-11
 
 ## Notes
 

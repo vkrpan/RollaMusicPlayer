@@ -42,6 +42,14 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.metadata
 import com.rolla.musicplayer.core.designsystem.theme.sliderInactiveTrack
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
+import com.rolla.musicplayer.core.ui.customtags.CustomTagNameDialog
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerSheet
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerState
+import com.rolla.musicplayer.core.ui.customtags.CustomTagRows
+import com.rolla.musicplayer.core.ui.customtags.selectedNames
 import com.rolla.musicplayer.core.ui.tracksCountLabel
 import com.rolla.musicplayer.feature.tageditor.io.rememberMediaWriteRequester
 
@@ -115,11 +123,26 @@ fun BatchTagEditorRoute(
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
         onNavigateUp = navigateUpUnlessSaving,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
+        onCustomTagRowsClick = remember(viewModel) { viewModel::onCustomTagRowsClick },
+        onPickerPageChange = remember(viewModel) { viewModel::onPickerPageChange },
+        onPickerQueryChange = remember(viewModel) { viewModel::onPickerQueryChange },
+        onCustomTagToggle = remember(viewModel) { viewModel::onCustomTagToggle },
+        onPickerDone = remember(viewModel) { viewModel::onPickerDone },
+        onCreateCustomTagClick = remember(viewModel) { viewModel::onCreateCustomTagClick },
+        onCreateCustomTagConfirm = remember(viewModel) { viewModel::onCreateCustomTagConfirm },
+        onNameDialogDismiss = remember(viewModel) { viewModel::onNameDialogDismiss },
         modifier = modifier,
     )
 }
 
-@Suppress("LongParameterList")
+/**
+ * The batch tag editor: the fields card with its caption, the Tags and Subtags rows (what Save adds to every selected
+ * track), the optional progress, and Save/Cancel. It also hosts the custom tag picker sheet while
+ * [BatchTagEditorUiState.isPickerOpen] and the "New tag" dialog while [BatchTagEditorUiState.nameDialog] is set; both
+ * are driven entirely by [uiState].
+ */
+// One callback per editor action plus the Scaffold; splitting it would only move the parameter fan-out.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 fun BatchTagEditorScreen(
     uiState: BatchTagEditorUiState,
@@ -128,6 +151,14 @@ fun BatchTagEditorScreen(
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     onDismissMessage: () -> Unit,
+    onCustomTagRowsClick: (CustomTagKind) -> Unit,
+    onPickerPageChange: (CustomTagKind) -> Unit,
+    onPickerQueryChange: (CustomTagKind, String) -> Unit,
+    onCustomTagToggle: (CustomTagKind, Long) -> Unit,
+    onPickerDone: () -> Unit,
+    onCreateCustomTagClick: (CustomTagKind, String) -> Unit,
+    onCreateCustomTagConfirm: (String) -> Unit,
+    onNameDialogDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -155,13 +186,28 @@ fun BatchTagEditorScreen(
             onFieldApplyToggled = onFieldApplyToggled,
             onSaveClick = onSaveClick,
             onNavigateUp = onNavigateUp,
+            onCustomTagRowsClick = onCustomTagRowsClick,
             modifier = Modifier.padding(innerPadding),
         )
     }
+
+    if (uiState.isPickerOpen) {
+        CustomTagPickerSheet(
+            state = uiState.picker,
+            onPageChange = onPickerPageChange,
+            onQueryChange = onPickerQueryChange,
+            onToggle = onCustomTagToggle,
+            onCreateClick = onCreateCustomTagClick,
+            onDone = onPickerDone,
+        )
+    }
+    uiState.nameDialog?.let { dialog ->
+        CustomTagNameDialog(state = dialog, onCreate = onCreateCustomTagConfirm, onDismiss = onNameDialogDismiss)
+    }
 }
 
-// One flat column: the fields card with its caption, the optional progress, then the buttons.
-@Suppress("LongParameterList")
+// One flat column: the fields card with its caption, the custom tag rows, the optional progress, then the buttons.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun BatchTagEditorContent(
     uiState: BatchTagEditorUiState,
@@ -169,6 +215,7 @@ private fun BatchTagEditorContent(
     onFieldApplyToggled: (TagField, Boolean) -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
+    onCustomTagRowsClick: (CustomTagKind) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // No separate count line above the card: the top bar carries the count (Phase 6b ruling 6).
@@ -184,6 +231,17 @@ private fun BatchTagEditorContent(
             )
             SwitchedOnCaption()
         }
+        // Always enabled: whether a file can take custom tags is judged per file at save time.
+        val picker = uiState.picker
+        CustomTagRows(
+            tagNames = remember(picker.tags, picker.selected) { selectedNames(picker.tags, picker.selected.tagIds) },
+            subTagNames = remember(picker.subTags, picker.selected) {
+                selectedNames(picker.subTags, picker.selected.subTagIds)
+            },
+            enabled = true,
+            onTagsClick = { onCustomTagRowsClick(CustomTagKind.TAG) },
+            onSubTagsClick = { onCustomTagRowsClick(CustomTagKind.SUBTAG) },
+        )
         val progress = uiState.progress
         if (progress != null) {
             BatchSaveProgress(
@@ -385,6 +443,14 @@ private fun previewUiState(): BatchTagEditorUiState = BatchTagEditorUiState(
         year = BatchFieldState(value = "1975", applied = true),
         albumArtist = BatchFieldState(value = "Various Artists", applied = false),
     ),
+    picker = CustomTagPickerState(
+        tags = listOf(
+            CustomTag(CustomTagKind.TAG, id = 1L, name = "Peak time"),
+            CustomTag(CustomTagKind.TAG, id = 2L, name = "Techno"),
+        ),
+        subTags = listOf(CustomTag(CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+        selected = CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()),
+    ),
     canSave = true,
 )
 
@@ -395,20 +461,11 @@ private fun previewInProgressUiState(): BatchTagEditorUiState = previewUiState()
 )
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Batch Tag Editor - Light")
-@Preview(name = "Batch Tag Editor - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Batch Tag Editor - Light", heightDp = PREVIEW_TALL_HEIGHT)
+@Preview(name = "Batch Tag Editor - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, heightDp = PREVIEW_TALL_HEIGHT)
 @Composable
 private fun PreviewBatchTagEditorScreen() {
-    RollaMusicPlayerTheme {
-        BatchTagEditorScreen(
-            uiState = previewUiState(),
-            onFieldValueChanged = { _, _ -> },
-            onFieldApplyToggled = { _, _ -> },
-            onSaveClick = {},
-            onNavigateUp = {},
-            onDismissMessage = {},
-        )
-    }
+    PreviewBatchTagEditor(uiState = previewUiState())
 }
 
 @Suppress("UnusedPrivateMember")
@@ -416,14 +473,31 @@ private fun PreviewBatchTagEditorScreen() {
 @Preview(name = "Batch Tag Editor In Progress - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewBatchTagEditorScreenInProgress() {
+    PreviewBatchTagEditor(uiState = previewInProgressUiState())
+}
+
+/** The screen in the app theme with every callback a no-op. */
+@Composable
+private fun PreviewBatchTagEditor(uiState: BatchTagEditorUiState) {
     RollaMusicPlayerTheme {
         BatchTagEditorScreen(
-            uiState = previewInProgressUiState(),
+            uiState = uiState,
             onFieldValueChanged = { _, _ -> },
             onFieldApplyToggled = { _, _ -> },
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
+            onCustomTagRowsClick = {},
+            onPickerPageChange = {},
+            onPickerQueryChange = { _, _ -> },
+            onCustomTagToggle = { _, _ -> },
+            onPickerDone = {},
+            onCreateCustomTagClick = { _, _ -> },
+            onCreateCustomTagConfirm = {},
+            onNameDialogDismiss = {},
         )
     }
 }
+
+/** Tall enough to show the Tags and Subtags rows under the fields card. */
+private const val PREVIEW_TALL_HEIGHT = 1600

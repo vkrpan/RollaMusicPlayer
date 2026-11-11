@@ -35,3 +35,10 @@ related: ["[[Modules]]", "[[Playback and queue]]", "[[Playlists]]", "[[Search]]"
   `applyFileTags_onDeletedSong_rollsBackAndKeepsCounter`.
 - 2026-11-10: device run on the Motorola: `:core:database:connectedDebugAndroidTest` 117/117, every planned mutation
   caught; the v6 upgrade ran on the user's real database without trouble.
+- 2026-11-10 (custom tags phase 2, Task 1): **v7** (`MIGRATION_6_7`): `songs.file_tags_generation` (bumped by the
+  merge whenever a file changed or a re-read is forced). `CustomTagDao.applyFileTags` and `markFileTagsRead` take
+  `expectedGeneration` and return `Boolean`: they write nothing when the row was reset since it was queried (or is
+  gone), so a stale background read never overwrites a fresh save. Device: 121/121. The phase 1 test
+  `applyFileTags_onDeletedSong_rollsBackAndKeepsCounter` is now `..._isSkippedAndKeepsCounter` (the check returns
+  before any write). The `@Transaction` on `applyFileTags`/`markFileTagsRead` is load-bearing (the generation check and
+  the writes must not interleave with the scanner's upsert); their KDoc says so.

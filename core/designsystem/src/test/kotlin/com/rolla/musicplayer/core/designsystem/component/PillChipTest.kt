@@ -1,6 +1,7 @@
 package com.rolla.musicplayer.core.designsystem.component
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -65,5 +66,19 @@ class PillChipTest {
             RollaMusicPlayerTheme(darkTheme = true) { PillChip(label = "Balanced", selected = true, onClick = {}) }
         }
         composeRule.onNodeWithText("Balanced").assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick))
+    }
+
+    // LabelChip is display-only (custom tags fix round 1, I1): no click action and no role, so a row that owns the
+    // click reads the label as its own text. Control: the label is there. Mutation: give LabelChip a
+    // clickable(role = Button) → OnClick and Role appear → RED.
+    @Test
+    fun labelChipIsDisplayOnly() {
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) { LabelChip(label = "Techno") }
+        }
+        composeRule.onNodeWithText("Techno")
+            .assertExists()
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+            .assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Role))
     }
 }

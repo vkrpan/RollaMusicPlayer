@@ -12,14 +12,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
@@ -55,14 +62,13 @@ fun PillChip(
     onLongClickLabel: String? = null,
 ) {
     val reducedMotion = rememberReducedMotion()
-    val colors = MaterialTheme.colorScheme
     val container by animateColorAsState(
-        targetValue = if (selected) colors.primary else colors.surfaceContainerHigh,
+        targetValue = chipContainerColor(selected),
         animationSpec = rollaSpringOrSnap(reducedMotion),
         label = "chipContainer",
     )
     val content by animateColorAsState(
-        targetValue = if (selected) colors.onPrimary else colors.onSurface,
+        targetValue = chipContentColor(selected),
         animationSpec = rollaSpringOrSnap(reducedMotion),
         label = "chipContent",
     )
@@ -70,9 +76,7 @@ fun PillChip(
         modifier = modifier
             .minimumInteractiveComponentSize()
             .alpha(if (enabled) 1f else DISABLED_CONTENT_ALPHA) // before background, so the whole pill fades
-            .heightIn(min = RollaDimens.chipHeight)
-            .clip(CircleShape)
-            .background(container)
+            .chipSurface(container = container, shape = CircleShape)
             .combinedClickable(
                 enabled = enabled,
                 role = Role.RadioButton,
@@ -84,13 +88,74 @@ fun PillChip(
             .padding(horizontal = RollaDimens.chipHorizontalPadding),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.chipLabel,
-            color = content,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
+        ChipLabelText(label = label, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/**
+ * A display-only chip in the unselected [PillChip] look (custom tags phase 2, fix round 1): the same container,
+ * label style, colours and horizontal padding, with no click target, no role and no 48 dp touch footprint, so the
+ * row or card that owns the click reads [label] as its own text (the tag editor's Tags and Subtags rows).
+ *
+ * The label never ellipsizes: a name too long for one line wraps inside the chip. One line keeps the pill
+ * (CircleShape, [RollaDimens.chipHeight] tall); a wrapped label switches to the medium shape, a rounded rectangle,
+ * since a pill's ends would cut into the second line. [RollaDimens.labelChipVerticalPadding] keeps wrapped lines off
+ * the edges and makes a one-line chip exactly chipHeight at the default font size.
+ */
+@Composable
+fun LabelChip(label: String, modifier: Modifier = Modifier) {
+    var wrapped by remember(label) { mutableStateOf(false) }
+    Box(
+        modifier = modifier
+            .chipSurface(
+                container = chipContainerColor(selected = false),
+                shape = if (wrapped) MaterialTheme.shapes.medium else CircleShape,
+            )
+            .padding(horizontal = RollaDimens.chipHorizontalPadding, vertical = RollaDimens.labelChipVerticalPadding),
+        contentAlignment = Alignment.Center,
+    ) {
+        ChipLabelText(
+            label = label,
+            color = chipContentColor(selected = false),
+            maxLines = Int.MAX_VALUE,
+            overflow = TextOverflow.Clip,
+            onTextLayout = { wrapped = it.lineCount > 1 },
         )
     }
+}
+
+/** The chip container both chips draw: at least [RollaDimens.chipHeight] tall, clipped to [shape], [container]. */
+private fun Modifier.chipSurface(container: Color, shape: Shape): Modifier =
+    heightIn(min = RollaDimens.chipHeight).clip(shape).background(container)
+
+/** Container: primary when selected, else surfaceContainerHigh. */
+@Composable
+@ReadOnlyComposable
+private fun chipContainerColor(selected: Boolean): Color =
+    if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh
+
+/** Label: onPrimary when selected, else onSurface. */
+@Composable
+@ReadOnlyComposable
+private fun chipContentColor(selected: Boolean): Color =
+    if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+
+/** The chip label: chipLabel style, centred, in [color]. */
+@Composable
+private fun ChipLabelText(
+    label: String,
+    color: Color,
+    maxLines: Int,
+    overflow: TextOverflow,
+    onTextLayout: (TextLayoutResult) -> Unit = {},
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.chipLabel,
+        color = color,
+        maxLines = maxLines,
+        overflow = overflow,
+        textAlign = TextAlign.Center,
+        onTextLayout = onTextLayout,
+    )
 }

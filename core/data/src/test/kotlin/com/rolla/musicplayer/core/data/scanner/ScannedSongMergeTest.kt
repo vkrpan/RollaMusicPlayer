@@ -42,6 +42,39 @@ class ScannedSongMergeTest {
         assertFalse(entity.fileTagsRead)
         assertEquals("Pop", entity.genre)
     }
+
+    // ── fileTagsGeneration: the file pass applies a read only at the generation it queried ─────
+
+    // Mutation: keep `existing.fileTagsGeneration` on a re-read → 4 → RED.
+    @Test
+    fun toEntity_reread_bumpsGeneration() {
+        val existing = storedSong(OLD_DATE_MODIFIED, fileTagsRead = true, genre = null, fileTagsGeneration = 4L)
+
+        val entity = scannedSong(dateModified = OLD_DATE_MODIFIED, genre = null)
+            .toEntity(existing, rereadFileTags = true)
+
+        assertEquals(5L, entity.fileTagsGeneration)
+    }
+
+    // Mutation: bump only on a re-read → 4 → RED.
+    @Test
+    fun toEntity_changedFile_bumpsGeneration() {
+        val existing = storedSong(OLD_DATE_MODIFIED, fileTagsRead = true, genre = null, fileTagsGeneration = 4L)
+
+        val entity = scannedSong(dateModified = NEW_DATE_MODIFIED, genre = null).toEntity(existing)
+
+        assertEquals(5L, entity.fileTagsGeneration)
+    }
+
+    // Mutation: always bump → 5 → RED.
+    @Test
+    fun toEntity_unchanged_keepsGeneration() {
+        val existing = storedSong(OLD_DATE_MODIFIED, fileTagsRead = true, genre = null, fileTagsGeneration = 4L)
+
+        val entity = scannedSong(dateModified = OLD_DATE_MODIFIED, genre = null).toEntity(existing)
+
+        assertEquals(4L, entity.fileTagsGeneration)
+    }
 }
 
 private const val OLD_DATE_MODIFIED = 1_000L
@@ -63,7 +96,12 @@ private fun scannedSong(dateModified: Long, genre: String?): ScannedSong = Scann
     genre = genre,
 )
 
-private fun storedSong(dateModified: Long, fileTagsRead: Boolean, genre: String?): SongEntity = SongEntity(
+private fun storedSong(
+    dateModified: Long,
+    fileTagsRead: Boolean,
+    genre: String?,
+    fileTagsGeneration: Long = 0L,
+): SongEntity = SongEntity(
     id = "1",
     mediaStoreId = 1L,
     title = "Title",
@@ -80,4 +118,5 @@ private fun storedSong(dateModified: Long, fileTagsRead: Boolean, genre: String?
     folderPath = "Music",
     genre = genre,
     fileTagsRead = fileTagsRead,
+    fileTagsGeneration = fileTagsGeneration,
 )

@@ -27,6 +27,10 @@ related: ["[[Features]]", "[[Tag writes go through a cache copy]]", "[[Custom ta
   artwork", shown only when the file has a picture or one was just picked; hidden for formats that cannot hold one.
   The last tap between Change and Remove wins; the header shows the white note until Save; TalkBack hears "Artwork
   removed". The pills wrap at large font.
+- **Custom tags (phase 2 of [[Custom tags]], 2026-11-10):** both editors show "Tags" and "Subtags" rows with chips;
+  tapping opens the picker sheet (tabs, search, checklist, "New tag"). The single editor saves the ticks into the
+  file's `ROLLA_TAGS` (MP3 and FLAC; other formats show the rows disabled with a note); the batch editor adds the chosen
+  tags to every selected track and never removes any.
 - **Set/Remove artwork for a selection:** from the Tracks tab's selection ⋮ (`SelectionArtworkViewModel`,
   `SelectionArtworkActions`; per-track artwork Task 8). The batch editor screen itself has no artwork fields.
 - **Skill:** `implement-tag-editor`. **Module:** [[feature-tageditor]]. **Owner:** [[tag-editor-agent]] (IO),

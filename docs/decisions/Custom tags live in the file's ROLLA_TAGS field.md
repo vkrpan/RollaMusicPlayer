@@ -19,9 +19,9 @@ related: ["[[Decisions]]", "[[Custom tags]]", "[[Custom tag system is cut]]", "[
 - IDs are never reused on one phone; the counter also rises to the highest ID found in any file.
 - Matching is AND everywhere; deleting an entry removes its ID from every file (one consent prompt).
 
-**Amended in phase 1 (2026-11-10):** the app's jaudiotagger fork cannot write the M4A atom, so M4A is read-only until
-the user decides (own writer, fork upgrade, or MP3 and FLAC only;
-[[jaudiotagger cannot write unknown M4A freeform atoms]]). IDs are capped at `MAX_CUSTOM_TAG_ID` = 999 999 999, so a
+**Amended in phase 1 (2026-11-10):** the app's jaudiotagger fork cannot write the M4A atom
+([[jaudiotagger cannot write unknown M4A freeform atoms]]); **the user chose MP3 and FLAC only** for writing (M4A stays
+readable, its editor rows are disabled), and left the existing M4A save bug in the backlog. IDs are capped at `MAX_CUSTOM_TAG_ID` = 999 999 999, so a
 hand-edited file cannot overflow a list's counter (final review, SDD Ruling 10).
 
 **Why:** the user wants the tags to survive a reinstall and be readable by other systems "with the same mechanism";

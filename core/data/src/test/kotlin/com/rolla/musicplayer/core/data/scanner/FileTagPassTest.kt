@@ -130,7 +130,7 @@ class FileTagPassTest {
     fun pass_readThrows_keepsOldLinksMarksReadAndContinues() = runTest(dispatcher) {
         // Song 1 carries links and a genre from an earlier read; its file has changed since and now cannot be opened.
         fakeDao.seedSongs(listOf(unreadSong("1", genre = null, dateModified = 2_000L)))
-        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()), genre = "House")
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()), "House", 0L)
         fakeDao.seedSongs(listOf(fakeDao.song("1")!!.copy(fileTagsRead = false)))
         fakeDao.seedSongs(listOf(unreadSong("2", genre = null, dateModified = 1_000L)))
         unreadable += "1"
@@ -173,6 +173,42 @@ class FileTagPassTest {
         assertEquals(120, songs.count { fakeDao.linksOf(it.id).isNotEmpty() })
         assertEquals(120, result.read)
         assertEquals(listOf(50, 50, 20, 0), dao.batchSizes)
+    }
+
+    // A save lands while the pass reads the same file: the save rewrites the file and the scanner's merge resets the
+    // row (read flag unset, generation 0 → 1). The pass's read is of the old file, so its apply is skipped; the loop
+    // finds the row unread again, reads the new file and applies it. The fake resets the row once, on the first read.
+    // Mutation: ignore applyFileTags' Boolean (count every apply as read) → the skipped apply counts too,
+    // read == 2 → RED.
+    @Test
+    fun pass_rowResetDuringRead_rereadsIt() = runTest(dispatcher) {
+        fakeDao.seedSongs(listOf(unreadSong("1", genre = null)))
+        fileTags["1"] = FileTags(CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), genre = "Old")
+        var reads = 0
+        coEvery { songFileSource.withReadableFile<Any?>(any(), any()) } coAnswers {
+            val song = firstArg<SongEntity>()
+            val staleRead = secondArg<(File) -> Any?>().invoke(File("${song.id}.mp3"))
+            if (reads++ == 0) {
+                fileTags["1"] = FileTags(CustomTagIds(tagIds = setOf(7L), subTagIds = setOf(1L)), genre = "New")
+                fakeDao.seedSongs(listOf(fakeDao.song("1")!!.copy(fileTagsRead = false, fileTagsGeneration = 1L)))
+            }
+            staleRead
+        }
+
+        val result = pass.run()
+
+        assertEquals(
+            setOf(
+                SongCustomTagCrossRef("1", CustomTagKind.TAG, 7L),
+                SongCustomTagCrossRef("1", CustomTagKind.SUBTAG, 1L),
+            ),
+            fakeDao.linksOf("1"),
+        )
+        assertEquals("New", fakeDao.song("1")?.genre)
+        assertTrue(fakeDao.song("1")!!.fileTagsRead)
+        assertEquals(2, reads)
+        assertEquals(1, result.read)
+        assertEquals(0, result.failed)
     }
 
     @Test

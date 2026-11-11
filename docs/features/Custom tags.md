@@ -9,8 +9,8 @@ related: ["[[Features]]", "[[Custom tag system is cut]]", "[[Tag editor]]", "[[S
 
 # Custom tags
 
-**Status:** phase 1 (foundation) complete and device-verified, waiting for the user's commit (2026-11-10); no screen
-changes yet. Rulings: [[2026-11-09-custom-tags-phase1-foundation rulings]]. Phases 2–4 not started
+**Status:** phase 1 (foundation) committed (`dce76dd`); phase 2 (assigning: picker, both editors) complete and
+device-walked by the user, waiting for the user's commit (2026-11-11). Rulings: [[2026-11-09-custom-tags-phase1-foundation rulings]]. Phases 2–4 not started
 ([[2026-11-09-custom-tags-roadmap]]); phase 2 waits for the user's M4A decision.
 
 ## What the user asked for (2026-11-09)
@@ -85,9 +85,11 @@ changes yet. Rulings: [[2026-11-09-custom-tags-phase1-foundation rulings]]. Phas
 
 ## Open questions
 
-- **M4A writing (before phase 2, the user's call):** the app's jaudiotagger fork cannot write the `ROLLA_TAGS` freeform
-  atom ([[jaudiotagger cannot write unknown M4A freeform atoms]]). Phase 1 reads it from M4A and refuses to write it
-  (SDD Ruling 5). Options: our own M4A atom writer, a fork upgrade or patch, or MP3 and FLAC only.
+- **M4A writing — decided by the user 2026-11-10: MP3 and FLAC only.** The app's jaudiotagger fork cannot write the
+  `ROLLA_TAGS` freeform atom ([[jaudiotagger cannot write unknown M4A freeform atoms]]). M4A tags stay readable; in the
+  editors, M4A tracks get the disabled Tags/Subtags rows with a note, like WAV and OGG. M4A writing can come later.
+- **The existing M4A save bug** (a tag-editor save drops other apps' freeform atoms): the user chose to leave it in the
+  [[Backlog]] for now (2026-11-10).
 
 ## Progress
 
@@ -109,16 +111,34 @@ changes yet. Rulings: [[2026-11-09-custom-tags-phase1-foundation rulings]]. Phas
 | 2026-11-10 | **Device (Motorola edge 70, Android 16):** `:core:database:connectedDebugAndroidTest` 117/117 (incl. the 5→6 migration and every custom tag DAO test). Benchmark build installed over the user's app: the v6 upgrade ran on the real library; first pass `read 91 files (0 failed) in 3003 ms` (≈33 ms per file; library 97 MP3 + 1 WAV); no crash, no jaudiotagger log noise, CPU idle afterwards; the user found Home and scrolling smooth. Batching the pass's writes stays a backlog item for large libraries |
 | 2026-11-10 | Every planned mutation of the device tests run on the Motorola and caught (one equivalent under `@Transaction`, covered by its combined form); final run 117/117. Phase 1 complete; ready for the user's commit |
 
-## Known limits and notes for phase 2
+| 2026-11-10 | Committed `dce76dd`. User decided M4A: MP3 and FLAC only; M4A save bug stays in the backlog. Phase 2 plan written: [[2026-11-10-custom-tags-phase2-assigning]] (generation guard for the race, picker sheet, both editors); waiting for the user's review |
 
-- **M4A writes** wait for the user's decision (open question above).
-- **Apply-after-reset race:** if the tag editor saves a file while the background pass is reading that same file, the
-  pass can later mark it read with the pre-save values, so the just-written tags are not read back until the file
-  changes again. Harmless in phase 1 (nothing writes). Phase 2 fix: after a successful write, the editor applies the IDs
-  it wrote itself (`applyFileTags`), or the pass applies only if the row's generation has not changed.
-- **Save-time merge:** phase 2 must merge unknown IDs from the file read at save time, not from Room (may be stale).
-- **The re-read after a save is asynchronous** (Ruling 7): screens observe a song's links; they never assume the links
-  are fresh when `syncSongs` returns.
+| 2026-11-10 | Phase 2 Tasks 1–5 built and reviewed: v7 generation guard (a stale background read never overwrites a save; device 121/121), picker state, picker sheet + rows + name dialog (kit `LabelChip`; chips wrap at large font), single editor (writes only when ticks change; unreadable field disables the rows), batch editor (adds only; unwritable formats fail before any write) |
+
+| 2026-11-11 | Phase 2 final review: ready with fixes; fix wave (shared `CustomTagEditing.kt` helper for both editors, comment fixes, no `ROLLA_TAGS` read for OGG/WAV) re-reviewed clean. JVM gate green |
+| 2026-11-11 | Device: Room 121/121 on the Motorola; benchmark build installed (v6 → v7 on the real library). The user's walk passed every step: create and tick "Techno" and "Hard", save, reopen (ticks kept), title-only save keeps the tags, batch add "Edited N of N tracks.", M4A/WAV rows disabled with the note, largest font (chips wrap, picker readable, Done above the keyboard). No crash. Phase 2 complete; rulings [[2026-11-10-custom-tags-phase2-assigning rulings]]; ready for the user's commit |
+| 2026-11-11 | LLM wiki ingest of the spec, roadmap and phase 1–2 plans (`docs/wiki/`: concept `custom-tags`, entity `module-core-tagio`, four source pages; module pages updated). Phase 2 committed at the user's request |
+
+## Known limits and notes for later phases
+
+- **M4A writes:** decided 2026-11-10, MP3 and FLAC only.
+- **Apply-after-reset race:** fixed in phase 2 Task 1 (Room v7 `file_tags_generation`; a stale read is dropped and
+  read again).
+- **Save-time merge:** done in phase 2 — both editors merge unknown IDs from the editable copy at save time, never
+  from Room. The single editor writes only when the ticks changed; the batch editor only adds.
+- **The re-read after a save is asynchronous** (phase 1 Ruling 7): screens observe a song's links; they never assume
+  the links are fresh when `syncSongs` returns.
+- **Phase 3 hand-off (final review of phase 2):**
+  - The picker needs a "Manage tags" link: an optional `onManageClick` on `CustomTagPickerSheet`.
+  - Reaching Manage tags from an open editor makes its editable copy and "unknown ID" baseline stale: a delete's file
+    clean-up of this track could be undone, and an import could make a kept-unknown ID drop. Fix then: write the user's
+    diff `(inFile − (loaded − selected)) ∪ selected`, refresh the copy after Manage, prune ticks to known IDs when the
+    lists change (both editors).
+  - A new tag can take an ID that a not-yet-read file carries during the first pass: add a `reserveIds` that raises
+    the counters (editor load, import).
+- **Phase 4 hand-off:** `LabelChip` never ellipsizes by design; list rows need one line plus "+N" and a distinct subtag
+  chip, so plan a new kit chip variant.
+- **Picker rows** ellipsize long names (one line); check at 1.5× on the device.
 - **First-pass cost:** one Room transaction per file, so every `songs` observer re-queries per file during the one-time
   first pass; batch the writes if the device probe shows a cost ([[Backlog]]).
 - **FLAC artwork kept on a `ROLLA_TAGS` write** is not yet tested: add it before phase 2 ships writes.

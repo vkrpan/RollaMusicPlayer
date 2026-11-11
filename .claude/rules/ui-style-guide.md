@@ -87,6 +87,7 @@ rule; review enforces the rest.
 | Text entry | `OneUiTextField` (`isError`/`supportingText`/`trailingControl`), `OneUiDialogField` in dialogs, `OneUiSearchField` | `TextField`, `OutlinedTextField` |
 | Buttons | `OneUiPillButton` (filled or tonal, `loading`, `destructive` on a tonal pill), `OneUiIconButton`, the circle buttons | `Button`, `OutlinedButton` |
 | Toggles and selection | `OneUiSwitch`, `OneUiCheckbox` (round), `PillChip` | M3 `Switch`, `Checkbox`, `FilterChip` |
+| Display-only chip (a label, not a control) | `LabelChip` (same look as `PillChip`, no click or role; wraps instead of ellipsizing) | a hand-styled chip |
 | Sliders | `OneUiSlider`, `OneUiSeekBar`, `EqVerticalSlider` | M3 `Slider` directly |
 | Artwork stand-in | `ArtworkPlaceholder` | an `Icon` on a grey `Box` |
 | A–Z index | `FastScrollContainer` / `FastScrollRail` | a custom index |

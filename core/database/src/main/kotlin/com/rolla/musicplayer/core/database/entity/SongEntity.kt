@@ -85,6 +85,12 @@ data class SongEntity(
     // changes, so the next pass reads it again.
     @ColumnInfo(name = "file_tags_read", defaultValue = "0")
     val fileTagsRead: Boolean = false,
+
+    // Bumped by the scanner each time it resets [fileTagsRead] for a changed or re-read file (v7). The file pass
+    // applies a read only while the row still holds the generation it queried, so a read of the old file never
+    // overwrites what a save meanwhile wrote.
+    @ColumnInfo(name = "file_tags_generation", defaultValue = "0")
+    val fileTagsGeneration: Long = 0L,
 )
 
 fun SongEntity.toDomain(): Song = Song(

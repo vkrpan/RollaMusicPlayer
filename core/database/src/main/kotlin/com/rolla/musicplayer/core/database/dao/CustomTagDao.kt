@@ -13,15 +13,19 @@ import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
 import kotlinx.coroutines.flow.Flow
 
 /**
- * The custom tag lists, their ID counters and the song-to-tag links (v6, custom tags phase 1).
+ * The custom tag lists, their ID counters and the song-to-tag links (v6, custom tags phase 1), and the file pass's
+ * writes guarded by each song row's [SongEntity.fileTagsGeneration] (v7, custom tags phase 2).
  *
  * IDs are issued per kind from `custom_tag_counters` and never reused: [insertNew] issues counter + 1, and
  * [applyFileTags] raises the counter to the highest ID a file carries. The counter only ever rises.
  *
- * The primitives ([highestId], [insertTag], [raiseCounter], [deleteSongLinks], [insertLinks], [setGenreAndRead]) are
- * interface members so the `@Transaction` default bodies can compose them inside one transaction (the same reason as
- * [PlaylistDao]); callers use the other members, except that the repository reads [highestId] to tell a full list
- * (one that has reached [MAX_CUSTOM_TAG_ID]) before it calls [insertNew].
+ * The primitives ([highestId], [insertTag], [raiseCounter], [deleteSongLinks], [insertLinks], [setGenreAndRead],
+ * [setFileTagsRead], [fileTagsGeneration]) are interface members so the `@Transaction` default bodies can compose them
+ * inside one transaction (the same reason as [PlaylistDao]); callers use the other members, except that the repository
+ * reads [highestId] to tell a full list (one that has reached [MAX_CUSTOM_TAG_ID]) before it calls [insertNew].
+ *
+ * The file pass's two writes, [applyFileTags] and [markFileTagsRead], are conditional on the row's
+ * [SongEntity.fileTagsGeneration] (v7, custom tags phase 2): a read of a file the scanner reset meanwhile is dropped.
  */
 @Suppress("TooManyFunctions")
 @Dao
@@ -62,9 +66,17 @@ interface CustomTagDao {
     /**
      * Stores what the file pass read from a song's file: replaces the song's links with [ids], raises each kind's
      * counter to the highest ID the file carries, and sets the song's [genre] and its read flag.
+     *
+     * Only while the row still holds [expectedGeneration], the [SongEntity.fileTagsGeneration] the pass queried it at:
+     * the scanner bumps it when it resets the row for a changed or saved file, and the pass's read is then of the old
+     * file. Returns true when it applied; false, writing nothing, when the generation changed or the row is gone.
+     *
+     * The `@Transaction` is load-bearing: the generation check and the writes must not interleave with the scanner's
+     * upsert of the same row, or a reset that lands between them would be overwritten by the stale read.
      */
     @Transaction
-    suspend fun applyFileTags(songId: String, ids: CustomTagIds, genre: String?) {
+    suspend fun applyFileTags(songId: String, ids: CustomTagIds, genre: String?, expectedGeneration: Long): Boolean {
+        if (fileTagsGeneration(songId) != expectedGeneration) return false
         deleteSongLinks(songId)
         insertLinks(
             ids.tagIds.map { SongCustomTagCrossRef(songId, CustomTagKind.TAG, it) } +
@@ -73,11 +85,23 @@ interface CustomTagDao {
         ids.tagIds.maxOrNull()?.let { raiseCounter(CustomTagKind.TAG, it) }
         ids.subTagIds.maxOrNull()?.let { raiseCounter(CustomTagKind.SUBTAG, it) }
         setGenreAndRead(songId, genre)
+        return true
     }
 
-    /** Sets only the song's read flag, keeping its links and genre; returns the number of rows changed. */
-    @Query("UPDATE songs SET file_tags_read = 1 WHERE id = :songId")
-    suspend fun markFileTagsRead(songId: String): Int
+    /**
+     * Sets only the song's read flag, keeping its links and genre, under the same generation check as
+     * [applyFileTags]. Returns true when it set the flag; false, writing nothing, when the generation changed or the
+     * row is gone.
+     *
+     * The `@Transaction` is load-bearing, as for [applyFileTags]: the generation check and the write must not
+     * interleave with the scanner's upsert of the same row.
+     */
+    @Transaction
+    suspend fun markFileTagsRead(songId: String, expectedGeneration: Long): Boolean {
+        if (fileTagsGeneration(songId) != expectedGeneration) return false
+        setFileTagsRead(songId)
+        return true
+    }
 
     /** Up to [limit] songs whose file the pass has not read yet, newest file first. */
     @Query("SELECT * FROM songs WHERE file_tags_read = 0 ORDER BY date_modified DESC LIMIT :limit")
@@ -114,4 +138,11 @@ interface CustomTagDao {
 
     @Query("UPDATE songs SET genre = :genre, file_tags_read = 1 WHERE id = :songId")
     suspend fun setGenreAndRead(songId: String, genre: String?)
+
+    @Query("UPDATE songs SET file_tags_read = 1 WHERE id = :songId")
+    suspend fun setFileTagsRead(songId: String)
+
+    /** The song's [SongEntity.fileTagsGeneration], or null when the row does not exist. */
+    @Query("SELECT file_tags_generation FROM songs WHERE id = :songId")
+    suspend fun fileTagsGeneration(songId: String): Long?
 }

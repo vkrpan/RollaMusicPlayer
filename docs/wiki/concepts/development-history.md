@@ -1,20 +1,21 @@
 ---
 type: concept
-summary: "v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); then per-track artwork."
+summary: "v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); per-track artwork; custom tags (Nov 2026)."
 aliases: ["Timeline"]
 tags: [history]
-sources: ["[[sources/claude-md]]"]
-updated: 2026-11-09
+sources: ["[[sources/claude-md]]", "[[sources/custom-tags-roadmap]]"]
+updated: 2026-11-11
 ---
 # Development history
 
-v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); then per-track artwork.
+v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); per-track artwork; custom tags (Nov 2026).
 
 - **v1.0.0** shipped on `main` 2026-07-23 (Phases 0–8, 2026-06-29 to 2026-07-23; prompt docs in
   `docs/history/v1-phases/`).
 - **One UI redesign** Phases 1–7, 2026-10-06 to 2026-11-04 ([[one-ui-design-system]]).
 - **Per-track artwork** committed 2026-11-09 ([[per-track-artwork]]).
-- The custom user-defined tag system was cut from v1.0.
+- **Custom tags** (cut from v1.0, asked for again 2026-11-09): phase 1 committed `dce76dd` (2026-11-10); phase 2
+  done 2026-11-11 ([[custom-tags]], [[custom-tags-roadmap]]).
 - Full dated history: `docs/history/Timeline.md` in the authored vault ([[knowledge-vault]]).
 
 ## Related

@@ -5,18 +5,26 @@ import android.os.Build
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.CustomTagRepository
 import com.rolla.musicplayer.core.data.repository.SongRepository
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.tagio.RollaTagsFileIo
+import com.rolla.musicplayer.core.tagio.canWriteCustomTags
 import com.rolla.musicplayer.feature.tageditor.io.SongFileResolver
+import com.rolla.musicplayer.feature.tageditor.io.TagEditorIoDispatcher
 import com.rolla.musicplayer.feature.tageditor.io.TagWriter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 
@@ -30,12 +38,27 @@ private data class PendingRecovery(val song: Song, val copy: File, val resumeInd
 /** Outcome of attempting a single song's write+persist inside attemptWrite. */
 private sealed interface SongWriteOutcome {
     data class Succeeded(val copy: File) : SongWriteOutcome
+
+    /** Nothing to change in this song's file (it already carries every chosen ID): edited, but never persisted. */
+    data class Unchanged(val copy: File) : SongWriteOutcome
     data class Failed(val copy: File?) : SongWriteOutcome
     data class NeedsRecovery(val copy: File, val exception: RecoverableSecurityException) : SongWriteOutcome
 }
 
-/** The two IO collaborators attemptWrite needs, bundled to keep its parameter list short. */
-private data class WriteCollaborators(val songFileResolver: SongFileResolver, val tagWriter: TagWriter)
+/** The IO collaborators attemptWrite needs, bundled to keep its parameter list short. */
+private data class WriteCollaborators(
+    val songFileResolver: SongFileResolver,
+    val tagWriter: TagWriter,
+    val rollaTagsFileIo: RollaTagsFileIo,
+    val ioDispatcher: CoroutineDispatcher,
+)
+
+/** What one Save writes to every song: the applied [fields] and the custom tag IDs to add ([customTagIds]). */
+private data class BatchEdit(val fields: Map<TagField, String>, val customTagIds: CustomTagIds) {
+    companion object {
+        val NONE = BatchEdit(fields = emptyMap(), customTagIds = CustomTagIds.EMPTY)
+    }
+}
 
 /**
  * ViewModel for the batch tag editor screen (`BatchTagEditor(songIds: List<Long>)`).
@@ -119,14 +142,38 @@ private data class WriteCollaborators(val songFileResolver: SongFileResolver, va
  * [TagEditorViewModel]: the work runs in [viewModelScope], so closing the screen first would
  * cancel it and return the user to a stale library. Failed/declined songs are excluded -- their
  * files were never changed, so there is nothing to re-index. Best-effort, per [TagSaveFinalizer].
+ *
+ * ## Custom tags: Save adds, never removes
+ * Both lists are observed from [CustomTagRepository] for the screen's lifetime (a failing table reads as empty lists;
+ * [CustomTagEditingHandlers], shared with the single editor), so an entry created here appears in the picker at once.
+ * The picker's chosen IDs start empty and are what Save ADDS to every song's `ROLLA_TAGS` field; one chosen entry
+ * makes Save available with no field applied. "New tag" opens the name dialog with the search text; a saved entry
+ * closes it and is chosen, a refused name keeps it open with the reason.
+ * Nothing about custom tags can change while a save runs.
+ *
+ * Per song, inside `attemptWrite`, after the copy exists and before the persist:
+ * - with at least one entry chosen, a format [canWriteCustomTags] rejects (M4A) fails the song before ANY write, its
+ *   fields included, through the ordinary failure path, so "Edited X of N tracks." reports it and no song is ever
+ *   half-saved;
+ * - the applied fields are written ([TagWriter.writeFields], skipped when none is applied);
+ * - the copy's field is re-read and the IDs written are its IDs plus the chosen ones, only when that differs from what
+ *   the file carries, so an ID already there (known or not) is never rewritten or dropped;
+ * - a song whose file would not change at all (no field applied and every chosen ID already there) counts as edited
+ *   without a persist, and is not handed to [TagSaveFinalizer], since there is nothing to re-index.
  */
+// LongParameterList: Hilt constructor injection; each collaborator is a distinct IO concern, a holder would hide it.
+// TooManyFunctions: one public handler per screen event (fields, picker, name dialog, consent) plus the batch loop.
 @HiltViewModel
+@Suppress("LongParameterList", "TooManyFunctions")
 class BatchTagEditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val songRepository: SongRepository,
     private val songFileResolver: SongFileResolver,
     private val tagWriter: TagWriter,
     private val tagSaveFinalizer: TagSaveFinalizer,
+    private val customTagRepository: CustomTagRepository,
+    private val rollaTagsFileIo: RollaTagsFileIo,
+    @TagEditorIoDispatcher private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     private val songIds: List<Long> = savedStateHandle.songIds()
@@ -140,13 +187,24 @@ class BatchTagEditorViewModel @Inject constructor(
     // reaches a terminal outcome (finishBatch, or an aborted initial-consent decline) -- see this
     // class's KDoc on why loading is deferred to save time rather than done in init.
     private var loadedSongs: List<Song> = emptyList()
-    private var pendingFields: Map<TagField, String> = emptyMap()
+    private var pendingEdit: BatchEdit = BatchEdit.NONE
     private var totalCount = 0
     private var succeededCount = 0
     private var failedCount = 0
     private val succeededSongs = mutableListOf<Song>()
     private var pendingRecovery: PendingRecovery? = null
     private var activeEditableCopy: File? = null
+
+    /**
+     * The picker handling shared with the single editor: both lists observed into [BatchTagEditorUiState.picker], and
+     * the picker's and the name dialog's events. Nothing about custom tags can change while a save runs.
+     */
+    private val customTagEditing = CustomTagEditingHandlers(
+        uiState = _uiState,
+        scope = viewModelScope,
+        repository = customTagRepository,
+        access = BatchCustomTagAccess,
+    )
 
     /** Applies [value] to [field] and revalidates -- see [recomputeSaveState]. */
     fun onFieldValueChanged(field: TagField, value: String) {
@@ -162,6 +220,33 @@ class BatchTagEditorViewModel @Inject constructor(
         }
     }
 
+    /** A tap on the Tags or Subtags row: opens the picker on [kind]'s page, searches cleared. Ignored while saving. */
+    fun onCustomTagRowsClick(kind: CustomTagKind) = customTagEditing.onRowsClick(kind)
+
+    /** The picker's tab or pager moved to [kind]'s page; the sheet follows the state. */
+    fun onPickerPageChange(kind: CustomTagKind) = customTagEditing.onPageChange(kind)
+
+    /** The search text of [kind]'s page changed. */
+    fun onPickerQueryChange(kind: CustomTagKind, query: String) = customTagEditing.onQueryChange(kind, query)
+
+    /** Chooses or unchooses entry [id] of [kind]'s list to add on Save. Ignored while saving. */
+    fun onCustomTagToggle(kind: CustomTagKind, id: Long) = customTagEditing.onToggle(kind, id)
+
+    /** "Done", or the sheet dismissed: closes the picker. Every choice has already been applied. */
+    fun onPickerDone() = customTagEditing.onDone()
+
+    /** "New tag"/"New subtag" in the picker: opens the name dialog for [kind], prefilled with [name] (the search). */
+    fun onCreateCustomTagClick(kind: CustomTagKind, name: String) = customTagEditing.onCreateClick(kind, name)
+
+    /**
+     * "Create" in the name dialog: adds [name] to the dialog's list. A saved entry closes the dialog and is chosen; a
+     * refused name keeps the dialog open with the reason. Ignored while saving or while an earlier Create runs.
+     */
+    fun onCreateCustomTagConfirm(name: String) = customTagEditing.onCreateConfirm(name)
+
+    /** Closes the name dialog without creating anything. */
+    fun onNameDialogDismiss() = customTagEditing.onNameDialogDismiss()
+
     /**
      * Starts the save flow. A no-op unless [BatchTagEditorUiState.canSave] is true. Resolves
      * [songIds] to actual songs (see this class's KDoc on why that lookup is deferred to here),
@@ -172,7 +257,7 @@ class BatchTagEditorViewModel @Inject constructor(
     fun onSaveClick() {
         val state = _uiState.value
         if (!state.canSave) return
-        val fields = state.fields.appliedValues()
+        val edit = BatchEdit(fields = state.fields.appliedValues(), customTagIds = state.picker.selected)
         _uiState.update { it.copy(isSaving = true) }
         viewModelScope.launch {
             val songs = resolveSongs()
@@ -181,7 +266,7 @@ class BatchTagEditorViewModel @Inject constructor(
                 return@launch
             }
             loadedSongs = songs
-            pendingFields = fields
+            pendingEdit = edit
             totalCount = songs.size
             succeededCount = 0
             failedCount = 0
@@ -211,7 +296,7 @@ class BatchTagEditorViewModel @Inject constructor(
         val state = _uiState.value
         if (state.consentRequest != null) {
             loadedSongs = emptyList()
-            pendingFields = emptyMap()
+            pendingEdit = BatchEdit.NONE
             _uiState.update {
                 it.copy(consentRequest = null, isSaving = false, message = DENIED_MESSAGE)
             }
@@ -270,11 +355,11 @@ class BatchTagEditorViewModel @Inject constructor(
      */
     private suspend fun runBatch(startIndex: Int) {
         var index = startIndex
-        val collaborators = WriteCollaborators(songFileResolver, tagWriter)
+        val collaborators = WriteCollaborators(songFileResolver, tagWriter, rollaTagsFileIo, ioDispatcher)
         while (index < loadedSongs.size) {
             val song = loadedSongs[index]
             val isApi29 = sdkIntProvider() == Build.VERSION_CODES.Q
-            val outcome = attemptWrite(collaborators, song, pendingFields, isApi29) { activeEditableCopy = it }
+            val outcome = attemptWrite(collaborators, song, pendingEdit, isApi29) { activeEditableCopy = it }
             if (outcome is SongWriteOutcome.NeedsRecovery) {
                 pendingRecovery = PendingRecovery(song, outcome.copy, resumeIndex = index + 1)
                 _uiState.update { it.copy(recoveryRequest = outcome.exception) }
@@ -290,20 +375,26 @@ class BatchTagEditorViewModel @Inject constructor(
     private suspend fun finishSong(song: Song, outcome: SongWriteOutcome) {
         when (outcome) {
             is SongWriteOutcome.Succeeded -> {
-                songFileResolver.deleteEditableCopy(outcome.copy)
-                clearActiveCopy(outcome.copy)
+                discardCopy(outcome.copy)
                 succeededSongs += song
                 recordDone(succeeded = true)
             }
+            is SongWriteOutcome.Unchanged -> {
+                // Edited (its file already says what was asked), but not re-indexed: nothing on disk changed.
+                discardCopy(outcome.copy)
+                recordDone(succeeded = true)
+            }
             is SongWriteOutcome.Failed -> {
-                outcome.copy?.let { copy ->
-                    songFileResolver.deleteEditableCopy(copy)
-                    clearActiveCopy(copy)
-                }
+                outcome.copy?.let { discardCopy(it) }
                 recordDone(succeeded = false)
             }
             is SongWriteOutcome.NeedsRecovery -> error("NeedsRecovery must be handled by the caller, not finishSong")
         }
+    }
+
+    private suspend fun discardCopy(copy: File) {
+        songFileResolver.deleteEditableCopy(copy)
+        clearActiveCopy(copy)
     }
 
     private fun clearActiveCopy(copy: File) {
@@ -331,7 +422,7 @@ class BatchTagEditorViewModel @Inject constructor(
             }
         }
         loadedSongs = emptyList()
-        pendingFields = emptyMap()
+        pendingEdit = BatchEdit.NONE
         totalCount = 0
         succeededCount = 0
         failedCount = 0
@@ -342,21 +433,23 @@ class BatchTagEditorViewModel @Inject constructor(
 /**
  * Attempts a song's full write+persist: create an editable copy (invoking [onCopyCreated]
  * synchronously the instant it exists, before any further suspension -- see
- * [BatchTagEditorViewModel]'s "Cleanup" KDoc section), write only [fields] via
- * [TagWriter.writeFields], then [SongFileResolver.persistEditedCopy]. A top-level,
+ * [BatchTagEditorViewModel]'s "Cleanup" KDoc section), write [edit] into it ([writeEdit]: only the
+ * applied fields, then the custom tag IDs to add), then [SongFileResolver.persistEditedCopy] --
+ * skipped, as [SongWriteOutcome.Unchanged], when [writeEdit] found nothing to change. A top-level,
  * instance-independent function (rather than a private member of [BatchTagEditorViewModel]) so it
  * does not count against that class's function budget; it takes its collaborators bundled in
  * [collaborators] (rather than as separate parameters) to stay under the function parameter limit.
  *
- * All three steps share ONE try/catch (rather than one per step) so there is exactly one `return`
+ * All the steps share ONE try/catch (rather than one per step) so there is exactly one `return`
  * and one non-cancellation catch clause in this function: [copy] is tracked in a local `var` so
  * whichever step fails, the catch clauses can still report which (if any) temp file needs cleanup.
+ * A song [writeEdit] refuses (custom tags chosen for a format that cannot take them) fails here too.
  */
 @Suppress("NewApi", "TooGenericExceptionCaught")
 private suspend fun attemptWrite(
     collaborators: WriteCollaborators,
     song: Song,
-    fields: Map<TagField, String>,
+    edit: BatchEdit,
     isApi29: Boolean,
     onCopyCreated: (File) -> Unit,
 ): SongWriteOutcome {
@@ -364,9 +457,12 @@ private suspend fun attemptWrite(
     return try {
         val createdCopy = collaborators.songFileResolver.createEditableCopy(song).also(onCopyCreated)
         copy = createdCopy
-        collaborators.tagWriter.writeFields(createdCopy, fields)
-        collaborators.songFileResolver.persistEditedCopy(song, createdCopy)
-        SongWriteOutcome.Succeeded(createdCopy)
+        if (collaborators.writeEdit(createdCopy, edit)) {
+            collaborators.songFileResolver.persistEditedCopy(song, createdCopy)
+            SongWriteOutcome.Succeeded(createdCopy)
+        } else {
+            SongWriteOutcome.Unchanged(createdCopy)
+        }
     } catch (e: CancellationException) {
         throw e
     } catch (e: RecoverableSecurityException) {
@@ -379,6 +475,66 @@ private suspend fun attemptWrite(
     } catch (ignored: Exception) {
         SongWriteOutcome.Failed(copy)
     }
+}
+
+/**
+ * Writes [edit] into [copy] and returns whether the copy changed. With custom tags chosen, a format
+ * [canWriteCustomTags] rejects (M4A) is refused with an [UnsupportedOperationException] before ANY
+ * write, its fields included, so the song is never half-saved. Then the applied fields (none: no
+ * field write), then the chosen custom tag IDs ([addCustomTagIds]).
+ */
+private suspend fun WriteCollaborators.writeEdit(copy: File, edit: BatchEdit): Boolean {
+    val addsCustomTags = !edit.customTagIds.isEmpty
+    if (addsCustomTags && !canWriteCustomTags(copy.extension)) {
+        throw UnsupportedOperationException("Custom tags are saved to MP3 and FLAC only, not to .${copy.extension}")
+    }
+    val writesFields = edit.fields.isNotEmpty()
+    if (writesFields) {
+        tagWriter.writeFields(copy, edit.fields)
+    }
+    val customTagsWritten = addsCustomTags && addCustomTagIds(copy, edit.customTagIds)
+    return writesFields || customTagsWritten
+}
+
+/**
+ * Adds [chosen] to the IDs in [copy]'s `ROLLA_TAGS` field, re-read now (after the field write), and
+ * writes the result only when it differs from what the field holds, so every ID already there,
+ * known or not, is kept and a song that carries them all is left untouched. Returns whether it wrote.
+ * Throws what [RollaTagsFileIo] throws; the caller reports it as that song's failure.
+ */
+private suspend fun WriteCollaborators.addCustomTagIds(copy: File, chosen: CustomTagIds): Boolean =
+    withContext(ioDispatcher) {
+        val inFile = rollaTagsFileIo.read(copy).customTagIds
+        val ids = CustomTagIds(tagIds = inFile.tagIds + chosen.tagIds, subTagIds = inFile.subTagIds + chosen.subTagIds)
+        if (ids == inFile) {
+            false
+        } else {
+            rollaTagsFileIo.writeCustomTagIds(copy, ids)
+            true
+        }
+    }
+
+/**
+ * How the batch editor's [CustomTagEditingHandlers] reach its state: custom tags can change unless a save runs, and a
+ * changed choice recomputes the save state (one chosen entry makes Save available).
+ */
+private object BatchCustomTagAccess : CustomTagEditingAccess<BatchTagEditorUiState> {
+    override fun read(state: BatchTagEditorUiState) = CustomTagEditing(
+        picker = state.picker,
+        isPickerOpen = state.isPickerOpen,
+        nameDialog = state.nameDialog,
+    )
+
+    override fun write(state: BatchTagEditorUiState, editing: CustomTagEditing): BatchTagEditorUiState {
+        val written = state.copy(
+            picker = editing.picker,
+            isPickerOpen = editing.isPickerOpen,
+            nameDialog = editing.nameDialog,
+        )
+        return if (editing.picker.selected == state.picker.selected) written else written.recomputeSaveState()
+    }
+
+    override fun canEdit(state: BatchTagEditorUiState): Boolean = !state.isSaving
 }
 
 /** Retries only the persist step for a song whose write already happened -- see [attemptWrite]. */

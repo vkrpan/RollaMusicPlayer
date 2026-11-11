@@ -6,6 +6,7 @@ import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.platform.app.InstrumentationRegistry
 import com.rolla.musicplayer.core.database.MusicDatabase
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -478,6 +479,53 @@ class MigrationTest {
                 assertTrue(cursor.moveToFirst())
                 assertEquals(table, 0, cursor.getInt(0))
             }
+        }
+        migratedDb.close()
+    }
+
+    // Custom tags phase 2 (Task 1). Mutation: drop the `ALTER TABLE songs ADD COLUMN file_tags_generation` → Room's
+    // validation finds the column missing → RED.
+    @Test
+    fun migrate6To7_addsGenerationColumnKeepingRows() {
+        helper.createDatabase(testDbName, 6).apply {
+            execSQL(
+                """
+                INSERT INTO songs (
+                    id, media_store_id, title, artist, album, album_id, duration_ms, track_number, year,
+                    content_uri, artwork_uri, date_modified, date_added, is_favorite, play_count, last_played,
+                    folder_path, genre, file_tags_read
+                ) VALUES (
+                    '1', 1, 'Test Song', 'Test Artist', 'Test Album', 10, 180000, 1, 2024,
+                    'content://media/external/audio/media/1', 'rolla-artwork://song/1?v=1500000000000',
+                    1500000000000, 1400000000000, 1, 7, 1600000000000, 'Music', 'Techno', 1
+                )
+                """.trimIndent(),
+            )
+            execSQL("INSERT INTO custom_tags (kind, id, name, name_key) VALUES ('TAG', 2, 'Techno', 'techno')")
+            execSQL("INSERT INTO custom_tag_counters (kind, highest_id) VALUES ('TAG', 2)")
+            execSQL("INSERT INTO song_custom_tags (song_id, kind, tag_id) VALUES ('1', 'TAG', 2)")
+            close()
+        }
+
+        val migratedDb = helper.runMigrationsAndValidate(testDbName, 7, true, MIGRATION_6_7)
+
+        val query = "SELECT title, genre, file_tags_read, file_tags_generation FROM songs WHERE id = '1'"
+        migratedDb.query(query).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("Test Song", cursor.getString(0))
+            assertEquals("Techno", cursor.getString(1))
+            assertEquals(1, cursor.getInt(2))
+            assertEquals(0L, cursor.getLong(3))
+        }
+        migratedDb.query("SELECT kind, tag_id FROM song_custom_tags WHERE song_id = '1'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("TAG", cursor.getString(0))
+            assertEquals(2L, cursor.getLong(1))
+            assertFalse(cursor.moveToNext())
+        }
+        migratedDb.query("SELECT highest_id FROM custom_tag_counters WHERE kind = 'TAG'").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals(2L, cursor.getLong(0))
         }
         migratedDb.close()
     }

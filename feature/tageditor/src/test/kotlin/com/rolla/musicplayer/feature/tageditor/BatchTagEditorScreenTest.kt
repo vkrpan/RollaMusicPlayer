@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isEnabled
@@ -24,6 +25,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -129,6 +134,29 @@ class BatchTagEditorScreenTest {
         )
     }
 
+    // Custom tags phase 2: a row tap opens the picker on that row's page (the owner here follows the callback as the
+    // ViewModel does). Control: no picker before the tap. Stub: a no-op row. Mutation: the rows not wired to
+    // onCustomTagRowsClick → the sheet never opens → RED.
+    @Test
+    fun batchScreen_rowsOpenPicker() {
+        var state by mutableStateOf(genreState(applied = true).copy(picker = pickerState()))
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                Screen(
+                    state = state,
+                    onCustomTagRowsClick = { kind ->
+                        state = state.copy(isPickerOpen = true, picker = state.picker.copy(page = kind))
+                    },
+                )
+            }
+        }
+        composeRule.onNodeWithText(SEARCH_SUBTAGS).assertDoesNotExist()
+
+        composeRule.onNodeWithText("Subtags").performScrollTo().performClick()
+
+        composeRule.onNodeWithText(SEARCH_SUBTAGS).assertIsDisplayed()
+    }
+
     private fun switchCentre(label: String): Dp {
         val bounds = composeRule.onNodeWithContentDescription("Apply $label to every selected track")
             .getUnclippedBoundsInRoot()
@@ -139,6 +167,7 @@ class BatchTagEditorScreenTest {
     private fun Screen(
         state: BatchTagEditorUiState,
         onFieldApplyToggled: (TagField, Boolean) -> Unit = { _, _ -> },
+        onCustomTagRowsClick: (CustomTagKind) -> Unit = {},
     ) {
         BatchTagEditorScreen(
             uiState = state,
@@ -147,6 +176,14 @@ class BatchTagEditorScreenTest {
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
+            onCustomTagRowsClick = onCustomTagRowsClick,
+            onPickerPageChange = {},
+            onPickerQueryChange = { _, _ -> },
+            onCustomTagToggle = { _, _ -> },
+            onPickerDone = {},
+            onCreateCustomTagClick = { _, _ -> },
+            onCreateCustomTagConfirm = {},
+            onNameDialogDismiss = {},
         )
     }
 
@@ -161,6 +198,15 @@ class BatchTagEditorScreenTest {
         val GENRE_FIELD = fieldNode("Genre")
 
         const val YEAR_ERROR = "Year must be blank or up to 4 digits."
+
+        const val SEARCH_SUBTAGS = "Search subtags"
+
+        /** Techno on the TAG list and Warm-up on the SUBTAG list, nothing chosen yet. */
+        fun pickerState(): CustomTagPickerState = CustomTagPickerState(
+            tags = listOf(CustomTag(CustomTagKind.TAG, id = 2L, name = "Techno")),
+            subTags = listOf(CustomTag(CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+            selected = CustomTagIds.EMPTY,
+        )
 
         /** The [label] text field, as [GENRE_FIELD] matches Genre's. */
         fun fieldNode(label: String) =

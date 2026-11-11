@@ -22,7 +22,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.time.TimeSource
 
-/** What one [FileTagPass.run] did: files read and stored, files that failed, and how long it took. */
+/**
+ * What one [FileTagPass.run] did: files read and stored, files that failed, and how long it took. A read dropped
+ * because the row was reset meanwhile (a skipped row) counts in neither; the row is read again by this run's next
+ * query, and that read counts.
+ */
 data class FileTagPassResult(val read: Int, val failed: Int, val elapsedMs: Long)
 
 /**
@@ -36,7 +40,10 @@ data class FileTagPassResult(val read: Int, val failed: Int, val elapsedMs: Long
  * - otherwise it stores the file's IDs, replacing the row's links, and the file's genre, falling back to the row's
  *   MediaStore genre when the file has none;
  * - a failure (a missing, unreadable or corrupt file) sets only the read flag, so the row keeps the links and genre it
- *   had, and the pass moves on. The file is read again once the scanner sees it change.
+ *   had, and the pass moves on. The file is read again once the scanner sees it change;
+ * - either write applies only while the row holds the [SongEntity.fileTagsGeneration] it was queried at. A row the
+ *   scanner reset during the read (a save to the same file) is left unread, counted neither read nor failed, and read
+ *   again by this run's next query, so a read of the old file never overwrites the save.
  *
  * Cancellation is never swallowed: the row being read stays unread and the next pass reads it. Its own [mutex]
  * serialises overlapping calls; it never diffs MediaStore, so it runs outside [LibraryIndexer]'s lock. Always runs on
@@ -85,7 +92,13 @@ class FileTagPass @Inject constructor(
             while (true) {
                 val batch = customTagDao.songsNeedingFileTagRead(limit = BATCH_SIZE)
                 if (batch.isEmpty()) break
-                batch.forEach { row -> if (readRow(row)) read++ else failed++ }
+                batch.forEach { row ->
+                    when (readRow(row)) {
+                        RowOutcome.READ -> read++
+                        RowOutcome.FAILED -> failed++
+                        RowOutcome.SKIPPED -> Unit
+                    }
+                }
             }
             val elapsedMs = start.elapsedNow().inWholeMilliseconds
             if (read + failed > 0) Log.i(TAG, "read $read files ($failed failed) in $elapsedMs ms")
@@ -111,25 +124,37 @@ class FileTagPass @Inject constructor(
         }
     }
 
-    /** Stores what [row]'s file holds; returns false when the file could not be read (the row is then only flagged). */
-    private suspend fun readRow(row: SongEntity): Boolean = try {
+    /**
+     * Stores what [row]'s file holds: [RowOutcome.READ], or [RowOutcome.FAILED] when the file could not be read (the
+     * row is then only flagged). Both writes carry the row's generation as queried; when the scanner reset the row
+     * meanwhile (a save, a changed file) the write is dropped and the outcome is [RowOutcome.SKIPPED]: the row is
+     * still unread, so [run]'s next query returns it and the new file is read.
+     */
+    private suspend fun readRow(row: SongEntity): RowOutcome = try {
         val extension = songFileSource.extensionOf(row)
-        if (extension == null || !isCustomTagExtension(extension)) {
-            customTagDao.applyFileTags(row.id, CustomTagIds.EMPTY, row.genre)
+        val applied = if (extension == null || !isCustomTagExtension(extension)) {
+            customTagDao.applyFileTags(row.id, CustomTagIds.EMPTY, row.genre, row.fileTagsGeneration)
         } else {
             val fileTags = songFileSource.withReadableFile(row) { file -> fileIo.read(file) }
-            customTagDao.applyFileTags(row.id, fileTags.customTagIds, fileTags.genre ?: row.genre)
+            customTagDao.applyFileTags(
+                row.id,
+                fileTags.customTagIds,
+                fileTags.genre ?: row.genre,
+                row.fileTagsGeneration,
+            )
         }
-        true
+        if (applied) RowOutcome.READ else RowOutcome.SKIPPED
     } catch (e: CancellationException) {
         throw e
     } catch (@Suppress("TooGenericExceptionCaught") ignored: Throwable) {
         // jaudiotagger throws its own checked exceptions as well as IO and runtime ones for a bad file, and a corrupt
         // file can overflow its stack. An Error is caught as well: left unread, the row would fail every later pass
         // again. Counted, not logged per file: the pass logs one summary line.
-        customTagDao.markFileTagsRead(row.id)
-        false
+        if (customTagDao.markFileTagsRead(row.id, row.fileTagsGeneration)) RowOutcome.FAILED else RowOutcome.SKIPPED
     }
+
+    /** What [readRow] did with one row; [run] counts READ and FAILED, and a SKIPPED row comes back in a later query. */
+    private enum class RowOutcome { READ, FAILED, SKIPPED }
 
     private companion object {
         const val TAG = "FileTagPass"

@@ -2,6 +2,9 @@ package com.rolla.musicplayer.feature.tageditor
 
 import android.app.RecoverableSecurityException
 import androidx.compose.runtime.Immutable
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.ui.customtags.CustomTagNameDialogState
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerState
 
 /** One field's editing state in the batch editor: the typed [value] and whether it is [applied]. */
 @Immutable
@@ -86,11 +89,29 @@ data class BatchProgress(val done: Int, val total: Int)
  * The consent/recovery/message/isSaving/isClosed quartet mirrors [TagEditorUiState] exactly (see
  * its KDoc for the shape of the dance); [progress] is the one addition, non-null only while
  * [BatchTagEditorViewModel.onConsentGranted]'s per-song loop is actually running.
+ *
+ * Custom tags work the same way as the fields: nothing is read from the songs up front, so [picker]'s
+ * [CustomTagPickerState.selected] starts empty and holds what Save ADDS to every selected track's `ROLLA_TAGS` field
+ * (never removes). The Tags and Subtags rows are always enabled: whether a file's format can take custom tags is judged
+ * per file at save time.
  */
 @Immutable
 data class BatchTagEditorUiState(
     val songCount: Int = 0,
     val fields: BatchTagFields = BatchTagFields(),
+    /**
+     * The custom tag picker: both lists in library order, the chosen IDs to add to every selected track (empty at
+     * first), the open page and each page's search text. The Tags and Subtags rows show the chosen names.
+     */
+    val picker: CustomTagPickerState = CustomTagPickerState(
+        tags = emptyList(),
+        subTags = emptyList(),
+        selected = CustomTagIds.EMPTY,
+    ),
+    /** Whether the picker sheet is open. */
+    val isPickerOpen: Boolean = false,
+    /** The open "New tag"/"New subtag" dialog, with the reason the last Create was refused; null when closed. */
+    val nameDialog: CustomTagNameDialogState? = null,
     val yearError: String? = null,
     val trackNumberError: String? = null,
     val canSave: Boolean = false,
@@ -108,7 +129,9 @@ data class BatchTagEditorUiState(
  * value/apply-toggle change. Per the task contract, validation is only ENFORCED for a field while
  * its apply-toggle is on -- an invalid year/track-number typed into a field the user hasn't (yet)
  * chosen to apply neither blocks [BatchTagEditorUiState.canSave] nor surfaces an error message,
- * since that value isn't going to be written anywhere until the toggle is switched on.
+ * since that value isn't going to be written anywhere until the toggle is switched on. A chosen
+ * custom tag or subtag is something to write as well, so it makes Save available with no field
+ * applied; called after every pick change too.
  */
 internal fun BatchTagEditorUiState.recomputeSaveState(): BatchTagEditorUiState {
     val yearField = fields.year
@@ -116,9 +139,10 @@ internal fun BatchTagEditorUiState.recomputeSaveState(): BatchTagEditorUiState {
     val yearError = if (yearField.applied) validateYear(yearField.value) else null
     val trackNumberError = if (trackField.applied) validateTrackNumber(trackField.value) else null
     val hasErrors = yearError != null || trackNumberError != null
+    val hasEdit = fields.anyApplied() || !picker.selected.isEmpty
     return copy(
         yearError = yearError,
         trackNumberError = trackNumberError,
-        canSave = fields.anyApplied() && !hasErrors && !isSaving,
+        canSave = hasEdit && !hasErrors && !isSaving,
     )
 }

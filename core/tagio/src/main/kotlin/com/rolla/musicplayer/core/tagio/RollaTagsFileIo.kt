@@ -35,7 +35,7 @@ fun isCustomTagExtension(extension: String): Boolean = extension.lowercase() in 
 /**
  * Whether [RollaTagsFileIo.writeCustomTagIds] writes files with this extension: MP3 and FLAC, case-insensitively. M4A
  * is read but not written: the jaudiotagger fork's `Mp4TagCreator` writes only the freeform atoms `Mp4FieldKey` lists,
- * and `----:com.apple.iTunes:ROLLA_TAGS` is not one of them (decision pending before phase 2).
+ * and `----:com.apple.iTunes:ROLLA_TAGS` is not one of them; the user chose MP3 and FLAC only (2026-11-10).
  */
 fun canWriteCustomTags(extension: String): Boolean = extension.lowercase() in WRITABLE_EXTENSIONS
 

@@ -1,7 +1,7 @@
 ---
 type: index
 summary: "Entry point of the LLM wiki: every page, one line each."
-updated: 2026-11-09
+updated: 2026-11-11
 ---
 
 # Rolla Music wiki — index
@@ -11,6 +11,10 @@ Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything
 
 ## Sources
 - [[claude-md]] — The project memory file every agent loads: overview, architecture, rules, status and the wiki schema.
+- [[custom-tags-phase1-plan]] — Custom tags phase 1: the ROLLA_TAGS field IO, Room v6, the scan's file pass and the tag repository.
+- [[custom-tags-phase2-plan]] — Custom tags phase 2: the Room v7 read guard, the picker sheet, tags in both tag editors.
+- [[custom-tags-roadmap]] — The four-phase roadmap for custom tags.
+- [[custom-tags-spec]] — The approved design for user-defined tags and subtags stored in each file's ROLLA_TAGS field.
 - [[ownership-map]] — CODEOWNERS-style map: one primary owner agent per path, required reviewers for cross-cutting files.
 
 ## Entities
@@ -19,12 +23,13 @@ Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything
 - [[module-build-logic]] — Convention plugins (an included build) plus the version catalog and root Gradle files.
 - [[module-core-common]] — Shared non-model utilities; today only the Unicode-aware library order.
 - [[module-core-data]] — Repositories, the MediaStore scanner and the per-track artwork cache.
-- [[module-core-database]] — Room: entities, DAOs, migrations and MusicDatabase (schema v5).
+- [[module-core-database]] — Room: entities, DAOs, migrations and MusicDatabase (schema v7).
 - [[module-core-datastore]] — DataStore: app settings, equaliser active-state and recent searches.
 - [[module-core-designsystem]] — One UI theme tokens (colour, type, shape, dimensions) and the model-agnostic component kit.
 - [[module-core-media]] — Media3 playback: PlaybackService, MediaSession, the queue, queue restore and the equaliser effect.
 - [[module-core-model]] — Pure-Kotlin domain models and enums: the shared contract every module imports.
 - [[module-core-permissions]] — The runtime media permission gate and flow (storage only).
+- [[module-core-tagio]] — jaudiotagger IO shared below the feature layer: tag helpers and the ROLLA_TAGS field.
 - [[module-core-testing]] — Shared test fakes, fixtures and rules.
 - [[module-core-ui]] — Model-aware shared composables: song rows, album cards, list rows, the song options sheet.
 - [[module-feature-equalizer]] — The 8-band equaliser screen: sliders, presets and the response curve.
@@ -38,6 +43,7 @@ Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything
 
 ## Concepts
 - [[agent-module-ownership]] — Every path has one primary owner agent; cross-cutting files name required reviewers.
+- [[custom-tags]] — User-defined tags and subtags: IDs in each file's ROLLA_TAGS field, indexed in Room.
 - [[core-model-governance]] — `:core:model` has no owner; changes follow model-vocabulary.md and need code-reviewer plus consumer review.
 - [[development-history]] — v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); then per-track artwork.
 - [[knowledge-vault]] — The authored Obsidian vault in docs/: rules, decisions, knowledge, features, history and backlog.

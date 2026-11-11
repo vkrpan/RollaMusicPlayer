@@ -87,9 +87,21 @@ fun OneUiTextButton(
  * preset). A field that opens with a name (Rename) does not: a String field focused that way puts the cursor before
  * the name, so the first key would land in front of it, and the TextFieldValue alternative crashes Compose 1.7's text
  * layout on a whole-text replacement while focused. The user's tap places the cursor instead (Phase 7 ruling P37).
+ *
+ * [isError] and [supportingText] are [OneUiTextField]'s: the message sits under the field, in destructiveText when
+ * [isError], and TalkBack reads it with the field (the custom tag name dialog's "That name is already in the list").
  */
+// The field's own four plus OneUiTextField's error pair.
+@Suppress("LongParameterList")
 @Composable
-fun OneUiDialogField(value: String, onValueChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
+fun OneUiDialogField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    isError: Boolean = false,
+    supportingText: String? = null,
+) {
     val focusRequester = remember { FocusRequester() }
     val focusOnShow = remember { value.isEmpty() }
     OneUiTextField(
@@ -98,6 +110,8 @@ fun OneUiDialogField(value: String, onValueChange: (String) -> Unit, label: Stri
         label = label,
         containerColor = MaterialTheme.colorScheme.dialogFieldContainer,
         modifier = modifier.focusRequester(focusRequester),
+        isError = isError,
+        supportingText = supportingText,
     )
     if (focusOnShow) {
         // Wait one frame: the dialog's text slot can run this effect before the field's focus node is attached, and

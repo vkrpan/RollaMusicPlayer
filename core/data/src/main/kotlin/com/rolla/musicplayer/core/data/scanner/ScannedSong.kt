@@ -42,9 +42,15 @@ internal data class ScannedSong(
  * reads the file again, and the genre falls back to the scanned MediaStore value until it does. [LibraryIndexer.sync]
  * passes false; [LibraryIndexer.syncSongs] passes true, because its caller knows the file changed even when
  * `DATE_MODIFIED`, which has second granularity, did not (the same reason it upserts unconditionally).
+ *
+ * `fileTagsGeneration` is bumped (existing + 1) whenever the file changed or [rereadFileTags] is true, the cases that
+ * reset the read flag for a new file, and kept otherwise; a new row starts at 0. [FileTagPass] applies a read only at
+ * the generation it queried, so a read of the old file that overlaps a save is dropped and the new file read instead.
+ * An unread row re-scanned with its file unchanged keeps its generation: a read in flight is of the current file.
  */
 internal fun ScannedSong.toEntity(existing: SongEntity?, rereadFileTags: Boolean = false): SongEntity {
-    val keepsFileTags = !rereadFileTags && existing?.fileTagsRead == true && existing.dateModified == dateModified
+    val sameFile = !rereadFileTags && existing?.dateModified == dateModified
+    val keepsFileTags = sameFile && existing?.fileTagsRead == true
     return SongEntity(
         id = mediaStoreId.toString(),
         mediaStoreId = mediaStoreId,
@@ -65,5 +71,13 @@ internal fun ScannedSong.toEntity(existing: SongEntity?, rereadFileTags: Boolean
         folderPath = folderPath,
         genre = if (keepsFileTags) existing?.genre else genre,
         fileTagsRead = keepsFileTags,
+        fileTagsGeneration = fileTagsGenerationAfterScan(existing, sameFile),
     )
+}
+
+/** [existing]'s generation, bumped unless the scan saw the [sameFile]; 0 for a new row. */
+private fun fileTagsGenerationAfterScan(existing: SongEntity?, sameFile: Boolean): Long = when {
+    existing == null -> 0L
+    sameFile -> existing.fileTagsGeneration
+    else -> existing.fileTagsGeneration + 1
 }

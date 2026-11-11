@@ -27,14 +27,25 @@ Open work, newest first. Each item links to its source.
 - [ ] **Install the staged superpowers-extras update** (`~/.claude/task-observer-workspace/skill-updates/2026-11-08/`).
 - [ ] **Custom tags and subtags** (asked 2026-11-09): replaces [[Custom tag system is cut]]. Spec approved
   ([[2026-11-09-custom-tags-design]]); four phases ([[2026-11-09-custom-tags-roadmap]]). Phase 1
-  ([[2026-11-09-custom-tags-phase1-foundation]]) complete and device-verified, waiting for the user's commit. Progress
+  ([[2026-11-09-custom-tags-phase1-foundation]]) complete, device-verified, committed `dce76dd`. Phase 2
+  ([[2026-11-10-custom-tags-phase2-assigning]]) complete and device-walked, waiting for the user's commit; phase 3
+  (Manage tags) next. Progress
   and phase-2 notes in [[Custom tags]].
   - Batch the `FileTagPass` writes (one transaction per 50 files instead of per file) if the device probe shows the
     first pass costs CPU or scroll smoothness (final review I3, Ruling 11).
-  - Before phase 2: decide M4A writes; fix the apply-after-reset race ([[Custom tags]] "Known limits").
+  - M4A writes: decided 2026-11-10, MP3 and FLAC only (M4A writing is a possible later item). The apply-after-reset
+    race is fixed (phase 2 Task 1, Room v7).
+  - Phase 3: Manage-tags link on the picker; diff-based editor writes and tick pruning after Manage; `reserveIds`
+    ([[Custom tags]] "Phase 3 hand-off").
+  - Create's non-duplicate database errors are uncaught in both editors (needs an error copy).
+  - FLAC artwork kept on a `ROLLA_TAGS` write: still untested.
   - R8 keep rule for `RollaTagsFileIo`'s static jaudiotagger logger field (`:core:tagio` consumer rules), so release
     keeps jaudiotagger at WARNING (final fix re-review).
   - Phase 3: make `insertNew` report "full" in its transaction (last-ID race, [[Custom tags]] "Known limits").
+  - Distinguish an absent `ROLLA_TAGS` from an undecodable one in `RollaTagsFileIo.read`; then both editors fail that
+    song instead of replacing the unreadable value when tags change (phase 2 Ruling 10).
+  - An MP3/FLAC whose `ROLLA_TAGS` can't be read shows "Tags can be saved to MP3 and FLAC files only." — the wrong
+    reason; needs its own copy.
 - [ ] **Bug (existing, found 2026-11-09): saving tags on an M4A erases other apps' custom fields.** jaudiotagger's
   commit drops every freeform atom its `Mp4FieldKey` enum does not list
   ([[jaudiotagger cannot write unknown M4A freeform atoms]]). Affects the [[Tag editor]] now and blocks writing

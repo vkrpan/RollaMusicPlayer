@@ -3,9 +3,17 @@ package com.rolla.musicplayer.feature.tageditor
 import android.app.RecoverableSecurityException
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.tagio.RollaTagsFileIo
+import com.rolla.musicplayer.core.tagio.RollaTagsJson
+import com.rolla.musicplayer.core.testing.FakeCustomTagDao
 import com.rolla.musicplayer.core.testing.FakeSongRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import com.rolla.musicplayer.core.testing.audio.AudioFixtures
+import com.rolla.musicplayer.core.testing.audio.M4aFixture
 import com.rolla.musicplayer.feature.tageditor.io.SongFileResolver
 import com.rolla.musicplayer.feature.tageditor.io.TagWriter
 import io.mockk.Runs
@@ -13,6 +21,8 @@ import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -20,12 +30,19 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.audio.mp3.MP3File
+import org.jaudiotagger.tag.id3.AbstractID3v2Frame
+import org.jaudiotagger.tag.id3.ID3v24Frames
+import org.jaudiotagger.tag.id3.framebody.FrameBodyTXXX
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 
@@ -50,6 +67,11 @@ private fun editableCopyFor(song: Song): File = File("cache/tag_editor_edits/${s
  * Unit tests for [BatchTagEditorViewModel]. Mirrors [TagEditorViewModelTest]'s house style:
  * [songFileResolver]/[tagWriter] are MockK mocks of concrete classes, [fakeSongRepository] is the
  * real in-memory [FakeSongRepository] from `:core:testing`.
+ *
+ * Custom tags (phase 2): the lists come from the real [CustomTagRepositoryImpl] over [FakeCustomTagDao], and the
+ * `ROLLA_TAGS` field is read and written by a spy on the real [RollaTagsFileIo]. The tests that add custom tags give
+ * each song a real fixture file in a temporary folder as its editable copy and read the field back as it is on disk;
+ * the other tests keep their nonexistent copies, which nothing opens while no custom tag is chosen.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class BatchTagEditorViewModelTest {
@@ -57,10 +79,19 @@ class BatchTagEditorViewModelTest {
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
 
+    @get:Rule
+    val folder = TemporaryFolder()
+
     private val fakeSongRepository = FakeSongRepository()
     private val songFileResolver: SongFileResolver = mockk()
     private val tagWriter: TagWriter = mockk()
     private val tagSaveFinalizer: TagSaveFinalizer = mockk(relaxed = true)
+    private val customTagRepository = CustomTagRepositoryImpl(
+        customTagDao = FakeCustomTagDao(),
+        sortDispatcher = mainDispatcherRule.testDispatcher,
+        ioDispatcher = mainDispatcherRule.testDispatcher,
+    )
+    private val rollaTagsFileIo: RollaTagsFileIo = spyk(RollaTagsFileIo())
 
     private val song1 = testSong("1")
     private val song2 = testSong("2")
@@ -73,14 +104,61 @@ class BatchTagEditorViewModelTest {
         createdViewModels.forEach { viewModel -> viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin() }
     }
 
-    private fun newViewModel(songIds: List<Long> = listOf(1L, 2L, 3L)): BatchTagEditorViewModel =
-        BatchTagEditorViewModel(
-            savedStateHandle = SavedStateHandle(mapOf("songIds" to songIds)),
-            songRepository = fakeSongRepository,
-            songFileResolver = songFileResolver,
-            tagWriter = tagWriter,
-            tagSaveFinalizer = tagSaveFinalizer,
-        ).also { createdViewModels += it }
+    private fun newViewModel(
+        songIds: List<Long> = listOf(1L, 2L, 3L),
+        writer: TagWriter = tagWriter,
+    ): BatchTagEditorViewModel = BatchTagEditorViewModel(
+        savedStateHandle = SavedStateHandle(mapOf("songIds" to songIds)),
+        songRepository = fakeSongRepository,
+        songFileResolver = songFileResolver,
+        tagWriter = writer,
+        tagSaveFinalizer = tagSaveFinalizer,
+        customTagRepository = customTagRepository,
+        rollaTagsFileIo = rollaTagsFileIo,
+        ioDispatcher = mainDispatcherRule.testDispatcher,
+    ).also { createdViewModels += it }
+
+    /** Fills the TAG list with Acid (ID 1), Techno (2) and Peak time (3), and the SUBTAG list with Warm-up (1). */
+    private suspend fun seedCustomTagLists() {
+        listOf("Acid", "Techno", "Peak time").forEach { customTagRepository.create(CustomTagKind.TAG, it) }
+        customTagRepository.create(CustomTagKind.SUBTAG, "Warm-up")
+    }
+
+    /**
+     * A real [bytes] file named [name] in the temporary folder, made [song]'s editable copy, whose persist and
+     * clean-up succeed without touching it. [ids], when given, are put in its `ROLLA_TAGS` field first.
+     */
+    private fun fixtureCopy(
+        song: Song,
+        name: String,
+        bytes: ByteArray = AudioFixtures.mp3Bytes(),
+        ids: CustomTagIds? = null,
+    ): File {
+        val copy = folder.newFile(name).apply { writeBytes(bytes) }
+        ids?.let { RollaTagsFileIo().writeCustomTagIds(copy, it) }
+        coEvery { songFileResolver.createEditableCopy(song) } returns copy
+        coEvery { songFileResolver.persistEditedCopy(song, copy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(copy) } just Runs
+        return copy
+    }
+
+    /** The text of every `ROLLA_TAGS` frame in the MP3 [file]'s ID3v2 tag, as it is on disk. */
+    private fun rollaTagsOnDisk(file: File): List<String> {
+        val tag = (AudioFileIO.read(file) as MP3File).iD3v2Tag ?: return emptyList()
+        return tag.getFields(ID3v24Frames.FRAME_ID_USER_DEFINED_INFO)
+            .map { (it as AbstractID3v2Frame).body as FrameBodyTXXX }
+            .filter { it.description == RollaTagsJson.FIELD_NAME }
+            .map { it.text }
+    }
+
+    /** Chooses TAG [tagId] to add, clicks Save, grants consent and runs the batch to completion. */
+    private suspend fun TestScope.addTagAndSave(viewModel: BatchTagEditorViewModel, tagId: Long) {
+        advanceUntilIdle()
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, tagId)
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        grantConsent(viewModel)
+    }
 
     /** Stubs a clean, all-succeed write+persist+delete cycle for every song in [songs]. */
     private fun stubSuccessfulBatch(songs: List<Song>, fields: Map<TagField, String>) {
@@ -152,6 +230,9 @@ class BatchTagEditorViewModelTest {
             songFileResolver = songFileResolver,
             tagWriter = tagWriter,
             tagSaveFinalizer = tagSaveFinalizer,
+            customTagRepository = customTagRepository,
+            rollaTagsFileIo = rollaTagsFileIo,
+            ioDispatcher = mainDispatcherRule.testDispatcher,
         ).also { createdViewModels += it }
 
         assertEquals(3, viewModel.uiState.value.songCount)
@@ -487,5 +568,131 @@ class BatchTagEditorViewModelTest {
         viewModel.dismissMessage()
 
         assertNull(viewModel.uiState.value.message)
+    }
+
+    // -- custom tags: Save adds the chosen tags to every selected track ----------
+
+    // Stub: write the chosen IDs only → "2". Mutation: write the chosen IDs only (no union with the file's) → RED.
+    @Test
+    fun batchSave_addsAndKeepsExisting() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song1))
+        val copy = fixtureCopy(song1, "1_edit.mp3", ids = CustomTagIds(tagIds = setOf(1L), subTagIds = emptySet()))
+        val viewModel = newViewModel(songIds = listOf(1L))
+
+        addTagAndSave(viewModel, tagId = 2L)
+
+        assertEquals(listOf("""{"tags":"1,2","subTags":""}"""), rollaTagsOnDisk(copy))
+        assertTrue("the batch completes", viewModel.uiState.value.isClosed)
+    }
+
+    // Song B carries TAG 5 (unknown to the lists) and SUBTAG 1; choosing TAG 2 adds it and removes nothing. Stub and
+    // mutation: write the chosen IDs only → TAG 5 and SUBTAG 1 lost → RED.
+    @Test
+    fun batchSave_neverRemoves() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song2))
+        val copy = fixtureCopy(song2, "2_edit.mp3", ids = CustomTagIds(tagIds = setOf(5L), subTagIds = setOf(1L)))
+        val viewModel = newViewModel(songIds = listOf(2L))
+
+        addTagAndSave(viewModel, tagId = 2L)
+
+        assertEquals(listOf("""{"tags":"2,5","subTags":"1"}"""), rollaTagsOnDisk(copy))
+    }
+
+    // No field switched on, one tag chosen: Save is offered and writes only ROLLA_TAGS. Control: nothing chosen, no
+    // Save. Stub: canSave false. Mutation: canSave needs an applied field → RED on the canSave assertion.
+    @Test
+    fun batchSave_tagsOnly_enablesSave() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song1))
+        val copy = fixtureCopy(song1, "1_edit.mp3")
+        val viewModel = newViewModel(songIds = listOf(1L))
+        advanceUntilIdle()
+        assertEquals("nothing applied or chosen: no Save (control)", false, viewModel.uiState.value.canSave)
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 2L)
+        assertTrue("one chosen tag is enough to save", viewModel.uiState.value.canSave)
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        grantConsent(viewModel)
+
+        coVerify(exactly = 0) { tagWriter.writeFields(any(), any()) }
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song1, copy) }
+        assertEquals(listOf("""{"tags":"2","subTags":""}"""), rollaTagsOnDisk(copy))
+        assertTrue(viewModel.uiState.value.isClosed)
+    }
+
+    // An MP3 and an M4A, Title switched on and TAG 2 chosen: the M4A fails before any write, its title included (the
+    // real TagWriter would change its bytes), and is reported. Stub and mutation: skip the M4A silently as a success →
+    // no message ("Edited 2 of 2 tracks." is never shown: the screen closes) → RED.
+    @Test
+    fun batchSave_m4aCountsAsNotUpdated() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song1, song2))
+        val mp3 = fixtureCopy(song1, "1_edit.mp3")
+        val m4aBytes = M4aFixture.bytes(title = "Original")
+        val m4a = fixtureCopy(song2, "2_edit.m4a", bytes = m4aBytes)
+        val viewModel = newViewModel(songIds = listOf(1L, 2L), writer = TagWriter(mainDispatcherRule.testDispatcher))
+        viewModel.onFieldValueChanged(TagField.TITLE, "New Title")
+        viewModel.onFieldApplyToggled(TagField.TITLE, true)
+
+        addTagAndSave(viewModel, tagId = 2L)
+
+        val state = viewModel.uiState.value
+        assertEquals("Edited 1 of 2 tracks.", state.message)
+        assertEquals(false, state.isClosed)
+        assertArrayEquals("the M4A copy is never written, title included", m4aBytes, m4a.readBytes())
+        coVerify(exactly = 0) { songFileResolver.persistEditedCopy(song2, any()) }
+        coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(m4a) }
+        assertEquals("the MP3 is edited (control)", listOf("""{"tags":"2","subTags":""}"""), rollaTagsOnDisk(mp3))
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song1)) }
+    }
+
+    // Song 1 already carries TAG 2, song 2 does not; no field applied. Song 1's file would not change, so it is
+    // neither written nor persisted, yet it counts as edited (no "Edited X of N" message). Stub: always write.
+    // Mutation: drop the difference check → song 1 persisted → RED.
+    @Test
+    fun batchSave_alreadyCarried_skipsTheWrite() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song1, song2))
+        val carried = CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet())
+        val copy1 = fixtureCopy(song1, "1_edit.mp3", ids = carried)
+        val copy2 = fixtureCopy(song2, "2_edit.mp3")
+        val viewModel = newViewModel(songIds = listOf(1L, 2L))
+
+        addTagAndSave(viewModel, tagId = 2L)
+
+        coVerify(exactly = 0) { songFileResolver.persistEditedCopy(song1, any()) }
+        verify(exactly = 0) { rollaTagsFileIo.writeCustomTagIds(copy1, any()) }
+        coVerify(exactly = 1) { songFileResolver.deleteEditableCopy(copy1) }
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song2, copy2) }
+        val state = viewModel.uiState.value
+        assertNull("both count as edited", state.message)
+        assertTrue(state.isClosed)
+        // Only a file that changed is re-indexed.
+        coVerify(exactly = 1) { tagSaveFinalizer.onSongsSaved(listOf(song2)) }
+    }
+
+    // "New tag" in the picker: a saved entry closes the dialog and is chosen at once. Stub and mutation: close the
+    // dialog only → the new ID is not chosen → RED.
+    @Test
+    fun batchCreate_savedEntryIsChosen() = runTest {
+        seedCustomTagLists()
+        val viewModel = newViewModel()
+        advanceUntilIdle()
+        viewModel.onCustomTagRowsClick(CustomTagKind.SUBTAG)
+        assertTrue("the row opens the picker", viewModel.uiState.value.isPickerOpen)
+        assertEquals(CustomTagKind.SUBTAG, viewModel.uiState.value.picker.page)
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.SUBTAG, "Closing")
+        viewModel.onCreateCustomTagConfirm("Closing")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull("the dialog closes", state.nameDialog)
+        assertEquals(CustomTagIds(tagIds = emptySet(), subTagIds = setOf(2L)), state.picker.selected)
+        assertTrue("the new entry is listed", state.picker.subTags.any { it.name == "Closing" })
+        assertTrue(state.canSave)
     }
 }

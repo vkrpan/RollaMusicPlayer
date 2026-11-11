@@ -4,9 +4,21 @@ import android.app.RecoverableSecurityException
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import app.cash.turbine.test
+import com.rolla.musicplayer.core.data.repository.CustomTagRepository
+import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
+import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.tagio.RollaTagsFileIo
+import com.rolla.musicplayer.core.tagio.RollaTagsJson
+import com.rolla.musicplayer.core.testing.FakeCustomTagDao
 import com.rolla.musicplayer.core.testing.FakeSongRepository
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
+import com.rolla.musicplayer.core.testing.audio.AudioFixtures
+import com.rolla.musicplayer.core.testing.audio.M4aFixture
+import com.rolla.musicplayer.core.ui.customtags.CustomTagNameDialogState
 import com.rolla.musicplayer.feature.tageditor.io.ArtworkLoader
 import com.rolla.musicplayer.feature.tageditor.io.PickedArtwork
 import com.rolla.musicplayer.feature.tageditor.io.SongFileResolver
@@ -16,23 +28,37 @@ import io.mockk.Runs
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.coVerifyOrder
+import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import io.mockk.spyk
+import io.mockk.verify
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import org.jaudiotagger.audio.AudioFileIO
+import org.jaudiotagger.audio.mp3.MP3File
+import org.jaudiotagger.tag.TagOptionSingleton
+import org.jaudiotagger.tag.id3.AbstractID3v2Frame
+import org.jaudiotagger.tag.id3.ID3v24Frames
+import org.jaudiotagger.tag.id3.ID3v24Tag
+import org.jaudiotagger.tag.id3.framebody.FrameBodyTXXX
+import org.jaudiotagger.tag.id3.valuepair.TextEncoding
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 
@@ -48,12 +74,22 @@ private const val SONG_ID = "1"
  * same established pattern rather than introducing fakes for them.
  *
  * [songRepository] is the real [FakeSongRepository] from `:core:testing`, per the task brief.
+ *
+ * Custom tags (phase 2): the lists come from the real [CustomTagRepositoryImpl] over [FakeCustomTagDao], so names are
+ * validated as in the app, and the `ROLLA_TAGS` field is read and written by a spy on the real [RollaTagsFileIo]. The
+ * editable copy is therefore a real fixture file in a temporary folder (an MP3 unless a test passes another), whose
+ * field the custom tag tests read back as it is on disk; the field and artwork writers stay mocked.
  */
+// LargeClass: one test class per ViewModel, as in the rest of the codebase; the custom tag tests share its fixtures.
+@Suppress("LargeClass")
 @OptIn(ExperimentalCoroutinesApi::class)
 class TagEditorViewModelTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
+
+    @get:Rule
+    val folder = TemporaryFolder()
 
     private val fakeSongRepository = FakeSongRepository()
     private val songFileResolver: SongFileResolver = mockk()
@@ -61,9 +97,16 @@ class TagEditorViewModelTest {
     private val tagWriter: TagWriter = mockk()
     private val artworkLoader: ArtworkLoader = mockk()
     private val tagSaveFinalizer: TagSaveFinalizer = mockk(relaxed = true)
+    private val customTagDao = FakeCustomTagDao()
+    private val customTagRepository = CustomTagRepositoryImpl(
+        customTagDao = customTagDao,
+        sortDispatcher = mainDispatcherRule.testDispatcher,
+        ioDispatcher = mainDispatcherRule.testDispatcher,
+    )
+    private val rollaTagsFileIo: RollaTagsFileIo = spyk(RollaTagsFileIo())
 
     private val song = testSong()
-    private val editableCopy = File("cache/tag_editor_edits/${SONG_ID}_edit.mp3")
+    private val editableCopy: File by lazy { fixtureFile("${SONG_ID}_edit.mp3", AudioFixtures.mp3Bytes()) }
     private val loadedTags = testTags()
 
     // Mirrors EqualizerViewModelTest's teardown: cancels every ViewModel's viewModelScope so no
@@ -75,26 +118,81 @@ class TagEditorViewModelTest {
         createdViewModels.forEach { viewModel -> viewModel.viewModelScope.coroutineContext[Job]?.cancelAndJoin() }
     }
 
-    private fun newViewModel(songId: Long = SONG_ID_LONG): TagEditorViewModel = TagEditorViewModel(
+    private fun newViewModel(
+        songId: Long = SONG_ID_LONG,
+        repository: CustomTagRepository = customTagRepository,
+        reader: TagReader = tagReader,
+        writer: TagWriter = tagWriter,
+    ): TagEditorViewModel = TagEditorViewModel(
         savedStateHandle = SavedStateHandle(mapOf("songId" to songId)),
         songRepository = fakeSongRepository,
         songFileResolver = songFileResolver,
-        tagReader = tagReader,
-        tagWriter = tagWriter,
+        tagReader = reader,
+        tagWriter = writer,
         artworkLoader = artworkLoader,
         tagSaveFinalizer = tagSaveFinalizer,
+        customTagRepository = repository,
+        rollaTagsFileIo = rollaTagsFileIo,
+        ioDispatcher = mainDispatcherRule.testDispatcher,
     ).also { createdViewModels += it }
+
+    private fun fixtureFile(name: String, bytes: ByteArray): File = folder.newFile(name).apply { writeBytes(bytes) }
+
+    /** Fills the TAG list with Acid (ID 1), Techno (2) and Peak time (3), and the SUBTAG list with Warm-up (1). */
+    private suspend fun seedCustomTagLists() {
+        listOf("Acid", "Techno", "Peak time").forEach { customTagRepository.create(CustomTagKind.TAG, it) }
+        customTagRepository.create(CustomTagKind.SUBTAG, "Warm-up")
+    }
+
+    /** Puts [ids] into [file]'s `ROLLA_TAGS` field, as another program or an earlier save would have. */
+    private fun writeFileIds(file: File, ids: CustomTagIds) = RollaTagsFileIo().writeCustomTagIds(file, ids)
+
+    /**
+     * Gives the MP3 [file] an ID3v2.4 tag whose only frame is a `ROLLA_TAGS` user-defined text frame holding [value]
+     * verbatim, as a hand edit or another program might leave it (not necessarily what [RollaTagsJson] would write).
+     */
+    private fun writeRawRollaTags(file: File, value: String) {
+        TagOptionSingleton.getInstance().isPreserveFileIdentity = true
+        val mp3 = AudioFileIO.read(file) as MP3File
+        val tag = ID3v24Tag()
+        tag.setField(
+            tag.createFrame(ID3v24Frames.FRAME_ID_USER_DEFINED_INFO).apply {
+                body = FrameBodyTXXX(TextEncoding.ISO_8859_1, RollaTagsJson.FIELD_NAME, value)
+            },
+        )
+        mp3.setID3v2Tag(tag)
+        mp3.commit()
+    }
+
+    /** Stubs a persist and clean-up of [copy] that succeed, without touching the file. */
+    private fun stubPersist(copy: File) {
+        coEvery { songFileResolver.persistEditedCopy(song, copy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(copy) } just Runs
+    }
+
+    /** The text of every `ROLLA_TAGS` frame in the MP3 [file]'s ID3v2 tag, as it is on disk. */
+    private fun rollaTagsOnDisk(file: File): List<String> {
+        val tag = (AudioFileIO.read(file) as MP3File).iD3v2Tag ?: return emptyList()
+        return tag.getFields(ID3v24Frames.FRAME_ID_USER_DEFINED_INFO)
+            .map { (it as AbstractID3v2Frame).body as FrameBodyTXXX }
+            .filter { it.description == RollaTagsJson.FIELD_NAME }
+            .map { it.text }
+    }
 
     /**
      * Emits [song], stubs a successful copy+read of [copy] whose tag embeds a picture when [hasArtwork], and returns a
      * constructed, loaded ViewModel.
      */
-    private fun TestScope.loadedViewModel(copy: File = editableCopy, hasArtwork: Boolean = true): TagEditorViewModel {
+    private fun TestScope.loadedViewModel(
+        copy: File = editableCopy,
+        hasArtwork: Boolean = true,
+        repository: CustomTagRepository = customTagRepository,
+    ): TagEditorViewModel {
         fakeSongRepository.emit(listOf(song))
         coEvery { songFileResolver.createEditableCopy(song) } returns copy
         coEvery { tagReader.read(copy) } returns loadedTags
         coEvery { tagReader.hasArtwork(copy) } returns hasArtwork
-        val viewModel = newViewModel()
+        val viewModel = newViewModel(repository = repository)
         advanceUntilIdle()
         return viewModel
     }
@@ -805,7 +903,354 @@ class TagEditorViewModelTest {
 
         assertNull(viewModel.uiState.value.message)
     }
+
+    // ── custom tags (phase 2) ─────────────────────────────────────────────
+
+    // The picker opens ticked with what the file carries. Stub: EMPTY. Mutation: skip the ROLLA_TAGS read → EMPTY →
+    // RED.
+    @Test
+    fun load_readsTicksFromTheFile() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()))
+
+        val state = loadedViewModel().uiState.value
+
+        assertEquals(CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), state.picker.selected)
+        val tagNames = state.picker.tags.map { it.name }
+        assertEquals("the picker shows the TAG list in library order", listOf("Acid", "Peak time", "Techno"), tagNames)
+        assertTrue("an MP3 copy takes custom tags", state.customTagsEditable)
+        assertFalse("the loaded ticks are the baseline, not an edit", state.isDirty)
+    }
+
+    // M4A is read but not written (user decision 2026-11-10), so its rows are disabled. Control: the MP3 copy is
+    // editable. Stub: true. Mutation: decide with isCustomTagExtension (MP3, FLAC and M4A) → m4a editable → RED.
+    @Test
+    fun load_m4a_disablesCustomTags() = runTest {
+        assertTrue("an MP3 copy takes custom tags (control)", loadedViewModel().uiState.value.customTagsEditable)
+
+        val m4aCopy = fixtureFile("${SONG_ID}_edit.m4a", M4aFixture.bytes())
+        val state = loadedViewModel(copy = m4aCopy).uiState.value
+
+        assertEquals("an M4A copy cannot take custom tags", false, state.customTagsEditable)
+        assertEquals("the M4A copy still loads", false, state.loadFailed)
+    }
+
+    // Final review item 9: a format the scan reads no field from (WAV) is never opened for ROLLA_TAGS; the load
+    // completes and the rows show nothing, disabled. Control: an MP3 copy is read. Mutation: drop the
+    // isCustomTagExtension check → the WAV copy is read → RED on the verify.
+    @Test
+    fun load_wav_skipsTheCustomTagRead() = runTest {
+        loadedViewModel()
+        verify(exactly = 1) { rollaTagsFileIo.read(editableCopy) }
+
+        val wavCopy = fixtureFile("${SONG_ID}_edit.wav", AudioFixtures.mp3Bytes())
+        val state = loadedViewModel(copy = wavCopy).uiState.value
+
+        verify(exactly = 0) { rollaTagsFileIo.read(wavCopy) }
+        assertEquals("the WAV copy still loads", false, state.loadFailed)
+        assertEquals("the fields load", loadedTags, state.tags)
+        assertEquals("a WAV carries no custom tags", CustomTagIds.EMPTY, state.picker.selected)
+        assertEquals("a WAV cannot take custom tags", false, state.customTagsEditable)
+    }
+
+    // A tick is an edit; taking it back returns to clean. Stub: never dirty. Mutation: leave the selection out of the
+    // dirty check → not dirty after the toggle → RED.
+    @Test
+    fun toggle_makesDirtyAndUntoggleRestoresClean() = runTest {
+        seedCustomTagLists()
+        val viewModel = loadedViewModel()
+        assertFalse("the freshly loaded form is clean (control)", viewModel.uiState.value.isDirty)
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        val ticked = viewModel.uiState.value
+        assertEquals(CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()), ticked.picker.selected)
+        assertTrue("a tick is an edit", ticked.isDirty)
+        assertTrue("a tick alone can be saved", ticked.canSave)
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        val unticked = viewModel.uiState.value
+        assertEquals(CustomTagIds.EMPTY, unticked.picker.selected)
+        assertFalse("taking the tick back returns to clean", unticked.isDirty)
+        assertFalse("nothing left to save", unticked.canSave)
+    }
+
+    // Save writes the ticked IDs into the copy's field, after the field write and before the persist. Stub: no write.
+    // Mutation: skip writeCustomTagIds → the field stays {"tags":"2",…} → RED.
+    @Test
+    fun save_writesTickedIdsToTheCopy() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        saveWithConsent(viewModel)
+
+        assertEquals(listOf("""{"tags":"2,3","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+        coVerifyOrder {
+            tagWriter.write(editableCopy, any())
+            rollaTagsFileIo.writeCustomTagIds(editableCopy, any())
+            songFileResolver.persistEditedCopy(song, editableCopy)
+        }
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+    }
+
+    // An ID the lists do not know (99) is never shown and survives the save. Control: the picker shows only TAG 2.
+    // Stub: write the selection only. Mutation: drop the union with the file's unknown IDs → the field is removed →
+    // RED.
+    @Test
+    fun save_keepsUnknownIdsFromTheFile() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        assertEquals(
+            "the picker holds the known ID only (control)",
+            CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 2L)
+        saveWithConsent(viewModel)
+
+        assertEquals(listOf("""{"tags":"99","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+    }
+
+    // An M4A saves its fields and never has the field written: a tick is refused, so the ticks never differ from the
+    // load and Save skips the field. Stub: write anyway. Mutation (fix round 1, the probe moved): drop the editable
+    // check from canEditCustomTags → the tick is applied → RED on "the tick is refused". The Save-time editable check
+    // is a second guard behind this one; dropping it alone is equivalent since ruling 7 (see task-4-report.md).
+    @Test
+    fun save_m4a_writesFieldsButNoCustomTags() = runTest {
+        val m4aCopy = fixtureFile("${SONG_ID}_edit.m4a", M4aFixture.bytes())
+        val viewModel = loadedViewModel(copy = m4aCopy)
+        coEvery { tagWriter.write(m4aCopy, any()) } just Runs
+        coEvery { songFileResolver.persistEditedCopy(song, m4aCopy) } just Runs
+        coEvery { songFileResolver.deleteEditableCopy(m4aCopy) } just Runs
+
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 2L)
+        assertEquals("the tick is refused on an M4A", CustomTagIds.EMPTY, viewModel.uiState.value.picker.selected)
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        verify(exactly = 0) { rollaTagsFileIo.writeCustomTagIds(any(), any()) }
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, m4aCopy) }
+        assertTrue("the field edit is saved", viewModel.uiState.value.isSaved)
+    }
+
+    // "New tag" → Create adds the entry, closes the dialog and ticks it. Stub: don't tick. Mutation: close the dialog
+    // only → the new ID is not selected → RED.
+    @Test
+    fun create_savedTicksTheNewEntry() = runTest {
+        seedCustomTagLists()
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.TAG, "Dub")
+        assertEquals(
+            "the dialog opens with the search text (control)",
+            CustomTagNameDialogState(kind = CustomTagKind.TAG, initialName = "Dub"),
+            viewModel.uiState.value.nameDialog,
+        )
+        viewModel.onCreateCustomTagConfirm("Dub")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertNull("a saved entry closes the dialog", state.nameDialog)
+        val dub = state.picker.tags.single { it.name == "Dub" }
+        assertTrue("the new entry is ticked", dub.id in state.picker.selected.tagIds)
+        assertTrue("ticking the new entry is an edit", state.isDirty)
+    }
+
+    // A name already in the list keeps the dialog open with the reason. Stub: close. Mutation: map Duplicate to a null
+    // error → RED.
+    @Test
+    fun create_duplicate_showsErrorAndKeepsDialog() = runTest {
+        seedCustomTagLists()
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.TAG, "techno")
+        viewModel.onCreateCustomTagConfirm("techno")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            "the dialog stays open with the reason",
+            CustomTagNameDialogState(
+                kind = CustomTagKind.TAG,
+                initialName = "techno",
+                error = "That name is already in the list",
+            ),
+            state.nameDialog,
+        )
+        assertEquals("nothing is ticked", CustomTagIds.EMPTY, state.picker.selected)
+    }
+
+    // A list that has issued its last ID says so. Stub: other text. Mutation: map LimitReached to "Enter a name" → RED.
+    @Test
+    fun create_limitReached_showsListFull() = runTest {
+        customTagDao.raiseCounter(CustomTagKind.SUBTAG, MAX_CUSTOM_TAG_ID)
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.SUBTAG, "Closing")
+        viewModel.onCreateCustomTagConfirm("Closing")
+        advanceUntilIdle()
+
+        assertEquals("This list is full", viewModel.uiState.value.nameDialog?.error)
+    }
+
+    // A row tap opens the picker on that row's page; Done closes it. Stub: never open. Mutation: open on TAG whatever
+    // the row → page TAG → RED.
+    @Test
+    fun rowsClick_opensPickerOnThatPageAndDoneCloses() = runTest {
+        val viewModel = loadedViewModel()
+        assertFalse("the picker starts closed (control)", viewModel.uiState.value.isPickerOpen)
+
+        viewModel.onCustomTagRowsClick(CustomTagKind.SUBTAG)
+        assertTrue("a row tap opens the picker", viewModel.uiState.value.isPickerOpen)
+        assertEquals(CustomTagKind.SUBTAG, viewModel.uiState.value.picker.page)
+
+        viewModel.onPickerDone()
+        assertFalse("Done closes the picker", viewModel.uiState.value.isPickerOpen)
+    }
+
+    // ── custom tags: fix round 1 (rulings 7–8) ────────────────────────────
+
+    // Ruling 7: a save that leaves the ticks alone never rewrites the field, so a value this app cannot decode
+    // survives a title edit. Control: the field reads as no tags and the form is clean before the edit. Mutation:
+    // always write → the undecodable field is deleted (EMPTY) → RED.
+    @Test
+    fun save_titleOnly_keepsAnUndecodableField() = runTest {
+        seedCustomTagLists()
+        writeRawRollaTags(editableCopy, NOT_JSON)
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        val ticks = viewModel.uiState.value.picker.selected
+        assertEquals("the undecodable field reads as no ticks (control)", CustomTagIds.EMPTY, ticks)
+
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        assertTrue("the title edit is saved", viewModel.uiState.value.isSaved)
+        assertEquals(listOf(NOT_JSON), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Ruling 7, second shape: a value with a key this app does not write survives a title edit unchanged. Control:
+    // the picker ticks TAG 2 from it. Mutation: always write → the value is normalised to {"tags":"2","subTags":""}
+    // → RED.
+    @Test
+    fun save_titleOnly_keepsAFieldWithAnExtraKey() = runTest {
+        seedCustomTagLists()
+        writeRawRollaTags(editableCopy, EXTRA_KEY_VALUE)
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        assertEquals(
+            "the field's known ID is ticked (control)",
+            CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        assertTrue("the title edit is saved", viewModel.uiState.value.isSaved)
+        assertEquals(listOf(EXTRA_KEY_VALUE), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Ruling 8 (M1): a ROLLA_TAGS read that fails at load does not fail the load; it disables the rows (the note
+    // shows), and Save still writes the fields without touching the field. Mutation: drop the catch → the read failure
+    // reaches the load's own catch → loadFailed → RED.
+    @Test
+    fun load_rollaTagsReadFails_disablesRowsAndStillSavesFields() = runTest {
+        every { rollaTagsFileIo.read(editableCopy) } throws IOException("unreadable ROLLA_TAGS")
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+
+        val loaded = viewModel.uiState.value
+        assertEquals("a ROLLA_TAGS read failure is not a load failure", false, loaded.loadFailed)
+        assertEquals("the fields still load", loadedTags, loaded.tags)
+        assertEquals("the rows are disabled, so the note shows", false, loaded.customTagsEditable)
+
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        coVerify(exactly = 1) { songFileResolver.persistEditedCopy(song, editableCopy) }
+        verify(exactly = 0) { rollaTagsFileIo.writeCustomTagIds(any(), any()) }
+        assertTrue("the title edit is saved", viewModel.uiState.value.isSaved)
+    }
+
+    // Ruling 8 (M2): a custom tag table that fails degrades to empty lists; the editor loads and the fields save.
+    // Mutation: drop the catch on the lists flow → the lists never arrive and the error escapes → RED.
+    @Test
+    fun listsFlowThrows_editorLoadsWithEmptyLists() = runTest {
+        val failing: CustomTagRepository = mockk {
+            every { observeCustomTags(any()) } returns flow { throw IllegalStateException("custom_tags is broken") }
+        }
+        val viewModel = loadedViewModel(repository = failing)
+
+        val state = viewModel.uiState.value
+        assertEquals("the editor finishes loading", false, state.isLoading)
+        assertEquals("a list failure is not a load failure", false, state.loadFailed)
+        assertEquals("the lists read as empty", emptyList<CustomTag>(), state.picker.tags + state.picker.subTags)
+        assertEquals("the rows show None", CustomTagIds.EMPTY, state.picker.selected)
+    }
+
+    // Ruling 8 (M4): a blank name says "Enter a name" (the dialog disables Create while blank, so the ViewModel is
+    // driven directly). Mutation: map Blank to the too-long text → RED.
+    @Test
+    fun create_blank_showsEnterAName() = runTest {
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.TAG, "")
+        viewModel.onCreateCustomTagConfirm("   ")
+        advanceUntilIdle()
+
+        assertEquals("Enter a name", viewModel.uiState.value.nameDialog?.error)
+    }
+
+    // Ruling 8 (M4): a 41-character name says "Use 40 characters or fewer". Mutation: map TooLong to "Enter a name"
+    // → RED.
+    @Test
+    fun create_tooLong_showsTheLimit() = runTest {
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.TAG, "")
+        viewModel.onCreateCustomTagConfirm("x".repeat(TOO_LONG_NAME_LENGTH))
+        advanceUntilIdle()
+
+        assertEquals("Use 40 characters or fewer", viewModel.uiState.value.nameDialog?.error)
+    }
+
+    // Ruling 8 (M5): end to end with the real TagReader and TagWriter on an MP3 fixture carrying an unknown ID (99).
+    // A title edit and a tick of TAG 3 are saved: the field re-read after the real field write still holds 99, so the
+    // file ends with the new title and {3, 99}. Mutation: build the IDs from the load-time baseline instead of
+    // re-reading the copy → 99 is lost → RED.
+    @Test
+    fun save_realWriter_titleEditKeepsUnknownId() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(99L), subTagIds = emptySet()))
+        val realReader = TagReader(mainDispatcherRule.testDispatcher)
+        fakeSongRepository.emit(listOf(song))
+        coEvery { songFileResolver.createEditableCopy(song) } returns editableCopy
+        stubPersist(editableCopy)
+        val viewModel = newViewModel(reader = realReader, writer = TagWriter(mainDispatcherRule.testDispatcher))
+        advanceUntilIdle()
+        val ticks = viewModel.uiState.value.picker.selected
+        assertEquals("the unknown ID is not shown (control)", CustomTagIds.EMPTY, ticks)
+
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals("New Title", realReader.read(editableCopy).title)
+        assertEquals(listOf("""{"tags":"3,99","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
 }
+
+private const val NOT_JSON = "not-json"
+private const val EXTRA_KEY_VALUE = """{"tags":"2","subTags":"","x":"y"}"""
+private const val TOO_LONG_NAME_LENGTH = 41
 
 private const val API_29 = 29
 private const val PICKED_IMAGE_URI = "content://media/picker/0/com.android.providers.media.photopicker/media/42"

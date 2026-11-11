@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
@@ -36,9 +37,13 @@ import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.destructiveText
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.testing.drawRoot
 import com.rolla.musicplayer.core.testing.isColorNear
 import com.rolla.musicplayer.core.testing.pixelsIn
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -293,12 +298,52 @@ class TagEditorScreenTest {
         )
     }
 
+    // Custom tags phase 2: a row tap opens the picker on that row's page (the owner here follows the callback as the
+    // ViewModel does). Control: no picker before the tap. Stub: page 0 always. Mutation: the screen ignores the row's
+    // kind (TAG for both rows) → "Search tags" → RED.
+    @Test
+    fun rows_openPickerOnTappedPage() {
+        var state by mutableStateOf(loadedState().copy(picker = pickerState()))
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                Screen(
+                    state = state,
+                    onCustomTagRowsClick = { kind ->
+                        state = state.copy(isPickerOpen = true, picker = state.picker.copy(page = kind))
+                    },
+                )
+            }
+        }
+        composeRule.onNodeWithText(SEARCH_SUBTAGS).assertDoesNotExist()
+
+        composeRule.onNodeWithText("Subtags").performScrollTo().performClick()
+
+        composeRule.onNodeWithText(SEARCH_SUBTAGS).assertIsDisplayed()
+        composeRule.onNodeWithText("Search tags").assertDoesNotExist()
+    }
+
+    // An M4A cannot take custom tags: the rows say why. Control: an editable file shows no note. Stub: no note.
+    // Mutation: pass enabled = true always → the note is absent → RED.
+    @Test
+    fun rows_disabledForM4a_showNote() {
+        var state by mutableStateOf(loadedState().copy(picker = pickerState()))
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) { Screen(state = state) }
+        }
+        composeRule.onNodeWithText("Subtags").performScrollTo()
+        assertEquals("an editable file shows no note (control)", 0, textCount(MP3_FLAC_NOTE))
+
+        composeRule.runOnIdle { state = state.copy(customTagsEditable = false) }
+        composeRule.onNodeWithText(MP3_FLAC_NOTE).performScrollTo().assertIsDisplayed()
+    }
+
     @Composable
     private fun Screen(
         state: TagEditorUiState,
         onSaveClick: () -> Unit = {},
         onNavigateUp: () -> Unit = {},
         onRemoveArtworkClick: () -> Unit = {},
+        onCustomTagRowsClick: (CustomTagKind) -> Unit = {},
     ) {
         TagEditorScreen(
             uiState = state,
@@ -308,6 +353,14 @@ class TagEditorScreenTest {
             onSaveClick = onSaveClick,
             onNavigateUp = onNavigateUp,
             onDismissMessage = {},
+            onCustomTagRowsClick = onCustomTagRowsClick,
+            onPickerPageChange = {},
+            onPickerQueryChange = { _, _ -> },
+            onCustomTagToggle = { _, _ -> },
+            onPickerDone = {},
+            onCreateCustomTagClick = { _, _ -> },
+            onCreateCustomTagConfirm = {},
+            onNameDialogDismiss = {},
         )
     }
 
@@ -348,6 +401,15 @@ class TagEditorScreenTest {
         const val REMOVE_ARTWORK = "Remove artwork"
         const val ARTWORK_REMOVED = "Artwork removed"
         const val LARGE_FONT = 1.5f
+        const val SEARCH_SUBTAGS = "Search subtags"
+        const val MP3_FLAC_NOTE = "Tags can be saved to MP3 and FLAC files only."
+
+        /** Techno ticked on the TAG list, Warm-up on the SUBTAG list unticked. */
+        fun pickerState(): CustomTagPickerState = CustomTagPickerState(
+            tags = listOf(CustomTag(CustomTagKind.TAG, id = 2L, name = "Techno")),
+            subTags = listOf(CustomTag(CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+            selected = CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()),
+        )
 
         /** A test-only stand-in for colorScheme.error, far from every token on a dark screen. */
         val ERROR_SEPARATOR = Color(0xFF00FF00)

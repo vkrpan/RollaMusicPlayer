@@ -37,6 +37,9 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Alb
   `FileTagPass`: `read N files (F failed) in T ms`. Depends on [[core-tagio]].
 - 2026-11-10 (custom tags phase 1, Task 6): `CustomTagRepository` (observe lists in library order, create, rename,
   per-song IDs incl. unknown ones; names trimmed, 1–40 code points, unique per list ignoring case).
+- 2026-11-10 (custom tags phase 2, Task 1): `ScannedSong.toEntity` bumps `fileTagsGeneration` on a changed file or a
+  forced re-read; `FileTagPass` applies with the queried generation, and a skipped apply leaves the row unread for its
+  own loop to read again (a row deleted mid-read counts as skipped).
 - 2026-11-10 (final fix wave): `CustomTagNameResult.LimitReached` when the list's next ID would pass
   `MAX_CUSTOM_TAG_ID`; lists tie-break by name then ID, as playlists do; `rename` validates the name before the ID
   lookup (KDoc, Ruling 9).

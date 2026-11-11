@@ -30,3 +30,12 @@ related: ["[[Modules]]", "[[Tag editor]]", "[[Per-track artwork]]", "[[Tag write
   `setFieldIfNotBlank`) moved to [[core-tagio]]; the audio test fixtures moved to [[core-testing]]
   (`core.testing.audio`). Depends on `:core:tagio`. Known existing bug: an M4A save drops other apps' freeform atoms
   ([[jaudiotagger cannot write unknown M4A freeform atoms]], [[Backlog]]).
+- 2026-11-10 (custom tags phase 2, Tasks 4–5): both editors host the custom tag picker. Single editor: reads the ticks
+  from the editable copy at load; writes `ROLLA_TAGS` after the fields and artwork, before the single persist, only when
+  the ticks changed (Ruling 7), as `ticked ∪ unknown IDs from the copy`; an unreadable field disables the rows and the
+  fields still save (Ruling 8); a failing tag table reads as empty lists. Batch editor: adds the chosen IDs to each
+  MP3/FLAC (never removes; skips songs that already carry them); an unwritable format with tags chosen fails that song
+  before any write ("Edited X of N tracks."). The picker handling is shared (final fix wave, `CustomTagEditing.kt`:
+  `CustomTagEditingHandlers` with the lists, the 8 handlers, the create guard and the refusal copy; `write` recomputes
+  the save state only when the ticks change). The single editor reads `ROLLA_TAGS` only for formats the scan reads
+  (MP3, FLAC, M4A); OGG/WAV get empty ticks without opening the field.

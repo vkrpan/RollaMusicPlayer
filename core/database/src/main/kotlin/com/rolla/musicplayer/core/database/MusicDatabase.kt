@@ -35,7 +35,7 @@ import com.rolla.musicplayer.core.database.entity.SongEntity
         CustomTagCounterEntity::class,
         SongCustomTagCrossRef::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
 )
 @TypeConverters(ShortListConverter::class)
@@ -68,7 +68,8 @@ abstract class MusicDatabase : RoomDatabase() {
     abstract fun playbackQueueDao(): PlaybackQueueDao
 
     // The custom tag lists, counters and song links. Comes with a schema change: the v6 tables and the two songs
-    // columns, added by MIGRATION_5_6 (see CustomTagDao's KDoc).
+    // columns, added by MIGRATION_5_6 (see CustomTagDao's KDoc), and songs.file_tags_generation, added by
+    // MIGRATION_6_7.
     abstract fun customTagDao(): CustomTagDao
 
     companion object {

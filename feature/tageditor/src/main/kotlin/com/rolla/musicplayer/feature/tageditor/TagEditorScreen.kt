@@ -60,7 +60,15 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagIds
+import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.ui.ArtworkThumbnail
+import com.rolla.musicplayer.core.ui.customtags.CustomTagNameDialog
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerSheet
+import com.rolla.musicplayer.core.ui.customtags.CustomTagPickerState
+import com.rolla.musicplayer.core.ui.customtags.CustomTagRows
+import com.rolla.musicplayer.core.ui.customtags.selectedNames
 import com.rolla.musicplayer.feature.tageditor.io.rememberMediaWriteRequester
 
 private const val LOAD_FAILED_MESSAGE = "Couldn't load this track's tags."
@@ -145,11 +153,24 @@ fun TagEditorRoute(
         onSaveClick = remember(viewModel) { viewModel::onSaveClick },
         onNavigateUp = navigateUpUnlessSaving,
         onDismissMessage = remember(viewModel) { viewModel::dismissMessage },
+        onCustomTagRowsClick = remember(viewModel) { viewModel::onCustomTagRowsClick },
+        onPickerPageChange = remember(viewModel) { viewModel::onPickerPageChange },
+        onPickerQueryChange = remember(viewModel) { viewModel::onPickerQueryChange },
+        onCustomTagToggle = remember(viewModel) { viewModel::onCustomTagToggle },
+        onPickerDone = remember(viewModel) { viewModel::onPickerDone },
+        onCreateCustomTagClick = remember(viewModel) { viewModel::onCreateCustomTagClick },
+        onCreateCustomTagConfirm = remember(viewModel) { viewModel::onCreateCustomTagConfirm },
+        onNameDialogDismiss = remember(viewModel) { viewModel::onNameDialogDismiss },
         modifier = modifier,
     )
 }
 
-// One callback per editor action plus the Scaffold; at 31 lines splitting it would only move the parameter fan-out.
+/**
+ * The single tag editor: the header, the fields card, the Tags and Subtags rows, and Save/Cancel. It also hosts the
+ * custom tag picker sheet while [TagEditorUiState.isPickerOpen] and the "New tag" dialog while
+ * [TagEditorUiState.nameDialog] is set; both are driven entirely by [uiState].
+ */
+// One callback per editor action plus the Scaffold; splitting it would only move the parameter fan-out.
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 fun TagEditorScreen(
@@ -160,6 +181,14 @@ fun TagEditorScreen(
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
     onDismissMessage: () -> Unit,
+    onCustomTagRowsClick: (CustomTagKind) -> Unit,
+    onPickerPageChange: (CustomTagKind) -> Unit,
+    onPickerQueryChange: (CustomTagKind, String) -> Unit,
+    onCustomTagToggle: (CustomTagKind, Long) -> Unit,
+    onPickerDone: () -> Unit,
+    onCreateCustomTagClick: (CustomTagKind, String) -> Unit,
+    onCreateCustomTagConfirm: (String) -> Unit,
+    onNameDialogDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -187,9 +216,24 @@ fun TagEditorScreen(
                 onRemoveArtworkClick = onRemoveArtworkClick,
                 onSaveClick = onSaveClick,
                 onNavigateUp = onNavigateUp,
+                onCustomTagRowsClick = onCustomTagRowsClick,
                 modifier = Modifier.padding(innerPadding),
             )
         }
+    }
+
+    if (uiState.isPickerOpen) {
+        CustomTagPickerSheet(
+            state = uiState.picker,
+            onPageChange = onPickerPageChange,
+            onQueryChange = onPickerQueryChange,
+            onToggle = onCustomTagToggle,
+            onCreateClick = onCreateCustomTagClick,
+            onDone = onPickerDone,
+        )
+    }
+    uiState.nameDialog?.let { dialog ->
+        CustomTagNameDialog(state = dialog, onCreate = onCreateCustomTagConfirm, onDismiss = onNameDialogDismiss)
     }
 }
 
@@ -221,8 +265,9 @@ private fun ErrorContent(onNavigateUp: () -> Unit, modifier: Modifier = Modifier
     }
 }
 
-// One flat column of the three blocks; splitting it would only move the uiState fan-out elsewhere.
-@Suppress("LongParameterList")
+// One flat column of the four blocks; splitting it would only move the uiState fan-out elsewhere (and the file is at
+// detekt's TooManyFunctions threshold).
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 private fun TagEditorContent(
     uiState: TagEditorUiState,
@@ -231,6 +276,7 @@ private fun TagEditorContent(
     onRemoveArtworkClick: () -> Unit,
     onSaveClick: () -> Unit,
     onNavigateUp: () -> Unit,
+    onCustomTagRowsClick: (CustomTagKind) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     TagEditorScrollColumn(modifier = modifier) {
@@ -252,6 +298,16 @@ private fun TagEditorContent(
             yearError = uiState.yearError,
             trackNumberError = uiState.trackNumberError,
             onFieldChanged = onFieldChanged,
+        )
+        val picker = uiState.picker
+        CustomTagRows(
+            tagNames = remember(picker.tags, picker.selected) { selectedNames(picker.tags, picker.selected.tagIds) },
+            subTagNames = remember(picker.subTags, picker.selected) {
+                selectedNames(picker.subTags, picker.selected.subTagIds)
+            },
+            enabled = uiState.customTagsEditable,
+            onTagsClick = { onCustomTagRowsClick(CustomTagKind.TAG) },
+            onSubTagsClick = { onCustomTagRowsClick(CustomTagKind.SUBTAG) },
         )
         TagEditorSaveCancelRow(
             canSave = uiState.canSave,
@@ -546,6 +602,14 @@ private fun previewUiState(): TagEditorUiState = TagEditorUiState(
         trackNumber = "11",
         composer = "Freddie Mercury",
     ),
+    picker = CustomTagPickerState(
+        tags = listOf(
+            CustomTag(CustomTagKind.TAG, id = 1L, name = "Peak time"),
+            CustomTag(CustomTagKind.TAG, id = 2L, name = "Techno"),
+        ),
+        subTags = listOf(CustomTag(CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+        selected = CustomTagIds(tagIds = setOf(1L, 2L), subTagIds = emptySet()),
+    ),
     isDirty = true,
     canSave = true,
 )
@@ -561,21 +625,11 @@ private fun previewValidationErrorUiState(): TagEditorUiState {
 }
 
 @Suppress("UnusedPrivateMember")
-@Preview(name = "Tag Editor - Light")
-@Preview(name = "Tag Editor - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Tag Editor - Light", heightDp = PREVIEW_TALL_HEIGHT)
+@Preview(name = "Tag Editor - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES, heightDp = PREVIEW_TALL_HEIGHT)
 @Composable
 private fun PreviewTagEditorScreen() {
-    RollaMusicPlayerTheme {
-        TagEditorScreen(
-            uiState = previewUiState(),
-            onFieldChanged = { _, _ -> },
-            onChangeArtworkClick = {},
-            onRemoveArtworkClick = {},
-            onSaveClick = {},
-            onNavigateUp = {},
-            onDismissMessage = {},
-        )
-    }
+    PreviewTagEditor(uiState = previewUiState())
 }
 
 @Suppress("UnusedPrivateMember")
@@ -583,15 +637,32 @@ private fun PreviewTagEditorScreen() {
 @Preview(name = "Tag Editor Validation Error - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun PreviewTagEditorScreenValidationError() {
+    PreviewTagEditor(uiState = previewValidationErrorUiState())
+}
+
+/** The screen in the app theme with every callback a no-op. */
+@Composable
+private fun PreviewTagEditor(uiState: TagEditorUiState) {
     RollaMusicPlayerTheme {
         TagEditorScreen(
-            uiState = previewValidationErrorUiState(),
+            uiState = uiState,
             onFieldChanged = { _, _ -> },
             onChangeArtworkClick = {},
             onRemoveArtworkClick = {},
             onSaveClick = {},
             onNavigateUp = {},
             onDismissMessage = {},
+            onCustomTagRowsClick = {},
+            onPickerPageChange = {},
+            onPickerQueryChange = { _, _ -> },
+            onCustomTagToggle = { _, _ -> },
+            onPickerDone = {},
+            onCreateCustomTagClick = { _, _ -> },
+            onCreateCustomTagConfirm = {},
+            onNameDialogDismiss = {},
         )
     }
 }
+
+/** Tall enough to show the Tags and Subtags rows under the fields card. */
+private const val PREVIEW_TALL_HEIGHT = 1400

@@ -21,3 +21,7 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Build UI from tokens and the
 - 2026-11-09 (per-track artwork Task 8): `OneUiMenuItem(destructive)` (keeps the disabled fade);
   `OneUiDetailTopBar(navigationEnabled, titleStyle, compactTitleStyle)` — the title steps down to the compact style only
   when it would not fit on one line (measured; ruling P24).
+- 2026-11-10 (custom tags phase 2, Task 3): `LabelChip(label)` — a display-only chip sharing `PillChip`'s styling (no
+  click, no role, no 48 dp footprint; the label wraps instead of ellipsizing and the shape turns from a pill into
+  `shapes.medium` when it wraps); token `labelChipVerticalPadding` (9 dp, spec §5.4); `OneUiDialogField(isError,
+  supportingText)` so a dialog's error is read with its field. See [[Custom tags]].

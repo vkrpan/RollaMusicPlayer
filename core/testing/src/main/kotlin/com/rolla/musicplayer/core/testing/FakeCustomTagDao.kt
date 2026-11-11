@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
  *
  * Call [seedSongs] to give it the `songs` rows that [CustomTagDao.songsNeedingFileTagRead],
  * [CustomTagDao.applyFileTags] and [CustomTagDao.markFileTagsRead] work on, and read the results back with [song] (the
- * row with its genre and read flag) and [linksOf] (its links).
+ * row with its genre, read flag and generation) and [linksOf] (its links).
  *
  * It behaves like the Room DAO where callers can tell: per-kind counters that only rise, a second entry with the same
  * (kind, name key) throwing [SQLiteConstraintException], and a link to a song it does not hold throwing the same
@@ -56,8 +56,10 @@ class FakeCustomTagDao : CustomTagDao {
     override suspend fun findById(kind: CustomTagKind, id: Long): CustomTagEntity? =
         tagsFlow.value.firstOrNull { it.kind == kind && it.id == id }
 
-    // insertNew and applyFileTags are NOT overridden: their @Transaction default bodies in CustomTagDao compose the
-    // primitives below, so the fake issues and raises IDs exactly as the real DAO does.
+    // insertNew, applyFileTags and markFileTagsRead are NOT overridden: their @Transaction default bodies in
+    // CustomTagDao compose the primitives below, so the fake issues and raises IDs, and checks a row's
+    // fileTagsGeneration, exactly as the real DAO does. To reset a row as the scanner would, seedSongs it again with a
+    // bumped generation.
 
     override suspend fun rename(kind: CustomTagKind, id: Long, name: String, nameKey: String): Int {
         val target = findById(kind, id) ?: return 0
@@ -67,8 +69,6 @@ class FakeCustomTagDao : CustomTagDao {
         tagsFlow.update { current -> current.map { if (it == target) it.copy(name = name, nameKey = nameKey) else it } }
         return 1
     }
-
-    override suspend fun markFileTagsRead(songId: String): Int = updateSong(songId) { it.copy(fileTagsRead = true) }
 
     override suspend fun songsNeedingFileTagRead(limit: Int): List<SongEntity> =
         songsFlow.value.filterNot { it.fileTagsRead }.sortedByDescending { it.dateModified }.take(limit)
@@ -110,9 +110,13 @@ class FakeCustomTagDao : CustomTagDao {
         updateSong(songId) { it.copy(genre = genre, fileTagsRead = true) }
     }
 
-    private fun updateSong(songId: String, change: (SongEntity) -> SongEntity): Int {
-        if (song(songId) == null) return 0
+    override suspend fun setFileTagsRead(songId: String) {
+        updateSong(songId) { it.copy(fileTagsRead = true) }
+    }
+
+    override suspend fun fileTagsGeneration(songId: String): Long? = song(songId)?.fileTagsGeneration
+
+    private fun updateSong(songId: String, change: (SongEntity) -> SongEntity) {
         songsFlow.update { current -> current.map { if (it.id == songId) change(it) else it } }
-        return 1
     }
 }

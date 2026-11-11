@@ -93,7 +93,7 @@ class CustomTagRepositoryImplTest {
     @Test
     fun create_afterFileCarriedHigherId_issuesAboveIt() = runTest {
         fakeDao.seedSongs(listOf(song("1")))
-        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(40L), subTagIds = emptySet()), genre = null)
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(40L), subTagIds = emptySet()), null, 0L)
 
         val result = repository.create(CustomTagKind.TAG, "New")
 
@@ -104,7 +104,7 @@ class CustomTagRepositoryImplTest {
     @Test
     fun create_atCeiling_isLimitReachedAndInsertsNothing() = runTest {
         fakeDao.seedSongs(listOf(song("1")))
-        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(MAX_CUSTOM_TAG_ID), subTagIds = emptySet()), null)
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(MAX_CUSTOM_TAG_ID), subTagIds = emptySet()), null, 0L)
 
         assertEquals(CustomTagNameResult.LimitReached, repository.create(CustomTagKind.TAG, "New"))
         assertTrue(repository.observeCustomTags(CustomTagKind.TAG).first().isEmpty())
@@ -115,7 +115,8 @@ class CustomTagRepositoryImplTest {
     @Test
     fun create_belowCeiling_issuesTheCeiling() = runTest {
         fakeDao.seedSongs(listOf(song("1")))
-        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(MAX_CUSTOM_TAG_ID - 1), subTagIds = emptySet()), null)
+        val ids = CustomTagIds(tagIds = setOf(MAX_CUSTOM_TAG_ID - 1), subTagIds = emptySet())
+        fakeDao.applyFileTags("1", ids, null, 0L)
 
         assertEquals(
             CustomTagNameResult.Saved(CustomTag(CustomTagKind.TAG, MAX_CUSTOM_TAG_ID, "New")),
@@ -225,7 +226,7 @@ class CustomTagRepositoryImplTest {
         repository.create(CustomTagKind.SUBTAG, "Sub")
         fakeDao.seedSongs(listOf(song("1")))
         // TAG 99 has no entry in the list: the link keeps it.
-        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = setOf(1L)), genre = null)
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = setOf(1L)), null, 0L)
 
         assertEquals(
             CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = setOf(1L)),

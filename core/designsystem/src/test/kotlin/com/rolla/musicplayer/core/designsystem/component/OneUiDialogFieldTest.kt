@@ -8,12 +8,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.unit.DpRect
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -130,6 +134,36 @@ class OneUiDialogFieldTest {
         composeRule.onNode(hasSetTextAction() and hasText("Workout Mix")).assertIsNotFocused()
     }
 
+    // Custom tags fix round 1 (M4): isError and supportingText reach the kit field, so the message shows under it and
+    // the field itself reports the error to TalkBack. Control: the field is there with its value. Mutation: drop the
+    // supportingText pass-through to OneUiTextField → the message is gone → RED.
+    @LooperMode(LooperMode.Mode.LEGACY)
+    @Test
+    fun anErrorShowsItsMessageAndMarksTheField() {
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                OneUiDialog(
+                    onDismissRequest = {},
+                    title = "New tag",
+                    confirmButton = { OneUiTextButton(text = "Create", onClick = {}) },
+                    text = {
+                        OneUiDialogField(
+                            value = "Techno",
+                            onValueChange = {},
+                            label = "Name",
+                            isError = true,
+                            supportingText = ERROR_MESSAGE,
+                        )
+                    },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        composeRule.onNode(hasSetTextAction() and hasText("Techno"))
+            .assert(SemanticsMatcher.keyIsDefined(SemanticsProperties.Error))
+        composeRule.onNodeWithText(ERROR_MESSAGE, useUnmergedTree = true).assertExists()
+    }
+
     @Composable
     private fun NameDialog() {
         OneUiDialog(
@@ -138,5 +172,9 @@ class OneUiDialogFieldTest {
             confirmButton = { OneUiTextButton(text = "Create", onClick = {}) },
             text = { OneUiDialogField(value = "", onValueChange = {}, label = "Playlist name") },
         )
+    }
+
+    private companion object {
+        const val ERROR_MESSAGE = "That name is already in the list"
     }
 }
