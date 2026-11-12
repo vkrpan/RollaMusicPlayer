@@ -185,6 +185,28 @@ class CustomTagDaoTest {
         assertEquals(mapOf(1L to 1), dao.linkCounts(CustomTagKind.SUBTAG))
     }
 
+    // Custom tags phase 4. TAG 99 has no entry. Trivial stub (empty list) fails the assertion.
+    // Mutation: inner join to custom_tags → link 99 missing → RED.
+    @Test
+    fun observeAllSongCustomTagLinks_emitsEveryLinkIncludingUnknown() = runTest {
+        dao.insertNew(CustomTagKind.TAG, "Techno", "techno")
+        dao.insertNew(CustomTagKind.SUBTAG, "Hard", "hard")
+        songDao.upsertSongs(listOf(song("a"), song("b")))
+        dao.applyFileTags("a", CustomTagIds(tagIds = setOf(1L, 99L), subTagIds = setOf(1L)), null, 0L)
+        dao.applyFileTags("b", CustomTagIds(tagIds = setOf(1L), subTagIds = emptySet()), null, 0L)
+
+        assertEquals(
+            "every link of every song, known or not",
+            setOf(
+                link("a", CustomTagKind.TAG, 1L),
+                link("a", CustomTagKind.TAG, 99L),
+                link("a", CustomTagKind.SUBTAG, 1L),
+                link("b", CustomTagKind.TAG, 1L),
+            ),
+            dao.observeAllSongCustomTagLinks().first().toSet(),
+        )
+    }
+
     // Mutation: skip the delete of the song's old links → {TAG 2, SUBTAG 1, TAG 3} remain → RED.
     @Test
     fun applyFileTags_replacesLinksAndSetsGenreAndReadFlag() = runTest {

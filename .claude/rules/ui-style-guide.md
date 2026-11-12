@@ -110,8 +110,8 @@ and `SongOptionsHost` for the per-track options sheet. The last row of a list dr
   and artist, previous · play/pause · next · queue. Tap opens Now Playing.
 - **Now Playing:** chevron and actions bar (volume, Equaliser, ⋮), the artwork, title and artist, the action row
   (queue, heart, +), the seek bar with times, then shuffle · previous · play · next · play order.
-- **Pushed screens** (AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist, FolderDetail, Search, Equaliser,
-  Settings, the tag editors, About, Licenses, Privacy): `OneUiDetailTopBar`, then a `ContentPanel` or grouped cards.
+- **Pushed screens** (AlbumDetail, ArtistDetail, PlaylistDetail, SmartPlaylist, FolderDetail, Search, Find tracks,
+  Manage tags, Equaliser, Settings, the tag editors, About, Licenses, Privacy): `OneUiDetailTopBar`, then a `ContentPanel` or grouped cards.
 - **Equaliser:** an enable card, the slider card (bands with value and frequency labels), the preset chip grid and its
   caption. UI copy says "Equaliser"; code says `Equalizer*`.
 - **Settings:** grouped `large` cards under `sectionHeader` labels; values in `accentText` below their labels, no

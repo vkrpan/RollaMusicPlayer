@@ -55,6 +55,12 @@ data object ManageCustomTags : Route
 @Serializable
 data class Search(val query: String? = null) : Route
 
+// Find tracks (custom tags phase 4): the library filtered by title, artist, album, genre, year, tags and subtags.
+// Reached from the Tracks tab's sort header only. No arguments: the filter lives in FindTracksViewModel's
+// SavedStateHandle, so each push starts with an empty filter.
+@Serializable
+data object FindTracks : Route
+
 // Reachable from the Home header overflow menu.
 @Serializable
 data object Settings : Route

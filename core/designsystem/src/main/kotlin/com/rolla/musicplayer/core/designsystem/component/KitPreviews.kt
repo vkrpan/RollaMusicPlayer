@@ -4,6 +4,7 @@
 package com.rolla.musicplayer.core.designsystem.component
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -191,6 +192,58 @@ private fun PreviewOneUiPillButton() {
                 )
             }
         }
+    }
+}
+
+// Custom tag chips (custom tags phase 4): a tag and a subtag chip on the panel, a one-line overflow with "+N", a
+// centred two-line line on the Now Playing gradient, and the Find tracks strip's removable chips on the background.
+@Suppress("UnusedPrivateMember")
+@Preview(name = "Tag chips - Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Preview(name = "Tag chips - Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
+@Preview(name = "Tag chips - Large font", uiMode = Configuration.UI_MODE_NIGHT_YES, fontScale = 1.5f)
+@Composable
+private fun PreviewTagChips() {
+    val chips = remember {
+        List(6) { TagChipData("Tag ${it + 1}", TagChipStyle.Tonal) } +
+            List(4) { TagChipData("Subtag ${it + 1}", TagChipStyle.Outline) }
+    }
+    RollaMusicPlayerTheme {
+        Column(Modifier.width(320.dp).background(MaterialTheme.colorScheme.background)) {
+            PreviewTagChipsOnPanel(chips)
+            TagChipLine(
+                chips = chips,
+                maxLines = 2,
+                centred = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .nowPlayingBackground(MaterialTheme.colorScheme.nowPlayingGradient)
+                    .padding(16.dp),
+            )
+            Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RemovableChip(label = "Artist: Queen", removeLabel = "Remove filter Artist: Queen", onRemove = {})
+                RemovableChip(
+                    label = "Live",
+                    removeLabel = "Remove filter Live",
+                    onRemove = {},
+                    style = TagChipStyle.Outline,
+                )
+            }
+        }
+    }
+}
+
+// A track row's view: a tag and a subtag chip, then a one-line overflow with "+N", on the panel.
+@Composable
+private fun PreviewTagChipsOnPanel(chips: List<TagChipData>) {
+    Column(
+        Modifier.background(MaterialTheme.colorScheme.surfaceContainer).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(RollaDimens.tagChipGap)) {
+            TagChip(label = "Road trip", style = TagChipStyle.Tonal)
+            TagChip(label = "Live", style = TagChipStyle.Outline)
+        }
+        TagChipLine(chips = chips, modifier = Modifier.fillMaxWidth())
     }
 }
 

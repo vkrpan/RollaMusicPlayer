@@ -3,7 +3,7 @@ type: concept
 summary: "User-defined tags and subtags whose IDs live in each audio file's ROLLA_TAGS field and are indexed in Room."
 aliases: ["custom tags", "subtags", "ROLLA_TAGS"]
 tags: [concept, custom-tags]
-sources: ["[[sources/custom-tags-spec]]", "[[sources/custom-tags-roadmap]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]", "[[sources/claude-md]]"]
+sources: ["[[sources/custom-tags-spec]]", "[[sources/custom-tags-roadmap]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]", "[[sources/custom-tags-phase4-plan]]", "[[sources/claude-md]]"]
 updated: 2026-11-12
 ---
 # Custom tags
@@ -25,10 +25,12 @@ User-defined tags and subtags whose IDs live in each audio file's ROLLA_TAGS fie
   from every MP3/FLAC carrying it after write consent, and exports or imports both lists as one JSON file; an import
   replaces the lists after a clash warning. Editors stay correct afterwards: ticks are pruned to known tags, and the
   single editor applies only the user's own tick changes to the file's current field ([[custom-tags-phase3-plan]]).
-- **Not yet built:** Find tracks, chips in lists and on Now Playing ([[custom-tags-roadmap]]).
+- **Finding and showing (phase 4):** tag chips (tags filled, subtags outlined, "+N") on every track row and on Now
+  Playing; Find tracks, reached from the Tracks tab, combines title, artist, album, genre, year, tags and subtags with
+  AND, updates live, and plays the whole result as the queue ([[custom-tags-phase4-plan]]). All four phases are built.
 
 ## Related
-[[custom-tags-spec]], [[custom-tags-roadmap]], [[custom-tags-phase3-plan]], [[module-core-tagio]], [[module-feature-tageditor]],
+[[custom-tags-spec]], [[custom-tags-roadmap]], [[custom-tags-phase3-plan]], [[custom-tags-phase4-plan]], [[module-core-tagio]], [[module-feature-tageditor]],
 [[offline-privacy-architecture]], [[development-history]]
 
 ## Disagreements & open questions

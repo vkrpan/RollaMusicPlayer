@@ -77,6 +77,10 @@ internal data class RollaPalette(
     val seekTrackActive: Color,
     val seekTrackInactive: Color,
     val nowPlayingGradient: NowPlayingGradient,
+    val tagChipContainer: Color,
+    val tagChipLabel: Color,
+    val subTagChipBorder: Color,
+    val subTagChipLabel: Color,
 )
 
 // Dark sheets and dialogs keep the plain placeholder and the field one step above the dialog; declared once so the
@@ -84,17 +88,22 @@ internal data class RollaPalette(
 private val DarkArtworkPlaceholder = Color(0xFF454547)
 private val DarkSurfaceContainerHighest = Color(0xFF333333)
 
+// The tag chip colours repeat these roles (custom tags phase 4); declared once so the pairs cannot drift apart.
+private val DarkOnSurface = Color(0xFFFCFCFE)
+private val DarkOnSurfaceVariant = Color(0xFF9B9B9D)
+private val DarkSurfaceContainerHigh = Color(0xFF2D2D2F)
+
 internal val DarkPalette = RollaPalette(
     background = Color(0xFF000000),
-    onSurface = Color(0xFFFCFCFE),
+    onSurface = DarkOnSurface,
     surfaceVariant = Color(0xFF2D2D2F),
-    onSurfaceVariant = Color(0xFF9B9B9D),
+    onSurfaceVariant = DarkOnSurfaceVariant,
     labelSecondary = Color(0xFFA4A4A6), // calibrated 2026-10-31 (measured #A4A3A9): 7.19:1 on surfaceContainer
     eqCaption = Color(0xFFE6E6E6), // calibrated 2026-10-31 (measured #E6E6E6): 16.83:1 on background
     surfaceContainerLowest = Color(0xFF000000),
     surfaceContainerLow = Color(0xFF0F0F10),
     surfaceContainer = Color(0xFF171719),
-    surfaceContainerHigh = Color(0xFF2D2D2F),
+    surfaceContainerHigh = DarkSurfaceContainerHigh,
     surfaceContainerHighest = DarkSurfaceContainerHighest,
     primary = Color(0xFF2F6FF0),
     onPrimary = Color(0xFFFFFFFF),
@@ -132,7 +141,14 @@ internal val DarkPalette = RollaPalette(
         washStart = Color(0xFF231C2C),
         washEnd = Color(0xFF293332),
     ),
+    tagChipContainer = DarkSurfaceContainerHigh, // = surfaceContainerHigh
+    tagChipLabel = DarkOnSurface, // = onSurface: 13.41:1 on tagChipContainer
+    subTagChipBorder = DarkOnSurfaceVariant, // = onSurfaceVariant: 6.45:1 on surfaceContainer, 7.57:1 on background
+    subTagChipLabel = DarkOnSurface, // = onSurface: 17.47:1 on surfaceContainer, ≥ 12.70:1 on the Now Playing stops
 )
+
+// Light surfaceContainerHigh, declared once: the tag chip container repeats it (custom tags phase 4).
+private val LightSurfaceContainerHigh = Color(0xFFE8E8EA)
 
 // Light onSurface and onSurfaceVariant, declared once: light eqCaption and labelSecondary have no light reference and
 // reuse them (Phase 7 ruling P13), so the pairs cannot drift apart.
@@ -149,7 +165,7 @@ internal val LightPalette = RollaPalette(
     surfaceContainerLowest = Color(0xFFFFFFFF),
     surfaceContainerLow = Color(0xFFFAFAFB),
     surfaceContainer = Color(0xFFFFFFFF),
-    surfaceContainerHigh = Color(0xFFE8E8EA),
+    surfaceContainerHigh = LightSurfaceContainerHigh,
     surfaceContainerHighest = Color(0xFFEBEBED),
     primary = Color(0xFF2F6FF0),
     onPrimary = Color(0xFFFFFFFF),
@@ -190,6 +206,10 @@ internal val LightPalette = RollaPalette(
         washStart = Color(0xFFEFE9F5),
         washEnd = Color(0xFFE9F1EF),
     ),
+    tagChipContainer = LightSurfaceContainerHigh, // = surfaceContainerHigh
+    tagChipLabel = LightOnSurface, // = onSurface: 15.41:1 on tagChipContainer
+    subTagChipBorder = LightOnSurfaceVariant, // = onSurfaceVariant: 5.90:1 on surfaceContainer, 5.37:1 on background
+    subTagChipLabel = LightOnSurface, // = onSurface: 18.86:1 on surfaceContainer, ≥ 15.85:1 on the Now Playing stops
 )
 
 // surfaceTint is transparent: One UI surfaces are flat, so M3 tonal elevation must not tint them blue.
@@ -347,3 +367,26 @@ val ColorScheme.seekTrackInactive: Color
 val ColorScheme.nowPlayingGradient: NowPlayingGradient
     @Composable @ReadOnlyComposable
     get() = currentPalette.nowPlayingGradient
+
+/** A tag chip's fill (TagChipStyle.Tonal, the "+N" chip): the surfaceContainerHigh value. */
+val ColorScheme.tagChipContainer: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.tagChipContainer
+
+/** A tag chip's label on tagChipContainer: the onSurface value. */
+val ColorScheme.tagChipLabel: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.tagChipLabel
+
+/**
+ * A subtag chip's outline (TagChipStyle.Outline), which has no fill: the onSurfaceVariant value, at least 3:1 on the
+ * panel, the background and the Now Playing gradient.
+ */
+val ColorScheme.subTagChipBorder: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.subTagChipBorder
+
+/** A subtag chip's label, on whatever the unfilled chip sits on: the onSurface value. */
+val ColorScheme.subTagChipLabel: Color
+    @Composable @ReadOnlyComposable
+    get() = currentPalette.subTagChipLabel

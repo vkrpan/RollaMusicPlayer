@@ -34,7 +34,10 @@ import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.designsystem.theme.artistName
 import com.rolla.musicplayer.core.designsystem.theme.songTitle
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.model.SongCustomTags
 import com.rolla.musicplayer.core.model.artistDisplayName
+import com.rolla.musicplayer.core.ui.customtags.LocalSongCustomTags
+import com.rolla.musicplayer.core.ui.customtags.SongCustomTagChips
 
 /**
  * A single song row (spec §8.1). [onLongClick] and [selectionModeActive] together drive library-style
@@ -50,6 +53,10 @@ import com.rolla.musicplayer.core.model.artistDisplayName
  * Geometry comes from [RollaDimens]: a [RollaDimens.listRowHeight] pitch, the thumbnail at
  * [RollaDimens.listThumbStart], text at [RollaDimens.listTextStart], and the trailing 48 dp target ending
  * [RollaDimens.listOverflowEnd] before the row's end (the A–Z rail space, ruling 5).
+ *
+ * A song with custom tags (looked up by its ID in [LocalSongCustomTags]) shows them as one line of chips under the
+ * artist, ending in "+N" when they do not fit (custom tags phase 4, spec §6 call 9); at the default font the row keeps
+ * its pitch. TalkBack reads the row's title, artist and "Tags: …. Subtags: …." as one node.
  */
 @Suppress("LongParameterList")
 @Composable
@@ -110,7 +117,12 @@ private fun SongListItemContent(
         Spacer(modifier = Modifier.width(RollaDimens.listThumbStart))
         SongItemLeading(song = song)
         Spacer(modifier = Modifier.width(RollaDimens.listThumbTextGap))
-        SongInfo(title = song.title, artist = artistDisplayName(song.artist), modifier = Modifier.weight(1f))
+        SongInfo(
+            title = song.title,
+            artist = artistDisplayName(song.artist),
+            customTags = LocalSongCustomTags.current.tagsFor(song.id),
+            modifier = Modifier.weight(1f),
+        )
         SongItemTrailing(
             selectionModeActive = selectionModeActive,
             selected = selected,
@@ -187,10 +199,16 @@ private fun rowBackgroundFor(selectionHighlighted: Boolean): Color =
         Color.Transparent
     }
 
+/**
+ * Title, artist and, when the song carries custom tags ([customTags] non-null), their one-line chip line below the
+ * artist, [RollaDimens.tagChipLineTopGap] under it (custom tags phase 4). Without tags there is no line and no gap, so
+ * the row keeps its height.
+ */
 @Composable
 private fun SongInfo(
     title: String,
     artist: String,
+    customTags: SongCustomTags?,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -208,6 +226,9 @@ private fun SongInfo(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+        if (customTags != null && (customTags.tags.isNotEmpty() || customTags.subTags.isNotEmpty())) {
+            SongCustomTagChips(tags = customTags, modifier = Modifier.padding(top = RollaDimens.tagChipLineTopGap))
+        }
     }
 }
 

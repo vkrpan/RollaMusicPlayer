@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
@@ -74,6 +75,7 @@ class TracksTabTest {
     private var songClicks = 0
     private var shuffleClicks = 0
     private var playClicks = 0
+    private var findTracksClicks = 0
 
     @Test
     fun sortHeaderButtonsInvokeShuffleAndPlay() {
@@ -171,6 +173,26 @@ class TracksTabTest {
 
         composeRule.onNodeWithContentDescription("Play all tracks").assertIsNotEnabled()
         composeRule.onNodeWithContentDescription("Shuffle all tracks").assertIsNotEnabled()
+    }
+
+    // Custom tags phase 4: the sort header's Search button opens Find tracks. It stays enabled with an empty library
+    // (unlike Shuffle and Play), and it sits before Shuffle. Trivial stub / mutation: the button is not wired (or not
+    // there) → 0 calls (or node not found) → RED.
+    @Test
+    fun header_findTracksButton_calls() {
+        setTab(songs = emptyList(), scanState = ScanState.Done(added = 0, removed = 0))
+
+        val findTracks = composeRule.onNodeWithContentDescription("Find tracks")
+        findTracks.assertExists("the Find tracks button is in the header with an empty library")
+        findTracks.assertIsEnabled()
+        val findRight = findTracks.getUnclippedBoundsInRoot().right
+        val shuffleLeft = composeRule.onNodeWithContentDescription("Shuffle all tracks").getUnclippedBoundsInRoot().left
+        assertTrue("Find tracks sits before Shuffle ($findRight <= $shuffleLeft)", findRight <= shuffleLeft)
+
+        findTracks.performClick()
+        assertEquals("one tap opens Find tracks once", 1, findTracksClicks)
+        assertEquals("Find tracks does not shuffle", 0, shuffleClicks)
+        assertEquals("Find tracks does not play", 0, playClicks)
     }
 
     // Characterization of the per-track options sheet, written before it moved to :core:ui as SongOptionsHost and
@@ -390,6 +412,7 @@ class TracksTabTest {
                 onAddSongToPlaylist = { _, _ -> },
                 onCreatePlaylistAndAddSong = { _, _ -> },
                 onEditTagsClick = {},
+                onFindTracksClick = {},
             )
         }
     }
@@ -426,6 +449,7 @@ class TracksTabTest {
                             onAddSongToPlaylist = onAddSongToPlaylist,
                             onCreatePlaylistAndAddSong = { _, _ -> },
                             onEditTagsClick = onEditTagsClick,
+                            onFindTracksClick = { findTracksClicks++ },
                         )
                     }
                 }

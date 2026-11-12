@@ -47,3 +47,6 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Alb
   `observeLinkCounts`, `exportLists`, `previewImport` (`ImportClash(kind, id, oldName, newName, songCount)`),
   `applyImport` (validates names and uniqueness with the repository's own rules) and `reserveIds`; `create` maps a full
   list to `LimitReached` (the DAO returns null instead of throwing).
+- 2026-11-12 (custom tags phase 4, Task 1): `CustomTagRepository.observeSongCustomTags()` (song ID → known
+  `SongCustomTags`, library order; `@Suppress("TooManyFunctions")`), and `SongFinder.observeMatches(Flow<SongFilter>)`
+  (in-memory AND filter over the library and the links, library order, live on link changes; bound in `DataModule`).

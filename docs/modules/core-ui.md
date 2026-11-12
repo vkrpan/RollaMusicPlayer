@@ -29,3 +29,6 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Bui
 - 2026-11-11 (custom tags phase 3, Tasks 3 and 5): `CustomTagNameDialog` takes a title and confirm label (rename
   reuses it); `CustomTagPickerSheet` gains `onManageClick: (() -> Unit)? = null`, a centred "Manage tags" text button
   under the pager when set.
+- 2026-11-12 (custom tags phase 4, Task 3): `customtags/SongCustomTagChips` (one `TagChipLine`, one description "Tags:
+  …. Subtags: ….") and `SongCustomTagsLookup`/`LocalSongCustomTags`; `SongListItem` shows the chip line under the
+  artist when the lookup has the song; `CustomTagPickerSheet.onCreateClick` is nullable (null hides "New tag").

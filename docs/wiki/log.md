@@ -41,3 +41,11 @@ updated: 2026-11-09
   [[module-core-data]], [[module-core-database]], [[module-core-tagio]], [[module-core-ui]], [[module-app]], index.
 - Contradictions: none. The plan's `trackCount` names became `songCount` in code (final review I2,
   [[song-not-track]]); the page uses the code's name.
+
+## [2026-11-12] ingest | docs/superpowers/plans/2026-11-12-custom-tags-phase4-finding.md
+- Created: [[custom-tags-phase4-plan]].
+- Updated: [[custom-tags]] (finding and showing; all four phases built), [[module-core-data]],
+  [[module-core-database]], [[module-core-model]], [[module-core-designsystem]], [[module-core-ui]], [[module-app]],
+  [[module-feature-player]], [[module-feature-search]], [[module-feature-library]], index.
+- Contradictions: none. The plan put the Now Playing chips "under the title"; they sit under the title and artist (the
+  plan's own decision, walked by the user).

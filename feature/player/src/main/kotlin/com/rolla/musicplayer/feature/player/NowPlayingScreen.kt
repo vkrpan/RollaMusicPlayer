@@ -80,10 +80,15 @@ import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.model.artistDisplayName
 import com.rolla.musicplayer.core.ui.AddToPlaylistSheetHost
 import com.rolla.musicplayer.core.ui.PlaylistNameDialog
+import com.rolla.musicplayer.core.ui.customtags.LocalSongCustomTags
+import com.rolla.musicplayer.core.ui.customtags.SongCustomTagChips
 import kotlinx.coroutines.flow.StateFlow
 
 internal const val NOW_PLAYING_ARTWORK_TAG = "now_playing_artwork"
 internal const val NOW_PLAYING_TRANSPORT_TAG = "now_playing_transport"
+
+/** Now Playing's tag chips wrap onto at most this many lines (spec §6 call 10). */
+private const val NOW_PLAYING_TAG_CHIP_MAX_LINES = 2
 
 // LongParameterList: six navigation callbacks, the two transition scopes, modifier and viewModel.
 @Suppress("LongParameterList", "LongMethod")
@@ -323,6 +328,7 @@ private fun NowPlayingContent(
                 title = song?.title.orEmpty(),
                 artist = song?.artist?.let(::artistDisplayName).orEmpty(),
             )
+            NowPlayingCustomTags(songId = song?.id)
         }
         Spacer(Modifier.weight(1f))
         Column(
@@ -377,6 +383,25 @@ private fun NowPlayingTitleArtist(title: String, artist: String) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+/**
+ * The current song's custom tags (custom tags phase 4, spec §6 call 10), looked up in [LocalSongCustomTags]: one chip
+ * line under the artist, [RollaDimens.tagChipLineTopGap] below it, centred, on at most two lines ending in "+N". It
+ * sits in the metadata column, so it fades with the title and artist. Without a song or tags there is no line and no
+ * gap; the weighted spacer below the column absorbs the line's height (the column scrolls when it cannot).
+ */
+@Composable
+private fun NowPlayingCustomTags(songId: String?) {
+    val customTags = songId?.let { LocalSongCustomTags.current.tagsFor(it) }
+    if (customTags != null && (customTags.tags.isNotEmpty() || customTags.subTags.isNotEmpty())) {
+        SongCustomTagChips(
+            tags = customTags,
+            modifier = Modifier.padding(top = RollaDimens.tagChipLineTopGap),
+            maxLines = NOW_PLAYING_TAG_CHIP_MAX_LINES,
+            centred = true,
+        )
+    }
 }
 
 // The top bar owns every ⋮ target and callback, so it takes them all; a holder type would only add indirection.

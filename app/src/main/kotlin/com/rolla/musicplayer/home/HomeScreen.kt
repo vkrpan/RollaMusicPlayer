@@ -83,14 +83,15 @@ import kotlinx.coroutines.launch
  * once per grant, never on recomposition). The [permission] state is hoisted here (Phase 6b ruling 8), so the header
  * also knows when access is denied and hides + and the selection bar. Losing access also drops the saved create-dialog
  * flag, so a dialog requested before access was lost never pops after a re-grant. Album, artist and folder taps leave
- * Home through [onAlbumClick] (album id), [onArtistClick] (artist name) and [onFolderClick] (folder path).
+ * Home through [onAlbumClick] (album id), [onArtistClick] (artist name) and [onFolderClick] (folder path); the Tracks
+ * tab's Search button through [onFindTracksClick].
  *
  * The selection bar's ⋮ is [SelectionArtworkActions] (Set / Remove artwork for the selection, per-track artwork Task 8,
  * rulings P2 and P23). Its [artworkViewModel] lives here, scoped like Home itself, so its isWorking is read even while
  * the bar is not composed: it is [HomeScreen]'s selectionBusy, which freezes the selection and locks the bar until the
  * write ends. Its messages go to Home's snackbar from this route's scope, so a message outlives the bar that sent it.
  */
-// Ten navigation callbacks plus the injectable ViewModels and permission state: each callback is a distinct exit
+// Eleven navigation callbacks plus the injectable ViewModels and permission state: each callback is a distinct exit
 // from Home. LongMethod: HomeScreen's wiring plus the selection actions' snackbar and busy state, one flat call.
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -99,6 +100,7 @@ fun HomeRoute(
     onSettingsClick: () -> Unit,
     onManageTagsClick: () -> Unit,
     onEditTagsClick: (Song) -> Unit,
+    onFindTracksClick: () -> Unit,
     onEditTagsForSelection: (List<Long>) -> Unit,
     onPlaylistClick: (Long) -> Unit,
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
@@ -143,6 +145,7 @@ fun HomeRoute(
             scanState = scanState,
             createDialog = createDialog,
             onEditTagsClick = onEditTagsClick,
+            onFindTracksClick = onFindTracksClick,
             onPlaylistClick = onPlaylistClick,
             onSmartPlaylistClick = onSmartPlaylistClick,
             onAlbumClick = onAlbumClick,
@@ -163,6 +166,7 @@ private fun HomeTabPage(
     scanState: ScanState,
     createDialog: MutableState<Boolean>,
     onEditTagsClick: (Song) -> Unit,
+    onFindTracksClick: () -> Unit,
     onPlaylistClick: (Long) -> Unit,
     onSmartPlaylistClick: (SmartPlaylistKind) -> Unit,
     onAlbumClick: (Long) -> Unit,
@@ -177,7 +181,12 @@ private fun HomeTabPage(
             onPlaylistClick = onPlaylistClick,
             onSmartPlaylistClick = onSmartPlaylistClick,
         )
-        HomeTab.TRACKS -> TracksTab(selection = selection, scanState = scanState, onEditTagsClick = onEditTagsClick)
+        HomeTab.TRACKS -> TracksTab(
+            selection = selection,
+            scanState = scanState,
+            onEditTagsClick = onEditTagsClick,
+            onFindTracksClick = onFindTracksClick,
+        )
         HomeTab.ALBUMS -> AlbumsTab(scanState = scanState, onAlbumClick = onAlbumClick)
         HomeTab.ARTISTS -> ArtistsTab(scanState = scanState, onArtistClick = onArtistClick)
         HomeTab.FOLDERS -> FoldersTab(scanState = scanState, onFolderClick = onFolderClick)

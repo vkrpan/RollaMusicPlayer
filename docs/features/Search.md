@@ -17,3 +17,6 @@ related: ["[[Features]]", "[[Search uses LIKE, not FTS4]]", "[[Artists are ident
 - **Navigation:** the route is `Search(query: String? = null)`, with the deep link `rollamusic://search` and entry
   points in Home's header.
 - **Module:** [[feature-search]].
+- **Find tracks (custom tags phase 4, 2026-11-12):** a separate filter screen reached from the Tracks tab (not Home's
+  quick search, which is unchanged): AND filters over title, artist, album, genre, year, tags and subtags; see
+  [[Custom tags]].

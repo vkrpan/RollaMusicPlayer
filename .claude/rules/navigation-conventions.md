@@ -15,7 +15,7 @@ classes" below.
   navigation bar**.
 - Everything else is a pushed destination on top of Home: `NowPlaying`, `Equalizer`, `PlaylistDetail`,
   `SmartPlaylist`, `AlbumDetail`, `ArtistDetail`, `FolderDetail`, `TagEditor`, `BatchTagEditor`, `Search`,
-  `Settings`, `About`, `Licenses`, `Privacy`.
+  `ManageCustomTags`, `FindTracks` (from the Tracks tab's Search button), `Settings`, `About`, `Licenses`, `Privacy`.
 - `app/src/main/kotlin/com/rolla/musicplayer/navigation/Routes.kt` is the source of truth; the examples below are
   taken from it.
 

@@ -25,12 +25,21 @@ Open work, newest first. Each item links to its source.
     decode per save, M6 undecodable pictures re-read per bind): left by ruling P28; see the run's final review.
 - [ ] **Merge `feat/oneui-redesign` into `main`** and tag the release (the user's call). See [[One UI redesign]].
 - [ ] **Install the staged superpowers-extras update** (`~/.claude/task-observer-workspace/skill-updates/2026-11-08/`).
-- [ ] **Custom tags and subtags** (asked 2026-11-09): replaces [[Custom tag system is cut]]. Spec approved
+- [x] **Custom tags and subtags** (asked 2026-11-09; all four phases built and device-walked by 2026-11-12; the follow-ups below stay open): replaces [[Custom tag system is cut]]. Spec approved
   ([[2026-11-09-custom-tags-design]]); four phases ([[2026-11-09-custom-tags-roadmap]]). Phase 1
   ([[2026-11-09-custom-tags-phase1-foundation]]) complete, device-verified, committed `dce76dd`. Phase 2
   ([[2026-11-10-custom-tags-phase2-assigning]]) complete, device-walked, committed `eb9ebcb`. Phase 3
-  ([[2026-11-11-custom-tags-phase3-managing]], Manage tags) complete and device-walked 2026-11-12, waiting for the user's
-  commit; phase 4 (Find tracks, chips) next. Progress and notes in [[Custom tags]].
+  ([[2026-11-11-custom-tags-phase3-managing]], Manage tags) committed `7f26949`; phase 4
+  ([[2026-11-12-custom-tags-phase4-finding]], Find tracks, chips) complete and device-walked 2026-11-12, waiting for the user's commit. Progress and notes in [[Custom tags]].
+  - Phase 4 minors (final review): a tag chip's fill matches the selected-row highlight (pill edge vanishes);
+    `FindTracksRoute` parameter order; Find tracks' cached results can play an old list in a short window after > 5 s
+    away; a `ContrastTest` comment (strip sits on the panel); an opt-in warning in `SongCustomTagsViewModelTest`.
+  - Phase 4 task minors: the links→`CustomTagIds` mapping and the tie-break comparator duplicated in `SongFinder`;
+    no test for a song added/removed re-emit, `TagChipLine` re-show after a width change, the `RemovableChip` footprint,
+    Outline pixels and RTL, the merged row "Tags: …" description or the Home → Tracks Find-tracks wiring; a stale
+    Now Playing test comment; Find tracks' two chained `WhileSubscribed` (~10 s linger), no retry after a lists failure,
+    `@VisibleForTesting` keys, Year chip shows the typed text, a focused lower field can slip under the keyboard when
+    the first chip appears (walk check).
   - Batch the `FileTagPass` writes (one transaction per 50 files instead of per file) if the device probe shows the
     first pass costs CPU or scroll smoothness (final review I3, Ruling 11).
   - M4A writes: decided 2026-11-10, MP3 and FLAC only (M4A writing is a possible later item). The apply-after-reset

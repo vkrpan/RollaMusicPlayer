@@ -170,6 +170,13 @@ interface CustomTagDao {
     @Query("SELECT * FROM song_custom_tags WHERE song_id = :songId ORDER BY kind ASC, tag_id ASC")
     fun observeSongCustomTagIds(songId: String): Flow<List<SongCustomTagCrossRef>>
 
+    /**
+     * Every song's custom tag links, of both kinds, including IDs with no entry in their list (no join to the lists).
+     * Find tracks and the chips read the whole library's links from it (custom tags phase 4).
+     */
+    @Query("SELECT * FROM song_custom_tags")
+    fun observeAllSongCustomTagLinks(): Flow<List<SongCustomTagCrossRef>>
+
     /** The kind's counter, or null when it has never issued or seen an ID. */
     @Query("SELECT highest_id FROM custom_tag_counters WHERE kind = :kind")
     suspend fun highestId(kind: CustomTagKind): Long?

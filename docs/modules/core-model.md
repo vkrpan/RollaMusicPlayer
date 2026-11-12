@@ -25,3 +25,5 @@ exported/imported lists). A shared contract: changes follow the model vocabulary
   null for blank, MediaStore uris, a missing version or trailing text). `Song.artworkUri` now carries this per-track
   value.
 - 2026-11-08 (per-track artwork Task 5): `Album`, `Artist` and `Folder` lose `artworkUri` (groups have no picture; [[Albums, artists and folders show the placeholder]]).
+- 2026-11-12 (custom tags phase 4, Task 1): `SongCustomTags(tags, subTags)` and `SongFilter(title, artist, album,
+  genre, year, tagIds, subTagIds)` with `isEmpty` (vocabulary rows in `.claude/rules/model-vocabulary.md`).

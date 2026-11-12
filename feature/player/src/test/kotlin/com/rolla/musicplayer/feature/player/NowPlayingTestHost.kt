@@ -28,6 +28,8 @@ import com.rolla.musicplayer.core.designsystem.theme.accentText
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
 import com.rolla.musicplayer.core.model.Song
+import com.rolla.musicplayer.core.ui.customtags.LocalSongCustomTags
+import com.rolla.musicplayer.core.ui.customtags.SongCustomTagsLookup
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** Screen inputs a test may change after setContent; a change recomposes the same screen. */
@@ -63,7 +65,8 @@ internal val NOW_PLAYING_TEST_SONG = Song(
  * [positionMs] is the playback position; [layoutDirection] overrides the layout direction. [screenWidth] is read in
  * composition: when it is specified, the screen is laid out that wide at the root's start (so a test can flip it
  * without a second setContent). [onView] receives the composition's view, so a test can dispatch its own window
- * insets (Robolectric reports none).
+ * insets (Robolectric reports none). [customTags] is read in composition and provided as [LocalSongCustomTags], so a
+ * test can flip the current song's tags without a second setContent; the default knows no tags.
  */
 // UnusedContentLambdaTargetStateParameter: the Unit target state only mints the AnimatedContentScope.
 @Suppress("LongParameterList", "LongMethod", "UnusedContentLambdaTargetStateParameter")
@@ -74,6 +77,7 @@ internal fun ComposeContentTestRule.setNowPlayingScreen(
     positionMs: Long = 0L,
     screenWidth: () -> Dp = { Dp.Unspecified },
     layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+    customTags: () -> SongCustomTagsLookup = { SongCustomTagsLookup { null } },
     onView: (View) -> Unit = {},
     onColors: (NowPlayingTestColors) -> Unit = {},
     onEditTags: (Long) -> Unit = {},
@@ -92,6 +96,7 @@ internal fun ComposeContentTestRule.setNowPlayingScreen(
         CompositionLocalProvider(
             LocalDensity provides Density(density, fontScale),
             LocalLayoutDirection provides layoutDirection,
+            LocalSongCustomTags provides customTags(),
         ) {
             RollaMusicPlayerTheme(darkTheme = true) {
                 val scheme = MaterialTheme.colorScheme

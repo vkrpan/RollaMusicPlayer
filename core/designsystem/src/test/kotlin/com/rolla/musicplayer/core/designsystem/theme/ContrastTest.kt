@@ -134,4 +134,21 @@ private fun pairingsOf(p: RollaPalette): List<Pairing> = listOf(
         p.sheetArtworkPlaceholder,
         NON_TEXT,
     ),
-)
+) + tagChipPairingsOf(p)
+
+// Custom tag chips (custom tags phase 4). A tag chip (Tonal) carries its own fill; a subtag chip (Outline) has none,
+// so its label and outline are audited on every surface it sits on: track rows on the panel, the Find tracks strip on
+// the background, Now Playing on each gradient stop. Mutation: dark subTagChipBorder = outlineVariant (#3A3A3C,
+// 1.58:1 on surfaceContainer) → RED.
+private fun tagChipPairingsOf(p: RollaPalette): List<Pairing> {
+    val nowPlayingStops = with(p.nowPlayingGradient) {
+        listOf("top" to top, "middle" to middle, "washStart" to washStart, "washEnd" to washEnd)
+    }
+    val subTagSurfaces = listOf("surfaceContainer" to p.surfaceContainer, "background" to p.background) +
+        nowPlayingStops.map { (name, color) -> "nowPlaying $name" to color }
+    return listOf(Pairing("tagChipLabel on tagChipContainer", p.tagChipLabel, p.tagChipContainer, TEXT)) +
+        subTagSurfaces.map { (name, color) -> Pairing("subTagChipLabel on $name", p.subTagChipLabel, color, TEXT) } +
+        subTagSurfaces.map { (name, color) ->
+            Pairing("subTagChipBorder on $name", p.subTagChipBorder, color, NON_TEXT)
+        }
+}

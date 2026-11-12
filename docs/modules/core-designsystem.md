@@ -25,3 +25,10 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Build UI from tokens and the
   click, no role, no 48 dp footprint; the label wraps instead of ellipsizing and the shape turns from a pill into
   `shapes.medium` when it wraps); token `labelChipVerticalPadding` (9 dp, spec §5.4); `OneUiDialogField(isError,
   supportingText)` so a dialog's error is read with its field. See [[Custom tags]].
+- 2026-11-12 (custom tags phase 4, Task 2): `component/TagChips.kt`: `TagChipStyle` (Tonal tag, Outline subtag),
+  `TagChip`, `TagChipLine` (one or two lines ending in "+N"; a `SubcomposeLayout` with one slot per chip, widths from
+  intrinsics, `TextMeasurer` only for "+N" and the ellipsis; chips it composes but does not place clear their own
+  semantics), `RemovableChip` (the `LabelChip` look with ✕, one button). Tokens `tagChipHeight` (min 18 dp),
+  `tagChipHorizontalPadding`, `tagChipGap`, `tagChipLineTopGap`, `tagChipBorderWidth`, type `tagChipLabel`, colours
+  `tagChipContainer`, `tagChipLabel`, `subTagChipBorder`, `subTagChipLabel` (spec §5 rows; `ContrastTest` rows). See
+  [[Custom tags]], [[Compose text overflow and Robolectric SDK in tests]].

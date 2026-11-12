@@ -3,8 +3,8 @@ type: entity
 summary: "Pure-Kotlin domain models and enums: the shared contract every module imports."
 aliases: [":core:model"]
 tags: [module]
-sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]"]
-updated: 2026-11-11
+sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase4-plan]]"]
+updated: 2026-11-12
 ---
 # :core:model
 
@@ -20,6 +20,7 @@ Pure Kotlin: `Song`, `Album`, `Artist`, `Folder`, `Playlist`, `EqualizerPreset`,
 - **Artwork:** only `Song.artworkUri` carries a picture; `Album`, `Artist` and `Folder` have none
   ([[per-track-artwork]]).
 - **Depended on by:** every other module ([[multi-module-architecture]]).
+- **Custom tags phase 4:** `SongCustomTags` and `SongFilter` ([[custom-tags-phase4-plan]]).
 
 ## Related
 [[claude-md]], [[ownership-map]], [[core-model-governance]], [[song-not-track]], [[per-track-artwork]], [[multi-module-architecture]]

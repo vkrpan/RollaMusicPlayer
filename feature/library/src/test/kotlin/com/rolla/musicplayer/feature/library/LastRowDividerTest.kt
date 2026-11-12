@@ -59,6 +59,7 @@ class LastRowDividerTest {
                 onAddSongToPlaylist = { _, _ -> },
                 onCreatePlaylistAndAddSong = { _, _ -> },
                 onEditTagsClick = {},
+                onFindTracksClick = {},
             )
         }
         assertDividerOnlyBetweenRows(rowTitles = List(ROWS) { "Song $it" })

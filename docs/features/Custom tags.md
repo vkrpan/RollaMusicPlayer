@@ -11,10 +11,11 @@ related: ["[[Features]]", "[[Custom tag system is cut]]", "[[Tag editor]]", "[[S
 
 **Status:** phase 1 (foundation) committed (`dce76dd`); phase 2 (assigning: picker, both editors) committed
 `eb9ebcb`; phase 3 (managing: the Manage tags screen, rename, delete with file clean-up, export and import of the tag
-lists) complete, device-walked by the user on 2026-11-12, waiting for the user's commit. Phase 4 (finding and showing:
-Find tracks, chips) not started ([[2026-11-09-custom-tags-roadmap]]). Rulings:
+lists) committed `7f26949` (2026-11-12). Phase 4 (finding and showing: Find tracks, chips;
+[[2026-11-12-custom-tags-phase4-finding]]) complete and device-walked by the user (2026-11-12), waiting for the user's commit. All four phases of
+[[2026-11-09-custom-tags-roadmap]] are built. Rulings:
 [[2026-11-09-custom-tags-phase1-foundation rulings]], [[2026-11-10-custom-tags-phase2-assigning rulings]],
-[[2026-11-11-custom-tags-phase3-managing rulings]].
+[[2026-11-11-custom-tags-phase3-managing rulings]], [[2026-11-12-custom-tags-phase4-finding rulings]].
 
 ## What the user asked for (2026-11-09)
 
@@ -127,6 +128,26 @@ Find tracks, chips) not started ([[2026-11-09-custom-tags-roadmap]]). Rulings:
 | 2026-11-11 | Task 5 built and reviewed: Home ⋮ "Manage tags" above Settings, route `ManageCustomTags` (no mini-player), the picker's "Manage tags" link, ticks pruned to the known IDs when the lists change (not on the lists' error fallback, review fix), `reserveIds` at the editor's load |
 | 2026-11-11 | JVM gate green; device Room 124/124 on the Motorola. Final review: ready with fixes. An import that drops a ticked ID was stripped from the open editor's file on save (anti-goal); `trackCount` in code renamed `songCount`. Fix: the single editor reads `ROLLA_TAGS` from a fresh copy of the original at save and applies only the user's own ticks and unticks; re-reviewed clean |
 | 2026-11-12 | The user's walk on the Motorola passed every step (rename, delete with consent, export, import with a clash, delete from inside an editor). Phase 3 complete; rulings [[2026-11-11-custom-tags-phase3-managing rulings]]; ready for the user's commit |
+| 2026-11-12 | Phase 3 committed `7f26949`. Phase 4 plan written: [[2026-11-12-custom-tags-phase4-finding]] (scroll baseline; song-to-tags map and `SongFinder`; kit tag chips with "+N"; chips in every track list via a composition local; Now Playing chips; Find tracks ViewModel and screen in `:feature:search`; benchmark and walk); waiting for the user's review |
+| 2026-11-12 | User approved the phase 4 plan; run subagent-driven. Task 0 scroll baseline (P90 63.9 ms). Tasks 1–6 built and reviewed: song-to-tags map and `SongFinder` (Task 1); kit `TagChip`, `TagChipLine` with "+N", `RemovableChip` (Task 2; cheap per-row layout, hidden chips out of TalkBack); chips in every track list through `LocalSongCustomTags` (Task 3); Now Playing chips (Task 4); Find tracks ViewModel (Task 5; unavailable filter tags stay removable) and screen, route and Tracks-header Search button (Task 6) |
+| 2026-11-12 | JVM gate green (one lint file-lock flake re-run clean); device Room 125/125 on the Motorola plus the new links test's INNER JOIN mutation caught on the device. Final review: Ready, 4 Minor (Backlog). Scroll A/B against 7f26949: median P90 67.2 vs 64.1 ms (+4.9 %, inside the base's own spread; Ruling 9). Benchmark build installed |
+| 2026-11-12 | The user's walk on the Motorola passed every step (chips in lists and on Now Playing, Find tracks filters, play the result, rename and delete a filter tag through Manage tags). Phase 4 complete; the custom tags feature is complete; ready for the user's commit |
+
+## Phase 4: finding and showing (2026-11-12)
+
+- **Chips** ([[core-designsystem]] `TagChips.kt`): tags filled (Tonal), subtags outlined, one line with "+N" in track
+  rows, up to two centred lines on Now Playing under the title and artist. Rows without tags keep their height and do
+  one map lookup. The data is one map of song ID → `SongCustomTags` (known tags only) from
+  `CustomTagRepository.observeSongCustomTags()`, provided once in `MainActivity` as `LocalSongCustomTags` and read by
+  `SongListItem` and Now Playing. TalkBack reads the whole list ("Tags: …. Subtags: ….") once per row. The queue sheet
+  shows no chips (Ruling 5).
+- **Find tracks** ([[feature-search]] `findtracks`): the Tracks tab's sort header has a Search button. The screen shows
+  the active filters as removable chips, "Edit filters" fields (Title, Artist, Album, Genre, Year) and the Tags and
+  Subtags rows with the picker (no "New tag" row, no Manage link), then the live results with Shuffle and Play. AND
+  across every filter; text matches any part ignoring case; artist also matches its display name ("Unknown"); Year is
+  exact; results in library order; no filter = the whole library. Tapping a result plays the whole result as the queue.
+  The filter survives process death; a tag deleted elsewhere drops out of the filter; after a lists failure the filter's
+  tags show as "Unavailable tag"/"Unavailable subtag" chips that can still be removed. Phase 4 writes no files.
 
 ## Phase 3: how managing works (2026-11-12)
 

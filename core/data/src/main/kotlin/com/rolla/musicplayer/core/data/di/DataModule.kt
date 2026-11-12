@@ -23,6 +23,8 @@ import com.rolla.musicplayer.core.data.repository.SearchRepository
 import com.rolla.musicplayer.core.data.repository.SearchRepositoryImpl
 import com.rolla.musicplayer.core.data.repository.SettingsRepository
 import com.rolla.musicplayer.core.data.repository.SettingsRepositoryImpl
+import com.rolla.musicplayer.core.data.repository.SongFinder
+import com.rolla.musicplayer.core.data.repository.SongFinderImpl
 import com.rolla.musicplayer.core.data.repository.SongRepository
 import com.rolla.musicplayer.core.data.repository.SongRepositoryImpl
 import com.rolla.musicplayer.core.data.scanner.AndroidSongFileSource
@@ -48,6 +50,10 @@ abstract class DataModule {
     @Binds
     @Singleton
     abstract fun bindSongRepository(impl: SongRepositoryImpl): SongRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSongFinder(impl: SongFinderImpl): SongFinder
 
     @Binds
     @Singleton

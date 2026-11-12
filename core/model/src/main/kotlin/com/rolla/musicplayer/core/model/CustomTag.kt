@@ -36,6 +36,16 @@ data class CustomTagListFile(
 )
 
 /**
+ * The known custom tags one song carries (custom tags phase 4): [tags] of [CustomTagKind.TAG] and [subTags] of
+ * [CustomTagKind.SUBTAG], each in library order. An ID with no entry in its list is left out, never shown or counted.
+ * Drives the chips in list rows and on Now Playing.
+ */
+data class SongCustomTags(
+    val tags: List<CustomTag>,
+    val subTags: List<CustomTag>,
+)
+
+/**
  * The custom tags a song carries, as IDs per kind: [tagIds] for [CustomTagKind.TAG], [subTagIds] for
  * [CustomTagKind.SUBTAG]. An ID with no matching [CustomTag] is kept as it is.
  */

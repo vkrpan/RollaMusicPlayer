@@ -6,6 +6,7 @@ import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.CustomTagListFile
 import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
+import com.rolla.musicplayer.core.model.SongCustomTags
 import kotlinx.coroutines.flow.Flow
 
 /** The outcome of [CustomTagRepository.create] and [CustomTagRepository.rename]. */
@@ -39,6 +40,9 @@ sealed interface CustomTagNameResult {
  * The custom tag lists (one per [CustomTagKind]) and the custom tags each song carries. A name is trimmed before it is
  * stored, and two entries of one list cannot share a name ignoring case; the two lists are independent.
  */
+// One repository over the one CustomTagDao (which carries the same suppression): the lists, the song links and the
+// import/export are one store, and splitting the interface would only scatter its callers' injections.
+@Suppress("TooManyFunctions")
 interface CustomTagRepository {
 
     /** One list's entries in library order. */
@@ -59,6 +63,13 @@ interface CustomTagRepository {
 
     /** The IDs of the custom tags a song carries, per kind, including IDs with no entry in their list. */
     fun observeSongCustomTagIds(songId: String): Flow<CustomTagIds>
+
+    /**
+     * Every song's known custom tags, keyed by song ID, each list in library order (custom tags phase 4: the chips).
+     * IDs with no entry in their list are left out, and a song carrying no known tag is absent. Emits again when the
+     * lists (a rename, a delete, an import) or the links change.
+     */
+    fun observeSongCustomTags(): Flow<Map<String, SongCustomTags>>
 
     /**
      * Deletes [kind]'s entry [id] and every song's link to it. The ID is never issued again. The songs' files are not

@@ -18,3 +18,5 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Home replaces the bottom nav
 ## Changes
 - 2026-11-08 (per-track artwork Task 5): Album page rows show each track's picture instead of its track number (the "Track number" sort
   stays); album and artist headers show the placeholder.
+- 2026-11-12 (custom tags phase 4, Task 6): the Tracks tab's sort header gets a Search circle button ("Find tracks")
+  before Shuffle and Play; rows show tag chips through `SongListItem`.

@@ -44,13 +44,18 @@ const val SONG_LIST_TEST_TAG = "song_list"
 /**
  * The Home pager's Tracks tab (spec §7.2). Home owns the permission gate, the library sync (it passes [scanState]
  * down), the header and the selection bar; this tab owns the list, the sort header's Shuffle / Play and the
- * per-track options sheet. [selection] is hoisted to Home so its selection bar and back handling can read it.
+ * per-track options sheet. [selection] is hoisted to Home so its selection bar and back handling can read it. The sort
+ * header's Search button leaves the tab through [onFindTracksClick] (Find tracks, custom tags phase 4).
  */
+// Home's hoisted selection and scan state, the tab's two exits (Edit tags, Find tracks), the modifier and the
+// injectable ViewModel.
+@Suppress("LongParameterList")
 @Composable
 fun TracksTab(
     selection: SongSelectionState,
     scanState: ScanState,
     onEditTagsClick: (Song) -> Unit,
+    onFindTracksClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: TracksViewModel = hiltViewModel(),
 ) {
@@ -72,6 +77,7 @@ fun TracksTab(
         onAddSongToPlaylist = onAddSongToPlaylist,
         onCreatePlaylistAndAddSong = onCreatePlaylistAndAddSong,
         onEditTagsClick = onEditTagsClick,
+        onFindTracksClick = onFindTracksClick,
         modifier = modifier,
     )
 }
@@ -94,8 +100,9 @@ private fun PruneRemovedSongs(songs: List<Song>?, scanState: ScanState, selectio
  * Stateless Tracks tab content; tests and previews host this. It fills the ContentPanel that Home provides. While
  * [selection] is active a tap toggles the row instead of playing it, and a long press always toggles.
  */
-// The stateless half of TracksTab: every input is a distinct piece of state or a distinct event.
-@Suppress("LongParameterList")
+// The stateless half of TracksTab: every input is a distinct piece of state or a distinct event. LongMethod: the
+// header, the state dispatch and the options host, each one call.
+@Suppress("LongParameterList", "LongMethod")
 @Composable
 internal fun TracksTabContent(
     songs: List<Song>?,
@@ -108,12 +115,18 @@ internal fun TracksTabContent(
     onAddSongToPlaylist: (String, Long) -> Unit,
     onCreatePlaylistAndAddSong: (String, String) -> Unit,
     onEditTagsClick: (Song) -> Unit,
+    onFindTracksClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var optionsSheetSong by remember { mutableStateOf<Song?>(null) }
     PruneRemovedSongs(songs = songs, scanState = scanState, selection = selection)
     Column(modifier = modifier.fillMaxSize()) {
-        TracksSortHeader(enabled = !songs.isNullOrEmpty(), onShuffleClick = onShuffleClick, onPlayClick = onPlayClick)
+        TracksSortHeader(
+            enabled = !songs.isNullOrEmpty(),
+            onFindTracksClick = onFindTracksClick,
+            onShuffleClick = onShuffleClick,
+            onPlayClick = onPlayClick,
+        )
         when {
             scanState is ScanState.Scanning -> TabScanning()
             // Not loaded yet (cold start): show nothing rather than flash the empty state (Phase 7, 6a deferral).
@@ -140,17 +153,20 @@ internal fun TracksTabContent(
 }
 
 /**
- * Shuffle / Play over the whole library. [enabled] is false while the list is empty: disabled, not hidden, so the
- * header does not jump when the library fills (ruling 7).
+ * Find tracks, then Shuffle / Play over the whole library. [enabled] is false while the list is empty: Shuffle and Play
+ * are disabled, not hidden, so the header does not jump when the library fills (ruling 7). Find tracks (custom tags
+ * phase 4) is always enabled.
  */
 @Composable
 private fun TracksSortHeader(
     enabled: Boolean,
+    onFindTracksClick: () -> Unit,
     onShuffleClick: () -> Unit,
     onPlayClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SortHeader(label = "Name", modifier = modifier) {
+        CircleIconButton(icon = RollaIcons.Search, contentDescription = "Find tracks", onClick = onFindTracksClick)
         CircleIconButton(
             icon = RollaIcons.Shuffle,
             contentDescription = "Shuffle all tracks",
@@ -240,6 +256,7 @@ private fun PreviewTracksTabContent() {
             onAddSongToPlaylist = { _, _ -> },
             onCreatePlaylistAndAddSong = { _, _ -> },
             onEditTagsClick = {},
+            onFindTracksClick = {},
         )
     }
 }

@@ -220,6 +220,26 @@ object RollaDimens {
     // Vertical row gap that renders the measured chipRowGap: each chip occupies a 48 dp touch height.
     val chipRowLayoutGap: Dp get() = (chipRowGap - (minTouchTarget - chipHeight)).coerceAtLeast(0.dp)
 
+    // Custom tag chips (custom tags phase 4): the small display-only chips in track rows, on Now Playing and in the
+    // Find tracks results (TagChip, TagChipLine). Unmeasured: there is no reference screenshot.
+    /**
+     * A tag chip's minimum height (no vertical padding): 4 dp taller than the tagChipLabel line (14 sp) at the default
+     * font size, which sits centred; at larger font sizes the line fills the chip, which grows with it.
+     */
+    val tagChipHeight = 18.dp
+
+    /** Start and end padding inside a tag chip. */
+    val tagChipHorizontalPadding = 6.dp
+
+    /** Between tag chips on a line and between the lines of a TagChipLine; RemovableChip's label-to-Close gap. */
+    val tagChipGap = 4.dp
+
+    /** From the line above (a row's artist, Now Playing's artist) to the top of its TagChipLine. */
+    val tagChipLineTopGap = 2.dp
+
+    /** The subtag chip's outline (TagChipStyle.Outline) and the outlined RemovableChip's. */
+    val tagChipBorderWidth = 1.dp
+
     // Settings
     val settingsCardInset = 10.dp
     val settingsRowPadding = 19.dp

@@ -3,7 +3,7 @@ type: entity
 summary: "Model-aware shared composables: song rows, album cards, list rows, the song options sheet."
 aliases: [":core:ui"]
 tags: [module]
-sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]"]
+sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]", "[[sources/custom-tags-phase4-plan]]"]
 updated: 2026-11-12
 ---
 # :core:ui
@@ -21,6 +21,7 @@ Composables that know the models: `SongListItem`, `AlbumRow`/`ArtistRow`/`Folder
   state and accent-insensitive search ([[custom-tags]]).
 - **Custom tags phase 3:** `CustomTagPickerSheet.onManageClick` shows a "Manage tags" link; the name dialog takes a
   title and confirm label for rename ([[custom-tags-phase3-plan]]).
+- **Custom tags phase 4:** `SongListItem` shows tag chips from `LocalSongCustomTags`; `SongCustomTagChips` ([[custom-tags-phase4-plan]]).
 
 ## Related
 [[claude-md]], [[ownership-map]], [[module-core-designsystem]], [[agent-module-ownership]], [[per-track-artwork]]

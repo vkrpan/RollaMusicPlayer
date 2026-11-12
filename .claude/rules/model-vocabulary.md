@@ -94,6 +94,16 @@ data class CustomTagListFile(
     val subTags: List<CustomTag>
 ) // the exported/imported tag lists (the "enums" file); its JSON codec is CustomTagListJson in :core:tagio
 
+data class SongCustomTags(
+    val tags: List<CustomTag>,
+    val subTags: List<CustomTag>
+) // the known custom tags one song carries, each list in library order (chips in rows and on Now Playing)
+
+data class SongFilter(
+    val title: String = "", val artist: String = "", val album: String = "", val genre: String = "",
+    val year: Int? = null, val tagIds: Set<Long> = emptySet(), val subTagIds: Set<Long> = emptySet()
+) // Find tracks' filter: every active field must match (AND); blank text and null year are inactive
+
 enum class RepeatMode { OFF, ONE, ALL }
 enum class ShuffleMode { OFF, ON }
 ```

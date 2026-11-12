@@ -128,6 +128,10 @@ The WCAG notes in `Color.kt` must be rewritten to match these pairings.
 | `seekTrackActive` | `#FCFCFE` | `#111113` | Now Playing seekbar active part and thumb |
 | `seekTrackInactive` | `#FFFFFF` at **37 %** | `#000000` at **44 %** | Now Playing seekbar remainder. Raised from 30 % / 25 % (2.6–2.7:1 / 1.8:1 on the gradient) to clear 3:1 over both `middle` and `washEnd` (Phase 1 audit). |
 | `nowPlayingGradient` | top `#080808` (calibrated 2026-10-31; was `#000000`) → `#120F16` at 55 % height. Bottom wash: left `#231C2C`, right `#293332`. | top `#FFFFFF` → `#F7F5FA` at 55 %. Bottom wash: left `#EFE9F5`, right `#E9F1EF`. | Exposed as a small data class with a `Modifier.nowPlayingBackground()` helper (§6). The reference's darker right side and its stronger mid-bottom wash are accepted deviations of the decorative shape (Phase 7 ruling P11 g, Δ ≤ 13 per channel). |
+| `tagChipContainer` | `= surfaceContainerHigh` (`#2D2D2F`) | `= surfaceContainerHigh` (`#E8E8EA`) | The fill of a custom tag chip (`TagChip` Tonal, the "+N" chip, a Tonal `RemovableChip`) in track rows, on Now Playing and in the Find tracks strip (custom tags phase 4, 2026-11-12). |
+| `tagChipLabel` | `= onSurface` (`#FCFCFE`) | `= onSurface` (`#111113`) | A tag chip's label on `tagChipContainer`: dark 13.41:1, light 15.41:1. |
+| `subTagChipBorder` | `= onSurfaceVariant` (`#9B9B9D`) | `= onSurfaceVariant` (`#646467`) | The 1 dp outline of a subtag chip (`TagChip` Outline, an Outline `RemovableChip`), which has no fill. Non-text, 3:1: dark 6.45:1 on `surfaceContainer`, 7.57:1 on `background`, 4.69:1 or more on the Now Playing stops; light 5.90:1, 5.37:1, 4.96:1 or more. |
+| `subTagChipLabel` | `= onSurface` (`#FCFCFE`) | `= onSurface` (`#111113`) | A subtag chip's label, on whatever the unfilled chip sits on: dark 17.47:1 on `surfaceContainer`, 20.49:1 on `background`, 12.70:1 or more on the Now Playing stops; light 18.86:1, 17.17:1, 15.85:1 or more. |
 | `widget*` | see §13 | — | Glance cannot read Compose tokens. The widget keeps its own mapped `ColorProvider`s. |
 
 `miniPlayerContainer` must be re-audited. Text on the pill is `onSurface` in both themes: dark `#FCFCFE` on `#282035` is 14.6:1, and light `#111113` on `#E9E4F2` is about 15:1.
@@ -166,6 +170,7 @@ Color is always applied at the call site. The sizes were calibrated on the devic
 | `featureCardCount` | 12 | Normal | 16 | onSurfaceVariant | Feature card count (centered) |
 | `fastScrollLetter` | 11 | Normal | 13 | fastScrollIndex | A–Z letters |
 | `emptyState` | 17 | Normal | 22 | onSurfaceVariant | Empty-state messages |
+| `tagChipLabel` | 11 | Medium | 14 | tagChipLabel / subTagChipLabel | Custom tag chips and the "+N" chip (custom tags phase 4, 2026-11-12) |
 
 M3 base roles: `headlineMedium` = 22/Bold, `headlineSmall` = 21/Normal, `titleLarge` = 23/Normal,
 `titleMedium` = 17/Normal, `bodyLarge` = 17/Normal, `bodyMedium` = 14/Normal, `bodySmall` = 13/Normal,
@@ -229,6 +234,9 @@ never declare private `dp` literals for anything this table covers.
 | `fastScrollMinRailHeight` | 96 dp (the shortest rail `FastScrollContainer` keeps when a top inset would squeeze it; Phase 5) | `detailArtworkSize` | = `npArtSize` (168 dp): the AlbumDetail/ArtistDetail hero artwork (amended 2026-10-18, Phase 6a ruling 5) |
 | `dragLiftElevation` | 6 dp: the shadow a PlaylistDetail row lifts to while dragged (moved from a private constant; amended 2026-10-18, Phase 6a Task 7) | `editorFieldGap` | 8 dp: the tag editors' gap between card items, the side-by-side Year and Track number, and the Save/Cancel pills (unmeasured, no reference; it borrowed `settingsHeaderGap` until Phase 7 Task 5) |
 | `fieldSupportingTextGap` | 4 dp: Material 3's gap between a field's container and its supporting text (internal in M3 1.3), which `OneUiTextField` reads to centre a `trailingControl` on the container (Phase 7 Task 5) | `labelChipVerticalPadding` | 9 dp: the display-only `LabelChip`'s top and bottom padding, = (`chipHeight` 40 − the `chipLabel` line height 22) / 2, so a one-line label is exactly `chipHeight` and a wrapped one grows (custom tags phase 2, 2026-11-10) |
+| `tagChipHeight` | 18 dp: a custom tag chip's minimum height, with no vertical padding: at the default font size it is 4 dp taller than the `tagChipLabel` line (14 sp), which sits centred; at larger font sizes the line fills the chip and the chip grows with it (custom tags phase 4, 2026-11-12; unmeasured, no reference) | `tagChipHorizontalPadding` | 6 dp: start and end padding inside a tag chip (custom tags phase 4) |
+| `tagChipGap` | 4 dp: between tag chips on a line and between the lines of a `TagChipLine`; also the label-to-Close gap in `RemovableChip` (custom tags phase 4) | `tagChipLineTopGap` | 2 dp: from the line above (a row's artist, Now Playing's artist) to the top of its `TagChipLine` (custom tags phase 4) |
+| `tagChipBorderWidth` | 1 dp: the subtag chip's outline (`TagChipStyle.Outline`) (custom tags phase 4) | | |
 | `widgetCardRadius` | 24 dp (the widget card; matches the launcher's system widget radius) | `widgetCardPaddingStart` | 10 dp (the reference artwork inset) |
 | `widgetCardPaddingEnd` | 10 dp (the reference end inset of the last control) | `widgetArt` | 69 dp |
 | `widgetArtRadius` | 15 dp (was 12 dp) (calibrated 2026-10-31) | `widgetArtGap` | 10 dp (artwork to the text column) |
@@ -376,6 +384,31 @@ indicative; the plan may refine names, but not responsibilities.
 // EQ preset chip: 40 dp pill, chipLabel; selected = primary/onPrimary, unselected = surfaceContainerHigh/onSurface.
 // Color animates with a spring (reduced-motion aware, like today).
 @Composable fun PillChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier)
+
+// Custom tag chips (added 2026-11-12, custom tags phase 4; component/TagChips.kt). TagChip: display-only, a
+// tagChipHeight CircleShape pill, one-line tagChipLabel that ellipsizes, tagChipHorizontalPadding. Tonal (a tag) fills
+// tagChipContainer with a tagChipLabel label; Outline (a subtag) has no fill, a tagChipBorderWidth subTagChipBorder
+// outline and a subTagChipLabel label.
+enum class TagChipStyle { Tonal, Outline }
+@Immutable data class TagChipData(val label: String, val style: TagChipStyle)
+@Composable fun TagChip(label: String, style: TagChipStyle, modifier: Modifier = Modifier)
+// TagChipLine: at most maxLines lines, tagChipGap between chips and lines, start-aligned or centred. Chips that do not
+// fit are counted in a Tonal "+N" chip ending the last line (chips are dropped from that line's end until it fits); a
+// line's first chip is narrowed and ellipsizes when too wide, or is dropped into "+N" when the room is below
+// 2 × tagChipHorizontalPadding + an ellipsis. Callers omit the line when there are no chips. Each chip is composed in
+// its own slot when the plan reaches it and measured by intrinsic width (TextMeasurer only for "+N" and the ellipsis).
+// The chip ending a line and chips dropped for "+N" are composed but not placed; each pass marks them hidden and they
+// clear their own semantics, so their labels reach neither a clickable row's merged description nor TalkBack (the
+// test API's unmerged view still lists them, unplaced, under the clearing node). A SubcomposeLayout: no intrinsics,
+// never under IntrinsicSize.
+@Composable fun TagChipLine(chips: List<TagChipData>, modifier: Modifier = Modifier, maxLines: Int = 1,
+                            centred: Boolean = false)
+// RemovableChip (the Find tracks filter strip): the LabelChip look (chipLabel, chipHeight, labelChipVerticalPadding)
+// plus a trailing RollaIcons.Close at circleButtonGlyph, tagChipGap after the label; the whole chip is one Role.Button
+// reading removeLabel, at least minTouchTarget. Tonal fills tagChipContainer; Outline draws the subtag outline. The
+// label is one line and ellipsizes; the Close glyph stays.
+@Composable fun RemovableChip(label: String, removeLabel: String, onRemove: () -> Unit, modifier: Modifier = Modifier,
+                              style: TagChipStyle = TagChipStyle.Tonal)
 
 // Gray rounded box with a centered note glyph (artworkPlaceholder + artworkPlaceholderGlyph)
 @Composable fun ArtworkPlaceholder(modifier: Modifier = Modifier, shape: Shape = MaterialTheme.shapes.small,

@@ -21,6 +21,7 @@ Traps and facts learned the hard way. Each note: symptom, cause, fix. Query: `gr
 ## Tests
 - [[Robolectric screens and pixel tests]]
 - [[Robolectric looper, dialogs and debounce]]
+- [[Compose text overflow and Robolectric SDK in tests]]
 - [[Compose test geometry traps]]
 - [[Seed Media3 shuffle in tests]]
 - [[Stale test XML fakes a RED]]

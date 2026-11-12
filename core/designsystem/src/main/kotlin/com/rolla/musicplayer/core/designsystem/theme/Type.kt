@@ -51,6 +51,7 @@ internal val FeatureCardLabelStyle = rollaStyle(14, FontWeight.Normal, 19)
 internal val FeatureCardCountStyle = rollaStyle(12, FontWeight.Normal, 16)
 internal val FastScrollLetterStyle = rollaStyle(11, FontWeight.Normal, 13)
 internal val EmptyStateStyle = rollaStyle(17, FontWeight.Normal, 22)
+internal val TagChipLabelStyle = rollaStyle(11, FontWeight.Medium, 14)
 
 /** M3 roles reset to One UI sizes so stock components (dialogs, menus, buttons) match without overrides. */
 val RollaTypography: Typography = Typography(
@@ -143,6 +144,11 @@ val Typography.fastScrollLetter: TextStyle
 val Typography.emptyState: TextStyle
     @Composable @ReadOnlyComposable
     get() = EmptyStateStyle
+
+/** The label of a custom tag chip (TagChip, the "+N" chip): 11 sp Medium on a 14 sp line. */
+val Typography.tagChipLabel: TextStyle
+    @Composable @ReadOnlyComposable
+    get() = TagChipLabelStyle
 
 // Convenience accessor kept for existing callers. It is a top-level property, not a MaterialTheme member: import
 // com.rolla.musicplayer.core.designsystem.theme.typographyTokens and write typographyTokens.songTitle, which is the

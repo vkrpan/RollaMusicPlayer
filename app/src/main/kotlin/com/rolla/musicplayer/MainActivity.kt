@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +36,9 @@ import androidx.navigation.navDeepLink
 import com.rolla.musicplayer.core.designsystem.theme.RollaMusicPlayerTheme
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.model.ThemeMode
+import com.rolla.musicplayer.core.ui.customtags.LocalSongCustomTags
+import com.rolla.musicplayer.core.ui.customtags.SongCustomTagsLookup
+import com.rolla.musicplayer.customtags.SongCustomTagsViewModel
 import com.rolla.musicplayer.feature.equalizer.EqualizerRoute
 import com.rolla.musicplayer.feature.library.AlbumDetailRoute
 import com.rolla.musicplayer.feature.library.AlbumDetailViewModel
@@ -49,6 +53,8 @@ import com.rolla.musicplayer.feature.playlists.PlaylistDetailRoute
 import com.rolla.musicplayer.feature.playlists.PlaylistDetailViewModel
 import com.rolla.musicplayer.feature.search.SearchRoute
 import com.rolla.musicplayer.feature.search.SearchViewModel
+import com.rolla.musicplayer.feature.search.findtracks.FindTracksRoute
+import com.rolla.musicplayer.feature.search.findtracks.FindTracksViewModel
 import com.rolla.musicplayer.feature.settings.AboutRoute
 import com.rolla.musicplayer.feature.settings.AppBuildInfo
 import com.rolla.musicplayer.feature.settings.LicensesRoute
@@ -64,6 +70,7 @@ import com.rolla.musicplayer.navigation.AppShell
 import com.rolla.musicplayer.navigation.ArtistDetail
 import com.rolla.musicplayer.navigation.BatchTagEditor
 import com.rolla.musicplayer.navigation.Equalizer
+import com.rolla.musicplayer.navigation.FindTracks
 import com.rolla.musicplayer.navigation.FolderDetail
 import com.rolla.musicplayer.navigation.Home
 import com.rolla.musicplayer.navigation.Licenses
@@ -76,6 +83,7 @@ import com.rolla.musicplayer.navigation.Settings
 import com.rolla.musicplayer.navigation.SmartPlaylist
 import com.rolla.musicplayer.navigation.TagEditor
 import com.rolla.musicplayer.navigation.nowPlayingDestination
+import com.rolla.musicplayer.navigation.openFindTracks
 import com.rolla.musicplayer.navigation.openNowPlaying
 import com.rolla.musicplayer.navigation.openTagEditor
 import dagger.hilt.android.AndroidEntryPoint
@@ -117,8 +125,24 @@ private fun RollaAppRoot(activity: ComponentActivity) {
         darkTheme = darkTheme,
         dynamicColor = useDynamicColor,
     ) {
-        RollaNavHost()
+        ProvideSongCustomTags {
+            RollaNavHost()
+        }
     }
+}
+
+/**
+ * Provides every song's custom tags to the whole tree as [LocalSongCustomTags] (custom tags phase 4), so each
+ * destination's track rows (Home's tabs, the detail screens, Search) and Now Playing show their chips. The lookup is
+ * created once and reads the map's State inside [SongCustomTagsLookup.tagsFor]: a change of the map recomposes only
+ * the composables that asked for a song's tags, not this root.
+ */
+@Composable
+private fun ProvideSongCustomTags(content: @Composable () -> Unit) {
+    val songCustomTagsViewModel: SongCustomTagsViewModel = hiltViewModel()
+    val tagsBySong = songCustomTagsViewModel.tags.collectAsStateWithLifecycle()
+    val lookup = remember(tagsBySong) { SongCustomTagsLookup { songId -> tagsBySong.value[songId] } }
+    CompositionLocalProvider(LocalSongCustomTags provides lookup, content = content)
 }
 
 /**
@@ -222,9 +246,10 @@ private fun RollaNavHost() {
  * (RouteClassTest checks routeClass() against each destination).
  *
  * No destination is wrapped in an outer bottom padding (Phase 6b ruling 9); each owns its bottom insets:
- * - Home, Search and the detail screens (PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail and FolderDetail)
- *   pad their lists by homeListBottomPadding and scroll under the pill. On Search and the detail screens that is the
- *   pill plus the navigation bar; Home's area below its header ends at the bar, so there it is the pill alone.
+ * - Home, Search, Find tracks and the detail screens (PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail and
+ *   FolderDetail) pad their lists by homeListBottomPadding and scroll under the pill. On Search, Find tracks and the
+ *   detail screens that is the pill plus the navigation bar; Home's area below its header ends at the bar, so there it
+ *   is the pill alone.
  * - Equaliser, the tag editors, Manage tags, Settings, About, Licenses and Privacy hide the pill
  *   (MiniPlayerVisibility.routesWithoutMiniPlayer), so LocalMiniPlayerInset is 0 there; their Scaffolds own the
  *   navigation-bar inset.
@@ -251,6 +276,8 @@ internal fun NavGraphBuilder.appDestinations(
             // openTagEditor ignores a malformed (non-numeric) id. HomeRoute applies the same parsing to the selection
             // before onEditTagsForSelection.
             onEditTagsClick = { song -> navController.openTagEditor(song) },
+            // The Tracks tab's Search button (custom tags phase 4): a plain push, guarded by launchSingleTop.
+            onFindTracksClick = { navController.openFindTracks() },
             onEditTagsForSelection = { ids ->
                 navController.navigate(BatchTagEditor(ids)) { launchSingleTop = true }
             },
@@ -304,6 +331,7 @@ internal fun NavGraphBuilder.appDestinations(
         )
     }
     searchDestination(navController)
+    findTracksDestination(navController)
     // TagEditor is a leaf editor pushed on top of whichever screen opened it (today: Home's
     // Tracks and Favourites tabs, the options sheet on FolderDetail, AlbumDetail, ArtistDetail and
     // PlaylistDetail/SmartPlaylist, Search, and Now Playing's ⋮). Back arrow / Cancel / system back and a
@@ -420,6 +448,26 @@ internal fun NavGraphBuilder.searchDestination(
             onArtistClick = { artistName ->
                 navController.navigate(ArtistDetail(artistName = artistName)) { launchSingleTop = true }
             },
+            onEditTagsClick = { song -> navController.openTagEditor(song) },
+            viewModel = provideViewModel(),
+        )
+    }
+}
+
+/**
+ * Find tracks (custom tags phase 4) is reached from the Tracks tab's sort header only ([openFindTracks]). Back =
+ * navigateUp() only, no popUpTo, so it pops back to Home on the Tracks tab (the pager state is saveable). It shows the
+ * pill and pads its own list by homeListBottomPadding, so there is no outer padding here. A result's ⋮ "Edit tags"
+ * pushes TagEditor through [openTagEditor], so back returns to Find tracks with its filter. [provideViewModel] is the
+ * JVM tests' seam, as on [playlistDetailDestinations].
+ */
+internal fun NavGraphBuilder.findTracksDestination(
+    navController: NavHostController,
+    provideViewModel: @Composable () -> FindTracksViewModel = { hiltViewModel() },
+) {
+    composable<FindTracks> {
+        FindTracksRoute(
+            onNavigateUp = { navController.navigateUp() },
             onEditTagsClick = { song -> navController.openTagEditor(song) },
             viewModel = provideViewModel(),
         )

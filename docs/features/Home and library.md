@@ -29,3 +29,5 @@ related: ["[[Features]]", "[[Home replaces the bottom navigation]]", "[[One libr
 - **Folders:** every folder that directly holds tracks (Room v4 `songs.folder_path`).
 - **Data:** scanned from MediaStore into Room by `LibraryIndexer` (incremental sync, a mutex-serialised manual rescan).
 - **Modules:** [[feature-library]], [[core-data]]. **Owners:** [[ui-builder]], [[media-scanning-agent]].
+- **Custom tags (phase 4, 2026-11-12):** tag chips on track rows; the Tracks header's Search button opens Find tracks
+  ([[Custom tags]]).

@@ -87,6 +87,9 @@ class FakeCustomTagDao : CustomTagDao {
             links.filter { it.songId == songId }.sortedWith(compareBy({ it.kind.name }, { it.tagId }))
         }
 
+    // Every link, known to the lists or not (no join, as in the Room query).
+    override fun observeAllSongCustomTagLinks(): Flow<List<SongCustomTagCrossRef>> = linksFlow
+
     override suspend fun highestId(kind: CustomTagKind): Long? = countersFlow.value[kind]
 
     override suspend fun insertTag(tag: CustomTagEntity) {

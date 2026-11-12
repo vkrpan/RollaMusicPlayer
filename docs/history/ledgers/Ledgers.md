@@ -27,3 +27,4 @@ decisions made while building; the big, user-facing ones are promoted to [[Decis
 | [[2026-11-09-custom-tags-phase1-foundation rulings\|Custom tags phase 1 — foundation]] | 2026-11-09 | 13 | 6 |
 | [[2026-11-10-custom-tags-phase2-assigning rulings\|Custom tags phase 2 — assigning]] | 2026-11-10 | 12 | 7 |
 | [[2026-11-11-custom-tags-phase3-managing rulings\|Custom tags phase 3 — managing]] | 2026-11-11 | 4 | 7 |
+| [[2026-11-12-custom-tags-phase4-finding rulings\|Custom tags phase 4 — finding and showing]] | 2026-11-12 | 9 | 9 |

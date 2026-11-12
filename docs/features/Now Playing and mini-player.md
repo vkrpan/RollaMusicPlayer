@@ -21,3 +21,5 @@ related: ["[[Features]]", "[[Playback and queue]]", "[[Shared element outside th
   Playing. See [[Shared element outside the NavHost]].
 - **Queue sheet:** a real queue on `OneUiBottomSheet`.
 - **Module:** [[feature-player]].
+- **Tag chips (custom tags phase 4, 2026-11-12):** the track's tags and subtags under the title and artist; see
+  [[Custom tags]].

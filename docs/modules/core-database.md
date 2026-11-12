@@ -45,3 +45,5 @@ related: ["[[Modules]]", "[[Playback and queue]]", "[[Playlists]]", "[[Search]]"
 - 2026-11-11 (custom tags phase 3, Task 1): `CustomTagDao` gains `deleteCustomTag` (entry and links; the counter
   stays), `replaceAll` (lists replaced, links kept, counters only rise), link-count queries (unknown IDs counted) and
   `insertNew` returning `null` at the ceiling (the last-ID race). No schema change (still v7). Device: 124/124.
+- 2026-11-12 (custom tags phase 4, Task 1): `CustomTagDao.observeAllSongCustomTagLinks()` (every link, unknown IDs
+  included). No schema change (v7). Device: 125/125.

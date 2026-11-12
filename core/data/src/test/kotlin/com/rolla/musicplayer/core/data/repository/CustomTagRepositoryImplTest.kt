@@ -10,10 +10,13 @@ import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.CustomTagListFile
 import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
+import com.rolla.musicplayer.core.model.SongCustomTags
 import com.rolla.musicplayer.core.testing.FakeCustomTagDao
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -234,6 +237,49 @@ class CustomTagRepositoryImplTest {
             CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = setOf(1L)),
             repository.observeSongCustomTagIds("1").first(),
         )
+    }
+
+    // The links are applied in neither ID nor library order (3, 2, 99). Trivial stub (empty map) fails the first
+    // assertion. Mutation: include unknown IDs as "#99" → 99 appears and song 2 is present → RED.
+    @Test
+    fun observeSongCustomTags_knownOnlyInLibraryOrder() = runTest {
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.TAG, 3L, "Techno", "techno"))
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.TAG, 2L, "Acid", "acid"))
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.SUBTAG, 1L, "Hard", "hard"))
+        fakeDao.seedSongs(listOf(song("1"), song("2")))
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(3L, 2L, 99L), subTagIds = setOf(1L)), null, 0L)
+        fakeDao.applyFileTags("2", CustomTagIds(tagIds = setOf(99L), subTagIds = emptySet()), null, 0L)
+
+        val map = repository.observeSongCustomTags().first()
+
+        assertEquals(
+            "song 1's known tags in library order",
+            SongCustomTags(
+                tags = listOf(CustomTag(CustomTagKind.TAG, 2L, "Acid"), CustomTag(CustomTagKind.TAG, 3L, "Techno")),
+                subTags = listOf(CustomTag(CustomTagKind.SUBTAG, 1L, "Hard")),
+            ),
+            map["1"],
+        )
+        assertEquals("only song 1 has a known tag", setOf("1"), map.keys)
+    }
+
+    // One collection across the rename. Trivial stub (empty map) fails the first assertion.
+    // Mutation: read the lists once → the old name stays → RED.
+    @Test
+    fun observeSongCustomTags_renameReEmits() = runTest {
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.TAG, 2L, "Acid", "acid"))
+        fakeDao.seedSongs(listOf(song("1")))
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), null, 0L)
+        val emissions = mutableListOf<Map<String, SongCustomTags>>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            repository.observeSongCustomTags().collect { emissions += it }
+        }
+
+        assertEquals("before the rename", listOf("Acid"), emissions.last()["1"]?.tags?.map { it.name })
+
+        repository.rename(CustomTagKind.TAG, 2L, "Bass")
+
+        assertEquals("after the rename", listOf("Bass"), emissions.last()["1"]?.tags?.map { it.name })
     }
 
     // Another writer took the last ID after this create's name check: insertNew's own transaction finds the list full

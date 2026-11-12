@@ -26,3 +26,6 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Now Playing and mini-player]
 - 2026-11-11 (custom tags phase 3, Task 5): route `ManageCustomTags` (16 routes; no mini-player), registered in
   `MainActivity` as a plain push; Home ⋮ "Manage tags" above "Settings"; both editor routes navigate there from the
   picker link (the sheet closes first).
+- 2026-11-12 (custom tags phase 4, Tasks 3 and 6): `customtags/SongCustomTagsViewModel` feeds `LocalSongCustomTags` at
+  `MainActivity`'s content root (around `RollaNavHost`); route `FindTracks` (17 routes; the mini-player shows), its
+  destination and `openFindTracks()`, reached from the Tracks tab's Search button.

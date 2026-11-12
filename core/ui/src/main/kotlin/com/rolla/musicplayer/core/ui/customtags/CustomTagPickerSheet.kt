@@ -66,7 +66,8 @@ import kotlinx.coroutines.flow.filter
  * Stateless: [state] says what to show. It opens on [CustomTagPickerState.page] (the owner sets it to the tapped
  * row's page), a tab tap or the page the pager comes to rest on reports the new page through [onPageChange], and each
  * later change of `state.page` moves the pager there (a spring, or a snap under reduced motion). [onCreateClick]
- * passes the page's trimmed query, which prefills the name dialog.
+ * passes the page's trimmed query, which prefills the name dialog. When it is null (custom tags phase 4: Find tracks,
+ * where a new tag could match nothing) neither page has a "New" row.
  *
  * When [onManageClick] is set (custom tags phase 3), a "Manage tags" text link sits under the list, above "Done"; the
  * owner closes the sheet and opens Manage tags. Without it there is no link.
@@ -83,7 +84,7 @@ fun CustomTagPickerSheet(
     onPageChange: (CustomTagKind) -> Unit,
     onQueryChange: (CustomTagKind, String) -> Unit,
     onToggle: (CustomTagKind, Long) -> Unit,
-    onCreateClick: (CustomTagKind, String) -> Unit,
+    onCreateClick: ((CustomTagKind, String) -> Unit)?,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
     onManageClick: (() -> Unit)? = null,
@@ -104,7 +105,7 @@ fun CustomTagPickerSheet(
                     state = state,
                     onQueryChange = { onQueryChange(kind, it) },
                     onToggle = { id -> onToggle(kind, id) },
-                    onCreateClick = { onCreateClick(kind, it) },
+                    onCreateClick = onCreateClick?.let { create -> { query -> create(kind, query) } },
                 )
             }
             if (onManageClick != null) {
@@ -181,7 +182,7 @@ private fun PickerPage(
     state: CustomTagPickerState,
     onQueryChange: (String) -> Unit,
     onToggle: (Long) -> Unit,
-    onCreateClick: (String) -> Unit,
+    onCreateClick: ((String) -> Unit)?,
 ) {
     val query = state.queryOf(kind)
     Column(modifier = Modifier.fillMaxSize()) {
@@ -205,7 +206,10 @@ private fun PickerPage(
     }
 }
 
-/** The "New" row (handing over the trimmed [query]), then the entries [query] matches, or the empty state. */
+/**
+ * The "New" row (handing over the trimmed [query]; none when [onCreateClick] is null), then the entries [query]
+ * matches, or the empty state.
+ */
 // Seven inputs of one private list: its slice of the picker state, its two events and the modifier.
 @Suppress("LongParameterList")
 @Composable
@@ -215,22 +219,14 @@ private fun PickerList(
     query: String,
     selectedIds: Set<Long>,
     onToggle: (Long) -> Unit,
-    onCreateClick: (String) -> Unit,
+    onCreateClick: ((String) -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val shown = remember(all, query) { filterCustomTags(all, query) }
     LazyColumn(modifier = modifier) {
-        item(key = NEW_ENTRY_KEY) {
-            Column {
-                SheetActionRow(
-                    icon = RollaIcons.Add,
-                    label = kind.newEntryLabel(),
-                    onClick = { onCreateClick(query.trim()) },
-                )
-                // A hairline only above entries; above an empty-state message the row is the list's last.
-                if (shown.isNotEmpty()) {
-                    InsetDivider(startInset = RollaDimens.listTextStart)
-                }
+        if (onCreateClick != null) {
+            item(key = NEW_ENTRY_KEY) {
+                NewEntryRow(kind = kind, showDivider = shown.isNotEmpty(), onClick = { onCreateClick(query.trim()) })
             }
         }
         if (shown.isEmpty()) {
@@ -243,6 +239,20 @@ private fun PickerList(
                 onToggle = { onToggle(tag.id) },
                 showDivider = index < shown.lastIndex,
             )
+        }
+    }
+}
+
+/**
+ * The "New tag"/"New subtag" row. A hairline under it only when entries follow ([showDivider]); above an empty-state
+ * message the row is the list's last.
+ */
+@Composable
+private fun NewEntryRow(kind: CustomTagKind, showDivider: Boolean, onClick: () -> Unit) {
+    Column {
+        SheetActionRow(icon = RollaIcons.Add, label = kind.newEntryLabel(), onClick = onClick)
+        if (showDivider) {
+            InsetDivider(startInset = RollaDimens.listTextStart)
         }
     }
 }

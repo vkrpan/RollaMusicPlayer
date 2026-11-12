@@ -3,7 +3,7 @@ type: entity
 summary: "App shell: Application, MainActivity, the NavHost, the DI root and the Home screen."
 aliases: [":app"]
 tags: [module]
-sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase3-plan]]"]
+sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase3-plan]]", "[[sources/custom-tags-phase4-plan]]"]
 updated: 2026-11-12
 ---
 # :app
@@ -19,6 +19,7 @@ interceptor), `MainActivity` (edge-to-edge, theme entry), the navigation graph a
 - **Routes:** type-safe `@Serializable` routes in `navigation/Routes.kt`; `Home` is the start destination.
 - **Custom tags phase 3:** route `ManageCustomTags` (no mini-player) and the Home ⋮ "Manage tags" item
   ([[custom-tags-phase3-plan]]).
+- **Custom tags phase 4:** provides `LocalSongCustomTags`; route `FindTracks` ([[custom-tags-phase4-plan]]).
 
 ## Related
 [[claude-md]], [[ownership-map]], [[per-track-artwork]], [[multi-module-architecture]], [[agent-module-ownership]], [[module-core-database]], [[module-core-datastore]]

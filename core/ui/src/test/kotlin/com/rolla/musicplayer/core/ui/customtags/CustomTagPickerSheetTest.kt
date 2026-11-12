@@ -178,6 +178,31 @@ class CustomTagPickerSheetTest {
         assertEquals(1, manageClicks)
     }
 
+    // Custom tags phase 4 (Find tracks): an owner that cannot create passes no onCreateClick, and then the sheet has no
+    // "New tag" row; the list still shows. Shown with a callback first, then without. Stub: never show the row → the
+    // first assertion fails. Mutation: show the row when the callback is null → "New tag" found → RED.
+    @Test
+    fun picker_nullCreate_hidesNewRow() {
+        var canCreate by mutableStateOf(true)
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                CustomTagPickerSheet(
+                    state = pickerState(),
+                    onPageChange = {},
+                    onQueryChange = { _, _ -> },
+                    onToggle = { _, _ -> },
+                    onCreateClick = if (canCreate) ({ _, _ -> }) else null,
+                    onDone = {},
+                )
+            }
+        }
+        composeRule.onNodeWithText("New tag").assertIsDisplayed()
+
+        canCreate = false
+        composeRule.onNodeWithText("New tag").assertDoesNotExist()
+        composeRule.onNodeWithText("Techno").assertIsDisplayed()
+    }
+
     private fun setSheet(
         state: CustomTagPickerState,
         onToggle: (CustomTagKind, Long) -> Unit = { _, _ -> },

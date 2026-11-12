@@ -13,6 +13,8 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsEqualTo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -29,8 +31,13 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.designsystem.theme.RollaDimens
+import com.rolla.musicplayer.core.model.CustomTag
+import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.RepeatMode
 import com.rolla.musicplayer.core.model.ShuffleMode
+import com.rolla.musicplayer.core.model.SongCustomTags
+import com.rolla.musicplayer.core.ui.customtags.SONG_TAG_CHIPS_TAG
+import com.rolla.musicplayer.core.ui.customtags.SongCustomTagsLookup
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -285,6 +292,70 @@ class NowPlayingScreenTest {
         transport.bottom.assertIsEqualTo(root.bottom - RollaDimens.npBottomGap, "transport bottom", tolerance = 0.5.dp)
     }
 
+    // Custom tags phase 4, spec §6 call 10: the current song's tag (Techno, Tonal) and subtag (Hard, Outline) show as
+    // chips below the artist, centred on the screen, and the weighted spacer absorbs their height (the controls stay
+    // at the bottom). Stub: never render the line → "Techno" missing. Mutation: omit the line → texts missing.
+    @Test
+    fun nowPlaying_showsTagChipsUnderArtist() {
+        setScreen(customTags = {
+            SongCustomTagsLookup { id -> TECHNO_HARD.takeIf { id == NOW_PLAYING_TEST_SONG.id } }
+        })
+        // assertExists first: its failure names the label, assertIsDisplayed's does not.
+        composeRule.onNodeWithText("Techno", useUnmergedTree = true).assertExists().assertIsDisplayed()
+        composeRule.onNodeWithText("Hard", useUnmergedTree = true).assertExists().assertIsDisplayed()
+        val artistBottom = composeRule.onNodeWithText(NOW_PLAYING_TEST_SONG.artist, useUnmergedTree = true)
+            .getBoundsInRoot().bottom
+        val lineTop = composeRule.onNodeWithTag(SONG_TAG_CHIPS_TAG, useUnmergedTree = true).getBoundsInRoot().top
+        assertTrue(
+            "chip line top ($lineTop) is at or below the artist's bottom ($artistBottom)",
+            lineTop >= artistBottom,
+        )
+        val shown = shownChipTexts()
+        val lineCentre = (shown.minOf { it.boundsInRoot.left } + shown.maxOf { it.boundsInRoot.right }) / 2
+        assertEquals("the chip line's centre x in px", screenCentrePx(), lineCentre, 1.5f)
+        val root = composeRule.onRoot().getBoundsInRoot()
+        val transport = composeRule.onNodeWithTag(NOW_PLAYING_TRANSPORT_TAG).getBoundsInRoot()
+        transport.bottom.assertIsEqualTo(root.bottom - RollaDimens.npBottomGap, "transport bottom", tolerance = 0.5.dp)
+    }
+
+    // A song without tags has no chip line. Shown with tags first (the line exists), then without (no node tagged
+    // SONG_TAG_CHIPS_TAG). Stub: never render the line → the first assertion fails. Mutation: always compose the line
+    // (an empty SongCustomTags when none) → the node still exists.
+    @Test
+    fun nowPlaying_noTags_noChipLine() {
+        var lookup by mutableStateOf(SongCustomTagsLookup { TECHNO_HARD })
+        setScreen(customTags = { lookup })
+        composeRule.onNodeWithTag(SONG_TAG_CHIPS_TAG, useUnmergedTree = true).assertExists()
+
+        lookup = SongCustomTagsLookup { null }
+        composeRule.onNodeWithTag(SONG_TAG_CHIPS_TAG, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    // Twenty wide tags on a 360 dp screen: the chips wrap onto exactly two lines (at most two), the last ending in
+    // "+N", and each line is centred. Stub: never render the line → no "+N" chip. Mutation: maxLines = 1 → one line;
+    // centred = false → the narrower line is off-centre.
+    @Test
+    fun nowPlaying_manyTags_atMostTwoLinesWithPlusN() {
+        setScreen(customTags = { SongCustomTagsLookup { TWENTY_TAGS } })
+        val shown = shownChipTexts()
+        val labels = shown.map { node -> node.config[SemanticsProperties.Text].joinToString() }
+        assertTrue("a \"+N\" chip is shown among $labels", labels.any { it.startsWith("+") })
+        val lines = shown.groupBy { it.boundsInRoot.top }.toSortedMap()
+        assertEquals("distinct chip text tops (lines) for $labels", 2, lines.size)
+        lines.values.forEachIndexed { line, chips ->
+            val centre = (chips.minOf { it.boundsInRoot.left } + chips.maxOf { it.boundsInRoot.right }) / 2
+            assertEquals("line $line's centre x in px", screenCentrePx(), centre, 1.5f)
+        }
+    }
+
+    /** The placed chip label nodes under the chip line (hidden chips are composed but not placed). */
+    private fun shownChipTexts() = composeRule.onAllNodes(
+        hasAnyAncestor(hasTestTag(SONG_TAG_CHIPS_TAG)) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Text),
+        useUnmergedTree = true,
+    ).fetchSemanticsNodes().filter { it.layoutInfo.isPlaced }
+
+    private fun screenCentrePx(): Float = with(composeRule.density) { (SCREEN_WIDTH / 2).toPx() }
+
     private fun assertTransportAtTheReferenceInsets(width: Dp) {
         val edgeCentre = RollaDimens.npControlEdgeInset + RollaDimens.minTouchTarget / 2
         val inner = RollaDimens.npTransportInnerCentre
@@ -312,6 +383,7 @@ class NowPlayingScreenTest {
         fontScale: Float = 1f,
         screenWidth: () -> Dp = { Dp.Unspecified },
         layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+        customTags: () -> SongCustomTagsLookup = { SongCustomTagsLookup { null } },
         onView: (View) -> Unit = {},
         onEditTags: (Long) -> Unit = {},
         onAlbum: (Long) -> Unit = {},
@@ -326,6 +398,7 @@ class NowPlayingScreenTest {
         fontScale = fontScale,
         screenWidth = screenWidth,
         layoutDirection = layoutDirection,
+        customTags = customTags,
         onView = onView,
         onEditTags = onEditTags,
         onAlbum = onAlbum,
@@ -343,5 +416,17 @@ class NowPlayingScreenTest {
         val SCREEN_WIDTH = 360.dp
         val MOTOROLA_WIDTH = 406.7.dp
         val REFERENCE_WIDTH = 360.dp
+
+        fun tag(id: Long, name: String) = CustomTag(kind = CustomTagKind.TAG, id = id, name = name)
+        fun subTag(id: Long, name: String) = CustomTag(kind = CustomTagKind.SUBTAG, id = id, name = name)
+
+        val TECHNO_HARD = SongCustomTags(tags = listOf(tag(1L, "Techno")), subTags = listOf(subTag(1L, "Hard")))
+
+        // Each chip is wider than half the line, so each line holds one chip and the second adds "+N": the two lines
+        // differ in width, which makes centring observable.
+        val TWENTY_TAGS = SongCustomTags(
+            tags = (1L..20L).map { tag(it, "A rather long custom tag name $it") },
+            subTags = emptyList(),
+        )
     }
 }

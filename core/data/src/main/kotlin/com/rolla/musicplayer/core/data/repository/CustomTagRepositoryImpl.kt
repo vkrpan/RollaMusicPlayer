@@ -6,14 +6,17 @@ import com.rolla.musicplayer.core.data.di.CoreDataDefaultDispatcher
 import com.rolla.musicplayer.core.data.di.CoreDataIoDispatcher
 import com.rolla.musicplayer.core.database.dao.CustomTagDao
 import com.rolla.musicplayer.core.database.entity.CustomTagEntity
+import com.rolla.musicplayer.core.database.entity.SongCustomTagCrossRef
 import com.rolla.musicplayer.core.model.CUSTOM_TAG_NAME_MAX_LENGTH
 import com.rolla.musicplayer.core.model.CustomTag
 import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
 import com.rolla.musicplayer.core.model.CustomTagListFile
 import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
+import com.rolla.musicplayer.core.model.SongCustomTags
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
@@ -92,6 +95,15 @@ class CustomTagRepositoryImpl @Inject constructor(
                 )
             }
             .distinctUntilChanged()
+
+    override fun observeSongCustomTags(): Flow<Map<String, SongCustomTags>> =
+        combine(
+            observeCustomTags(CustomTagKind.TAG),
+            observeCustomTags(CustomTagKind.SUBTAG),
+            customTagDao.observeAllSongCustomTagLinks().distinctUntilChanged(),
+        ) { tags, subTags, links -> knownTagsBySong(tags, subTags, links) }
+            .distinctUntilChanged()
+            .flowOn(sortDispatcher)
 
     override suspend fun delete(kind: CustomTagKind, id: Long): Unit = withContext(ioDispatcher) {
         customTagDao.deleteCustomTag(kind, id)
@@ -179,6 +191,33 @@ private fun importedEntities(kind: CustomTagKind, entries: List<CustomTag>): Lis
     require(rows.distinctBy { it.nameKey }.size == rows.size) { "Two $kind entries share a name ignoring case" }
     return rows
 }
+
+/**
+ * Each song's known tags and subtags, each in the order of [tags] and [subTags] (library order), keyed by song ID. A
+ * link to an ID with no entry is dropped, and a song left with no known tag of either kind is absent.
+ */
+private fun knownTagsBySong(
+    tags: List<CustomTag>,
+    subTags: List<CustomTag>,
+    links: List<SongCustomTagCrossRef>,
+): Map<String, SongCustomTags> {
+    val tagRank = tags.withIndex().associate { (index, tag) -> tag.id to index }
+    val subTagRank = subTags.withIndex().associate { (index, tag) -> tag.id to index }
+    return links.groupBy { it.songId }.mapNotNull { (songId, songLinks) ->
+        val known = SongCustomTags(
+            tags = songLinks.knownOf(CustomTagKind.TAG, tags, tagRank),
+            subTags = songLinks.knownOf(CustomTagKind.SUBTAG, subTags, subTagRank),
+        )
+        if (known.tags.isEmpty() && known.subTags.isEmpty()) null else songId to known
+    }.toMap()
+}
+
+/** These links' [kind] IDs that [list] has an entry for, as those entries, in [list]'s order ([rank]: ID → index). */
+private fun List<SongCustomTagCrossRef>.knownOf(
+    kind: CustomTagKind,
+    list: List<CustomTag>,
+    rank: Map<Long, Int>,
+): List<CustomTag> = filter { it.kind == kind }.mapNotNull { rank[it.tagId] }.sorted().map { list[it] }
 
 /** The highest ID a list can hold, ignoring any outside 1..[MAX_CUSTOM_TAG_ID]; null when none is left. */
 private fun Set<Long>.highestValidId(): Long? = filter { it in 1..MAX_CUSTOM_TAG_ID }.maxOrNull()
