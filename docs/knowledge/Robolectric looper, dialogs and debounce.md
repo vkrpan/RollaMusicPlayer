@@ -11,7 +11,11 @@ related: ["[[Knowledge]]", "[[Robolectric screens and pixel tests]]", "[[Focused
 
 - **A Compose `Dialog` with `usePlatformDefaultWidth = true` that hosts a text field never idles** under the PAUSED
   looper: the test hangs 60 s, then `AppNotIdleException`. The workaround in use is `@LooperMode(LEGACY)` on that one
-  test, with a comment. The long-term fix is androidTest coverage.
+  test, with a comment. The long-term fix is androidTest coverage. It bit again in custom tags phases 2 and 3 (the
+  picker's name dialog, the Manage tags rename dialog): say "use `@LooperMode(LEGACY)`" up front in any brief whose
+  test opens a dialog with a field.
+- **A state change from `runOnIdle { … }` followed at once by a non-Compose action** (e.g.
+  `onBackPressedDispatcher.onBackPressed()`) races: call `waitForIdle()` between them (custom tags phase 3).
 - **A real `debounce` on Main never fires under `composeRule.waitForIdle()`**, because the paused clock doesn't
   advance. Use `shadowOf(Looper.getMainLooper()).idleFor(...)` then `waitForIdle()`
   (`DetailRouteFixtures.settleSearchDebounce()`).

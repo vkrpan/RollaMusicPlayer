@@ -13,11 +13,26 @@ enum class CustomTagKind { TAG, SUBTAG }
  */
 const val MAX_CUSTOM_TAG_ID: Long = 999_999_999L
 
+/**
+ * The longest custom tag name, in code points (an emoji counts once), after trimming. The one limit for every path a
+ * name enters by: create, rename and import (the list file's codec and the repository's import check).
+ */
+const val CUSTOM_TAG_NAME_MAX_LENGTH = 40
+
 /** One user-defined label: its list ([kind]), its ID within that list, and its display name. */
 data class CustomTag(
     val kind: CustomTagKind,
     val id: Long,
     val name: String,
+)
+
+/**
+ * Both custom tag lists as a whole, as an export writes them and an import replaces them (custom tags phase 3):
+ * [tags] of [CustomTagKind.TAG], [subTags] of [CustomTagKind.SUBTAG].
+ */
+data class CustomTagListFile(
+    val tags: List<CustomTag>,
+    val subTags: List<CustomTag>,
 )
 
 /**

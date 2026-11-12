@@ -3,8 +3,8 @@ type: entity
 summary: "Room: entities, DAOs, migrations and MusicDatabase (schema v7)."
 aliases: [":core:database"]
 tags: [module]
-sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]"]
-updated: 2026-11-11
+sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]"]
+updated: 2026-11-12
 ---
 # :core:database
 
@@ -18,6 +18,8 @@ if the row was not reset since it was queried ([[custom-tags]]). Its Hilt `Datab
 - **Owner:** data-layer-agent ([[agent-module-ownership]]).
 - **Artwork:** the `artwork_uri` column is still written but ignored on read; the per-track value is derived in
   `SongEntity.toDomain()` ([[per-track-artwork]]).
+- **Custom tags phase 3:** `CustomTagDao` gains entry delete, list replacement (links kept, counters only rise), link
+  counts, and `insertNew` returning null when full; no schema change, still v7 ([[custom-tags-phase3-plan]]).
 
 ## Related
 [[claude-md]], [[ownership-map]], [[playback-queue-restore]], [[agent-module-ownership]], [[per-track-artwork]]

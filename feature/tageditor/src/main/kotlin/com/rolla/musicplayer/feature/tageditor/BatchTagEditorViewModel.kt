@@ -149,7 +149,9 @@ private data class BatchEdit(val fields: Map<TagField, String>, val customTagIds
  * The picker's chosen IDs start empty and are what Save ADDS to every song's `ROLLA_TAGS` field; one chosen entry
  * makes Save available with no field applied. "New tag" opens the name dialog with the search text; a saved entry
  * closes it and is chosen, a refused name keeps it open with the reason.
- * Nothing about custom tags can change while a save runs.
+ * Nothing about custom tags can change while a save runs. A chosen entry that Manage tags deletes while this editor is
+ * open is dropped from the choice when the lists change (custom tags phase 3), so Save never adds an ID the lists no
+ * longer know.
  *
  * Per song, inside `attemptWrite`, after the copy exists and before the persist:
  * - with at least one entry chosen, a format [canWriteCustomTags] rejects (M4A) fails the song before ANY write, its

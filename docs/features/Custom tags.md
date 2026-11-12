@@ -9,9 +9,12 @@ related: ["[[Features]]", "[[Custom tag system is cut]]", "[[Tag editor]]", "[[S
 
 # Custom tags
 
-**Status:** phase 1 (foundation) committed (`dce76dd`); phase 2 (assigning: picker, both editors) complete and
-device-walked by the user, waiting for the user's commit (2026-11-11). Rulings: [[2026-11-09-custom-tags-phase1-foundation rulings]]. Phases 2–4 not started
-([[2026-11-09-custom-tags-roadmap]]); phase 2 waits for the user's M4A decision.
+**Status:** phase 1 (foundation) committed (`dce76dd`); phase 2 (assigning: picker, both editors) committed
+`eb9ebcb`; phase 3 (managing: the Manage tags screen, rename, delete with file clean-up, export and import of the tag
+lists) complete, device-walked by the user on 2026-11-12, waiting for the user's commit. Phase 4 (finding and showing:
+Find tracks, chips) not started ([[2026-11-09-custom-tags-roadmap]]). Rulings:
+[[2026-11-09-custom-tags-phase1-foundation rulings]], [[2026-11-10-custom-tags-phase2-assigning rulings]],
+[[2026-11-11-custom-tags-phase3-managing rulings]].
 
 ## What the user asked for (2026-11-09)
 
@@ -119,6 +122,27 @@ device-walked by the user, waiting for the user's commit (2026-11-11). Rulings: 
 | 2026-11-11 | Device: Room 121/121 on the Motorola; benchmark build installed (v6 → v7 on the real library). The user's walk passed every step: create and tick "Techno" and "Hard", save, reopen (ticks kept), title-only save keeps the tags, batch add "Edited N of N tracks.", M4A/WAV rows disabled with the note, largest font (chips wrap, picker readable, Done above the keyboard). No crash. Phase 2 complete; rulings [[2026-11-10-custom-tags-phase2-assigning rulings]]; ready for the user's commit |
 | 2026-11-11 | LLM wiki ingest of the spec, roadmap and phase 1–2 plans (`docs/wiki/`: concept `custom-tags`, entity `module-core-tagio`, four source pages; module pages updated). Phase 2 committed at the user's request |
 
+| 2026-11-11 | Phase 3 plan written: [[2026-11-11-custom-tags-phase3-managing]] (data: delete/import/reserve + list-file codec; Manage tags VM and screen; export/import; navigation, picker link and editor diff-writes); wiki lint clean; waiting for the user's review |
+| 2026-11-11 | User approved the phase 3 plan; running it subagent-driven. Tasks 1–4 built and reviewed clean: data layer (delete, link counts, export/import with clash preview, `reserveIds`, `CustomTagListJson`; `CUSTOM_TAG_NAME_MAX_LENGTH` and `CustomTagListFile` moved to `:core:model`), Manage tags ViewModel (delete with consent, "Updated X of N tracks."), screen, export/import (SAF, BOM strip, 4 MiB cap, clash dialog). Task 5 (navigation, picker link, pruning, diff-based writes) in progress |
+| 2026-11-11 | Task 5 built and reviewed: Home ⋮ "Manage tags" above Settings, route `ManageCustomTags` (no mini-player), the picker's "Manage tags" link, ticks pruned to the known IDs when the lists change (not on the lists' error fallback, review fix), `reserveIds` at the editor's load |
+| 2026-11-11 | JVM gate green; device Room 124/124 on the Motorola. Final review: ready with fixes. An import that drops a ticked ID was stripped from the open editor's file on save (anti-goal); `trackCount` in code renamed `songCount`. Fix: the single editor reads `ROLLA_TAGS` from a fresh copy of the original at save and applies only the user's own ticks and unticks; re-reviewed clean |
+| 2026-11-12 | The user's walk on the Motorola passed every step (rename, delete with consent, export, import with a clash, delete from inside an editor). Phase 3 complete; rulings [[2026-11-11-custom-tags-phase3-managing rulings]]; ready for the user's commit |
+
+## Phase 3: how managing works (2026-11-12)
+
+- **Manage tags** (`ManageCustomTagsScreen`, route `ManageCustomTags`): reached from Home ⋮ and from the picker's
+  "Manage tags" link. Tags | Subtags tabs with search; each row shows its track count (links in Room, unknown IDs
+  included). Tap a row to rename; ⋮ Delete asks "Remove … from N tracks?", then asks write consent and removes the ID
+  from every MP3/FLAC carrying it; M4A/WAV/OGG count as not updated ("Updated X of N tracks."). A declined consent still
+  deletes the entry; the files keep the ID as unknown.
+- **Export / import** (⋮ on the screen): the lists as one JSON file through the system file picker (`CustomTagListJson`
+  in [[core-tagio]], `CustomTagListFile` in [[core-model]]). Import replaces both lists after a warning naming every ID
+  whose name changes or disappears, with its track count; a malformed file changes nothing.
+- **Editors after Manage tags:** ticks are pruned to the IDs the lists know (both editors; never on the lists' error
+  fallback). The single editor saves `(current − userUnticked) ∪ userTicked`, where `current` is read from a fresh copy
+  of the original at save, so a Manage delete stays deleted and an ID an import dropped stays in the file. Every ID read
+  at load is reserved (`reserveIds`) so a new tag never reuses an ID a file carries.
+
 ## Known limits and notes for later phases
 
 - **M4A writes:** decided 2026-11-10, MP3 and FLAC only.
@@ -128,7 +152,7 @@ device-walked by the user, waiting for the user's commit (2026-11-11). Rulings: 
   from Room. The single editor writes only when the ticks changed; the batch editor only adds.
 - **The re-read after a save is asynchronous** (phase 1 Ruling 7): screens observe a song's links; they never assume
   the links are fresh when `syncSongs` returns.
-- **Phase 3 hand-off (final review of phase 2):**
+- **Phase 3 hand-off (final review of phase 2):** done in phase 3 (link, pruning, fresh-copy write, `reserveIds`).
   - The picker needs a "Manage tags" link: an optional `onManageClick` on `CustomTagPickerSheet`.
   - Reaching Manage tags from an open editor makes its editable copy and "unknown ID" baseline stale: a delete's file
     clean-up of this track could be undone, and an import could make a kept-unknown ID drop. Fix then: write the user's
@@ -142,7 +166,7 @@ device-walked by the user, waiting for the user's commit (2026-11-11). Rulings: 
 - **First-pass cost:** one Room transaction per file, so every `songs` observer re-queries per file during the one-time
   first pass; batch the writes if the device probe shows a cost ([[Backlog]]).
 - **FLAC artwork kept on a `ROLLA_TAGS` write** is not yet tested: add it before phase 2 ships writes.
-- **Last-ID race (phase 3, when the UI calls `create`):** `create` checks the ceiling, then `insertNew` runs in its own
+- **Last-ID race:** fixed in phase 3 Task 1 (`insertNew` returns null when full; `create` reports `LimitReached`). Was: `create` checks the ceiling, then `insertNew` runs in its own
   transaction, so a concurrent create or a `FileTagPass` raising the counter in between can make `insertNew` throw
   `IllegalStateException` out of `create`. Needs the counter at 999 999 998 (only a hand-edited file). Fix then:
   `insertNew` reports "full" inside its transaction instead of throwing.

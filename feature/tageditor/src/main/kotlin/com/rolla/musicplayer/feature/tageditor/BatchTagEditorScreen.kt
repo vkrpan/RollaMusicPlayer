@@ -68,11 +68,15 @@ private const val SWITCHED_ON_CAPTION = "Only the fields switched on are written
  * not need any special-case branching of its own for it, the isClosed-keyed LaunchedEffect below
  * just never fires, the message-driven snackbar in [BatchTagEditorScreen] shows on its own, and the
  * user backs out manually via Cancel/back once the message has been read.
+ *
+ * The picker's "Manage tags" link closes the sheet, then calls [onManageTagsClick] (custom tags phase 3). The editor
+ * stays on the back stack; on return a chosen entry that no longer exists has been dropped from the choice.
  */
 @Suppress("LongMethod")
 @Composable
 fun BatchTagEditorRoute(
     onNavigateUp: () -> Unit,
+    onManageTagsClick: () -> Unit,
     viewModel: BatchTagEditorViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -132,6 +136,12 @@ fun BatchTagEditorRoute(
         onCreateCustomTagConfirm = remember(viewModel) { viewModel::onCreateCustomTagConfirm },
         onNameDialogDismiss = remember(viewModel) { viewModel::onNameDialogDismiss },
         modifier = modifier,
+        onManageTagsClick = remember(viewModel, onManageTagsClick) {
+            {
+                viewModel.onPickerDone()
+                onManageTagsClick()
+            }
+        },
     )
 }
 
@@ -139,7 +149,7 @@ fun BatchTagEditorRoute(
  * The batch tag editor: the fields card with its caption, the Tags and Subtags rows (what Save adds to every selected
  * track), the optional progress, and Save/Cancel. It also hosts the custom tag picker sheet while
  * [BatchTagEditorUiState.isPickerOpen] and the "New tag" dialog while [BatchTagEditorUiState.nameDialog] is set; both
- * are driven entirely by [uiState].
+ * are driven entirely by [uiState]. The sheet shows its "Manage tags" link when [onManageTagsClick] is set.
  */
 // One callback per editor action plus the Scaffold; splitting it would only move the parameter fan-out.
 @Suppress("LongParameterList", "LongMethod")
@@ -160,6 +170,7 @@ fun BatchTagEditorScreen(
     onCreateCustomTagConfirm: (String) -> Unit,
     onNameDialogDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onManageTagsClick: (() -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val message = uiState.message
@@ -199,6 +210,7 @@ fun BatchTagEditorScreen(
             onToggle = onCustomTagToggle,
             onCreateClick = onCreateCustomTagClick,
             onDone = onPickerDone,
+            onManageClick = onManageTagsClick,
         )
     }
     uiState.nameDialog?.let { dialog ->
@@ -412,9 +424,9 @@ private fun SwitchedOnCaption(modifier: Modifier = Modifier) {
     )
 }
 
-/** Shown only while [BatchTagEditorUiState.progress] is non-null, i.e. mid-save. */
+/** Shown only while [BatchTagEditorUiState.progress] is non-null, i.e. mid-save; Manage tags shows it mid-delete. */
 @Composable
-private fun BatchSaveProgress(progress: BatchProgress, modifier: Modifier = Modifier) {
+internal fun BatchSaveProgress(progress: BatchProgress, modifier: Modifier = Modifier) {
     val fraction = if (progress.total > 0) progress.done / progress.total.toFloat() else 0f
     Column(
         modifier = modifier.fillMaxWidth(),

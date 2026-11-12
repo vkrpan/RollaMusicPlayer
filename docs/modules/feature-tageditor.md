@@ -39,3 +39,10 @@ related: ["[[Modules]]", "[[Tag editor]]", "[[Per-track artwork]]", "[[Tag write
   `CustomTagEditingHandlers` with the lists, the 8 handlers, the create guard and the refusal copy; `write` recomputes
   the save state only when the ticks change). The single editor reads `ROLLA_TAGS` only for formats the scan reads
   (MP3, FLAC, M4A); OGG/WAV get empty ticks without opening the field.
+- 2026-11-11 (custom tags phase 3, Tasks 2–5): package `managetags`: `ManageCustomTagsViewModel`/`UiState`/`Screen`/
+  `Route` (rename, delete with consent and the per-file write loop modelled on `SelectionArtworkViewModel`, "Updated X
+  of N tracks."; export/import through `CustomTagListDocuments`, SAF text IO with a BOM strip and a 4 MiB cap, bound by
+  a Hilt module in the same file). Both editors get a "Manage tags" link through the picker and prune ticks to the
+  known IDs when the lists change (never on the lists' error fallback). The single editor reserves every ID it reads
+  at load (`reserveIds`) and saves `(current − userUnticked) ∪ userTicked`, `current` read from a fresh copy of the
+  original at save (final review fix; pruned IDs count as untouched). See [[Custom tags]].

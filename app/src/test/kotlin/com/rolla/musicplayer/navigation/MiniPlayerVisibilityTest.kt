@@ -36,6 +36,14 @@ class MiniPlayerVisibilityTest {
         ).forEach { assertFalse(it.simpleName, showsMiniPlayer(it)) }
     }
 
+    // Custom tags phase 3: Manage tags is a settings-like screen, so the pill is hidden there, and its route is
+    // classified. Mutation: leave ManageCustomTags out of routesWithoutMiniPlayer → the pill shows → RED.
+    @Test
+    fun miniPlayer_hiddenOnManageTags() {
+        assertTrue("ManageCustomTags must be classified", ManageCustomTags::class in allRoutes)
+        assertFalse(showsMiniPlayer(ManageCustomTags::class))
+    }
+
     @Test
     fun hiddenWhenThereIsNoDestination() {
         assertFalse(showsMiniPlayer(null))
@@ -45,6 +53,6 @@ class MiniPlayerVisibilityTest {
     fun everyRouteIsClassified() {
         // Pins removals from allRoutes: dropping a route makes routeClass() return null for its destination, which
         // hides the pill there. RouteClassTest checks every destination of the real graph maps to its route.
-        assertEquals(15, allRoutes.size)
+        assertEquals(16, allRoutes.size)
     }
 }

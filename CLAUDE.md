@@ -293,14 +293,15 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
   status `docs/features/Per-track artwork.md`.
 - **Custom tags** phase 1 of 4 (foundation: `:core:tagio`, Room v6, the scan's file pass, `CustomTagRepository`) built,
   reviewed, device-verified and committed (`dce76dd`, 2026-11-10) on `feat/oneui-redesign`. Phase 2 (assigning: the
-  picker sheet, tags in the single and batch tag editors, Room v7) complete and device-walked, uncommitted
-  (2026-11-11). Spec
+  picker sheet, tags in the single and batch tag editors, Room v7) complete, device-walked and committed (`eb9ebcb`,
+  2026-11-11). Phase 3 (managing: the Manage tags screen from Home ⋮ and the picker, rename, delete with file clean-up,
+  export/import of the tag lists) complete and device-walked (2026-11-12), waiting for the user's commit. Spec
   `docs/superpowers/specs/2026-11-09-custom-tags-design.md`, roadmap `docs/superpowers/plans/2026-11-09-custom-tags-roadmap.md`,
   status `docs/features/Custom tags.md`.
 - Backlog, review follow-ups and next steps: `docs/backlog/Backlog.md`. History by date:
   `docs/history/Timeline.md`.
 
-**Last Updated**: 2026-11-11
+**Last Updated**: 2026-11-12
 
 ## Notes
 

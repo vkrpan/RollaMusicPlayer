@@ -90,13 +90,14 @@ import kotlinx.coroutines.launch
  * the bar is not composed: it is [HomeScreen]'s selectionBusy, which freezes the selection and locks the bar until the
  * write ends. Its messages go to Home's snackbar from this route's scope, so a message outlives the bar that sent it.
  */
-// Nine navigation callbacks plus the injectable ViewModels and permission state: each callback is a distinct exit
+// Ten navigation callbacks plus the injectable ViewModels and permission state: each callback is a distinct exit
 // from Home. LongMethod: HomeScreen's wiring plus the selection actions' snackbar and busy state, one flat call.
 @Suppress("LongParameterList", "LongMethod")
 @Composable
 fun HomeRoute(
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onManageTagsClick: () -> Unit,
     onEditTagsClick: (Song) -> Unit,
     onEditTagsForSelection: (List<Long>) -> Unit,
     onPlaylistClick: (Long) -> Unit,
@@ -119,6 +120,7 @@ fun HomeRoute(
         selection = selection,
         onSearchClick = onSearchClick,
         onSettingsClick = onSettingsClick,
+        onManageTagsClick = onManageTagsClick,
         onCreatePlaylistClick = { createDialog.value = true },
         onEditTagsForSelection = { editTagsForSelection(selection, onEditTagsForSelection) },
         accessGranted = permission.isGranted,
@@ -217,7 +219,7 @@ internal fun editTagsForSelection(selection: SongSelectionState, onEditTags: (Li
  * sits at the bottom of the area below the header, padded by homeListBottomPadding() so it clears the bar and the
  * pill.
  */
-// Hoisted pager / selection state, four header events, the access flag and its loss callback, two content slots, and
+// Hoisted pager / selection state, five header events, the access flag and its loss callback, two content slots, and
 // the selection actions with their busy flag and snackbar host. LongMethod: the access effect, Back and one column.
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -226,6 +228,7 @@ internal fun HomeScreen(
     selection: SongSelectionState,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onManageTagsClick: () -> Unit,
     onCreatePlaylistClick: () -> Unit,
     onEditTagsForSelection: () -> Unit,
     modifier: Modifier = Modifier,
@@ -270,6 +273,7 @@ internal fun HomeScreen(
                 onCreatePlaylistClick = onCreatePlaylistClick,
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
+                onManageTagsClick = onManageTagsClick,
             )
         }
         HomeBelowHeader(snackbarHostState = snackbarHostState, modifier = Modifier.weight(1f)) {
@@ -348,13 +352,19 @@ internal fun applySelectionArtworkResult(selection: SongSelectionState, result: 
     if (result.failedIds.isEmpty()) selection.clear() else selection.retainAll(result.failedIds)
 }
 
-/** "Rolla Music" with + (on Playlists only, once the pager settles there), Search and the overflow menu. */
+/**
+ * "Rolla Music" with + (on Playlists only, once the pager settles there), Search and the overflow menu (Manage tags,
+ * Settings).
+ */
+// One flag plus one callback per header action (+, Search, and the menu's two items) and the modifier.
+@Suppress("LongParameterList")
 @Composable
 private fun HomeHeader(
     showCreatePlaylist: Boolean,
     onCreatePlaylistClick: () -> Unit,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onManageTagsClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val reducedMotion = rememberReducedMotion()
@@ -373,16 +383,24 @@ private fun HomeHeader(
             )
         }
         OneUiIconButton(icon = RollaIcons.Search, contentDescription = "Search", onClick = onSearchClick)
-        OverflowMenu(onSettingsClick = onSettingsClick)
+        OverflowMenu(onManageTagsClick = onManageTagsClick, onSettingsClick = onSettingsClick)
     }
 }
 
+/** The header's ⋮ menu: "Manage tags" (custom tags phase 3), then "Settings". */
 @Composable
-private fun OverflowMenu(onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun OverflowMenu(onManageTagsClick: () -> Unit, onSettingsClick: () -> Unit, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         OneUiIconButton(icon = RollaIcons.More, contentDescription = "More options", onClick = { expanded = true })
         OneUiDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            OneUiMenuItem(
+                text = "Manage tags",
+                onClick = {
+                    expanded = false
+                    onManageTagsClick()
+                },
+            )
             OneUiMenuItem(
                 text = "Settings",
                 onClick = {

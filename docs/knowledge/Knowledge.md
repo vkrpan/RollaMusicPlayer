@@ -16,6 +16,7 @@ Traps and facts learned the hard way. Each note: symptom, cause, fix. Query: `gr
 - [[Windows Gradle daemon locks]]
 - [[git commit hook needs a long timeout]]
 - [[Shell heredocs fail on large files]]
+- [[Edit replace_all matches deeper indentation]]
 
 ## Tests
 - [[Robolectric screens and pixel tests]]
@@ -27,6 +28,7 @@ Traps and facts learned the hard way. Each note: symptom, cause, fix. Query: `gr
 ## Tag editing
 - [[jaudiotagger and ID3v1-only MP3s]]
 - [[jaudiotagger cannot write unknown M4A freeform atoms]]
+- [[Unicode escapes can vanish when an agent writes a file]]
 
 ## Compose and UI
 - [[Focused dialog text fields]]

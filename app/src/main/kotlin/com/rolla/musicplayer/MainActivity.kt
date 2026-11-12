@@ -56,6 +56,7 @@ import com.rolla.musicplayer.feature.settings.PrivacyRoute
 import com.rolla.musicplayer.feature.settings.SettingsRoute
 import com.rolla.musicplayer.feature.tageditor.BatchTagEditorRoute
 import com.rolla.musicplayer.feature.tageditor.TagEditorRoute
+import com.rolla.musicplayer.feature.tageditor.managetags.ManageCustomTagsRoute
 import com.rolla.musicplayer.home.HomeRoute
 import com.rolla.musicplayer.navigation.About
 import com.rolla.musicplayer.navigation.AlbumDetail
@@ -66,6 +67,7 @@ import com.rolla.musicplayer.navigation.Equalizer
 import com.rolla.musicplayer.navigation.FolderDetail
 import com.rolla.musicplayer.navigation.Home
 import com.rolla.musicplayer.navigation.Licenses
+import com.rolla.musicplayer.navigation.ManageCustomTags
 import com.rolla.musicplayer.navigation.NowPlayingPresence
 import com.rolla.musicplayer.navigation.PlaylistDetail
 import com.rolla.musicplayer.navigation.Privacy
@@ -223,7 +225,7 @@ private fun RollaNavHost() {
  * - Home, Search and the detail screens (PlaylistDetail, SmartPlaylist, AlbumDetail, ArtistDetail and FolderDetail)
  *   pad their lists by homeListBottomPadding and scroll under the pill. On Search and the detail screens that is the
  *   pill plus the navigation bar; Home's area below its header ends at the bar, so there it is the pill alone.
- * - Equaliser, the tag editors, Settings, About, Licenses and Privacy hide the pill
+ * - Equaliser, the tag editors, Manage tags, Settings, About, Licenses and Privacy hide the pill
  *   (MiniPlayerVisibility.routesWithoutMiniPlayer), so LocalMiniPlayerInset is 0 there; their Scaffolds own the
  *   navigation-bar inset.
  * - Now Playing owns contentWindowInsets = WindowInsets.navigationBars with the pill hidden.
@@ -244,6 +246,8 @@ internal fun NavGraphBuilder.appDestinations(
             // search icon and the overflow menu's "Settings" item.
             onSearchClick = { navController.navigate(Search()) { launchSingleTop = true } },
             onSettingsClick = { navController.navigate(Settings) { launchSingleTop = true } },
+            // "Manage tags" sits above "Settings" in the same menu; the same plain push, guarded the same way.
+            onManageTagsClick = { navController.navigate(ManageCustomTags) { launchSingleTop = true } },
             // openTagEditor ignores a malformed (non-numeric) id. HomeRoute applies the same parsing to the selection
             // before onEditTagsForSelection.
             onEditTagsClick = { song -> navController.openTagEditor(song) },
@@ -306,8 +310,13 @@ internal fun NavGraphBuilder.appDestinations(
     // successful save all resolve through the same onNavigateUp() -- navigateUp() only, no
     // popUpTo here, so it always pops back to its actual caller rather than a hard-coded
     // destination. openTagEditor's launchSingleTop guards double-taps of the "Edit tags" option.
+    // The picker's "Manage tags" link pushes ManageCustomTags on top of the editor, which stays on the back stack and
+    // prunes its ticks when the lists change (custom tags phase 3).
     composable<TagEditor> {
-        TagEditorRoute(onNavigateUp = { navController.navigateUp() })
+        TagEditorRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onManageTagsClick = { navController.navigate(ManageCustomTags) { launchSingleTop = true } },
+        )
     }
     // BatchTagEditor is a leaf editor pushed on top of Home (its only entry point today,
     // reached via the selection bar's "Edit tags" action). Same back-behavior shape as
@@ -317,7 +326,16 @@ internal fun NavGraphBuilder.appDestinations(
     // after this navigate() call fires, so Home is never re-entered still in selection mode.
     // launchSingleTop above guards double-taps of the selection bar's "Edit tags" action.
     composable<BatchTagEditor> {
-        BatchTagEditorRoute(onNavigateUp = { navController.navigateUp() })
+        BatchTagEditorRoute(
+            onNavigateUp = { navController.navigateUp() },
+            onManageTagsClick = { navController.navigate(ManageCustomTags) { launchSingleTop = true } },
+        )
+    }
+    // Manage tags (custom tags phase 3) is a leaf pushed on top of whichever screen opened it: Home's ⋮ menu or the
+    // tag picker in either tag editor. navigateUp() only, no popUpTo, so back always returns to its caller (an open
+    // editor keeps its edits). launchSingleTop at each call site guards double-taps of the menu item and the link.
+    composable<ManageCustomTags> {
+        ManageCustomTagsRoute(onNavigateUp = { navController.navigateUp() })
     }
     // Settings is reachable from the Home header's overflow menu (wired above). No popUpTo
     // here: navigateUp() always pops Settings and returns to Home, rather than a hard-coded

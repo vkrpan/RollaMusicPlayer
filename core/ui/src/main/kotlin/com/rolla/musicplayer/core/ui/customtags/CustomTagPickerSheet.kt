@@ -5,6 +5,7 @@ package com.rolla.musicplayer.core.ui.customtags
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +42,7 @@ import com.rolla.musicplayer.core.designsystem.component.OneUiCheckbox
 import com.rolla.musicplayer.core.designsystem.component.OneUiPillButton
 import com.rolla.musicplayer.core.designsystem.component.OneUiSearchField
 import com.rolla.musicplayer.core.designsystem.component.OneUiTabRow
+import com.rolla.musicplayer.core.designsystem.component.OneUiTextButton
 import com.rolla.musicplayer.core.designsystem.component.SheetActionRow
 import com.rolla.musicplayer.core.designsystem.icon.RollaIcons
 import com.rolla.musicplayer.core.designsystem.motion.rememberReducedMotion
@@ -66,10 +68,14 @@ import kotlinx.coroutines.flow.filter
  * later change of `state.page` moves the pager there (a spring, or a snap under reduced motion). [onCreateClick]
  * passes the page's trimmed query, which prefills the name dialog.
  *
+ * When [onManageClick] is set (custom tags phase 3), a "Manage tags" text link sits under the list, above "Done"; the
+ * owner closes the sheet and opens Manage tags. Without it there is no link.
+ *
  * Insets: the kit sheet pads the status bar and the navigation bar; the content adds [imePadding] so the list and
  * "Done" stay above the keyboard while searching.
  */
-// Six parameters: the state, its five events and the modifier, fixed by the phase 2 plan's Task 3 contract.
+// Seven parameters: the state, its five events and the modifier, fixed by the phase 2 plan's Task 3 contract, plus
+// phase 3's optional Manage tags link.
 @Suppress("LongParameterList")
 @Composable
 fun CustomTagPickerSheet(
@@ -80,6 +86,7 @@ fun CustomTagPickerSheet(
     onCreateClick: (CustomTagKind, String) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
+    onManageClick: (() -> Unit)? = null,
 ) {
     OneUiBottomSheet(onDismissRequest = onDone, modifier = modifier, skipPartiallyExpanded = true) {
         Column(modifier = Modifier.imePadding()) {
@@ -100,9 +107,24 @@ fun CustomTagPickerSheet(
                     onCreateClick = { onCreateClick(kind, it) },
                 )
             }
+            if (onManageClick != null) {
+                ManageTagsLink(onClick = onManageClick)
+            }
             DoneButton(onClick = onDone)
         }
     }
+}
+
+/** The "Manage tags" text link under the list, centred above "Done" (custom tags phase 3). */
+@Composable
+private fun ColumnScope.ManageTagsLink(onClick: () -> Unit) {
+    OneUiTextButton(
+        text = "Manage tags",
+        onClick = onClick,
+        modifier = Modifier
+            .align(Alignment.CenterHorizontally)
+            .padding(top = RollaDimens.editorFieldGap),
+    )
 }
 
 /** The sheet's full-width filled "Done" pill, inset like the list rows. */

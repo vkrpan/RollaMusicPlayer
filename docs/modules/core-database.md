@@ -42,3 +42,6 @@ related: ["[[Modules]]", "[[Playback and queue]]", "[[Playlists]]", "[[Search]]"
   `applyFileTags_onDeletedSong_rollsBackAndKeepsCounter` is now `..._isSkippedAndKeepsCounter` (the check returns
   before any write). The `@Transaction` on `applyFileTags`/`markFileTagsRead` is load-bearing (the generation check and
   the writes must not interleave with the scanner's upsert); their KDoc says so.
+- 2026-11-11 (custom tags phase 3, Task 1): `CustomTagDao` gains `deleteCustomTag` (entry and links; the counter
+  stays), `replaceAll` (lists replaced, links kept, counters only rise), link-count queries (unknown IDs counted) and
+  `insertNew` returning `null` at the ceiling (the last-ID race). No schema change (still v7). Device: 124/124.

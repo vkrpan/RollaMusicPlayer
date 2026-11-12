@@ -3,6 +3,7 @@ package com.rolla.musicplayer.feature.tageditor
 import android.app.RecoverableSecurityException
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.rolla.musicplayer.core.data.repository.CustomTagRepository
 import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
 import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
@@ -107,13 +108,14 @@ class BatchTagEditorViewModelTest {
     private fun newViewModel(
         songIds: List<Long> = listOf(1L, 2L, 3L),
         writer: TagWriter = tagWriter,
+        repository: CustomTagRepository = customTagRepository,
     ): BatchTagEditorViewModel = BatchTagEditorViewModel(
         savedStateHandle = SavedStateHandle(mapOf("songIds" to songIds)),
         songRepository = fakeSongRepository,
         songFileResolver = songFileResolver,
         tagWriter = writer,
         tagSaveFinalizer = tagSaveFinalizer,
-        customTagRepository = customTagRepository,
+        customTagRepository = repository,
         rollaTagsFileIo = rollaTagsFileIo,
         ioDispatcher = mainDispatcherRule.testDispatcher,
     ).also { createdViewModels += it }
@@ -694,5 +696,53 @@ class BatchTagEditorViewModelTest {
         assertEquals(CustomTagIds(tagIds = emptySet(), subTagIds = setOf(2L)), state.picker.selected)
         assertTrue("the new entry is listed", state.picker.subTags.any { it.name == "Closing" })
         assertTrue(state.canSave)
+    }
+
+    // Custom tags phase 3: Manage tags deletes a chosen entry while the batch editor is open. The choice is pruned
+    // when the lists change, so Save does not add the deleted ID to any file. Control: TAG 2 is chosen before the
+    // delete. Mutation: no pruning → the deleted ID is added to the file → RED.
+    @Test
+    fun batch_chosenDeletedTag_isPrunedBeforeSave() = runTest {
+        seedCustomTagLists()
+        fakeSongRepository.emit(listOf(song1))
+        val copy = fixtureCopy(song1, "1_edit.mp3")
+        val viewModel = newViewModel(songIds = listOf(1L))
+        advanceUntilIdle()
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 2L)
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        assertEquals(
+            "TAG 2 is chosen before the delete (control)",
+            CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        customTagRepository.delete(CustomTagKind.TAG, 2L)
+        advanceUntilIdle()
+        viewModel.onSaveClick()
+        advanceUntilIdle()
+        grantConsent(viewModel)
+
+        assertEquals(listOf("""{"tags":"3","subTags":""}"""), rollaTagsOnDisk(copy))
+        assertTrue("the batch completes", viewModel.uiState.value.isClosed)
+    }
+
+    // Fix round 1 (review I1): the custom tag table breaks after a tag is chosen, so the lists fall back to empty.
+    // That fallback is not a deletion: the choice stays, and Save still offers to add it. Control: the lists are empty
+    // after the failure. Mutation: prune on the fallback → the choice is emptied → RED.
+    @Test
+    fun listsFailAfterChoosing_keepsTheChoice() = runTest {
+        seedCustomTagLists()
+        val failing = ListsFailingRepository(customTagRepository)
+        val viewModel = newViewModel(repository = failing)
+        advanceUntilIdle()
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 2L)
+
+        failing.failLists()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("the lists fell back to empty (control)", state.picker.tags.isEmpty())
+        assertEquals(CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), state.picker.selected)
+        assertTrue("the choice can still be saved", state.canSave)
     }
 }

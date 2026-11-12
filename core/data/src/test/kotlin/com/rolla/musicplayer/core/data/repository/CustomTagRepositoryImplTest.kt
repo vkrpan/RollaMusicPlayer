@@ -4,9 +4,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.database.dao.CustomTagDao
 import com.rolla.musicplayer.core.database.entity.CustomTagEntity
 import com.rolla.musicplayer.core.database.entity.SongEntity
+import com.rolla.musicplayer.core.model.CUSTOM_TAG_NAME_MAX_LENGTH
 import com.rolla.musicplayer.core.model.CustomTag
 import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
+import com.rolla.musicplayer.core.model.CustomTagListFile
 import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
 import com.rolla.musicplayer.core.testing.FakeCustomTagDao
 import com.rolla.musicplayer.core.testing.MainDispatcherRule
@@ -234,28 +236,211 @@ class CustomTagRepositoryImplTest {
         )
     }
 
+    // Another writer took the last ID after this create's name check: insertNew's own transaction finds the list full
+    // and returns null, which reads as LimitReached rather than a crash (closes phase 1's last-ID race).
+    // Mutation: ignore null from insertNew (`!!`) → Failure(NullPointerException) ≠ Success(LimitReached) → RED.
+    @Test
+    fun create_atCeiling_isLimitReachedWithoutThrowing() = runTest {
+        repository.create(CustomTagKind.TAG, "Techno")
+        val racing = repositoryOn(LastIdTakenDao(fakeDao))
+
+        val result = runCatching { racing.create(CustomTagKind.TAG, "House") }
+
+        assertEquals(Result.success(CustomTagNameResult.LimitReached), result)
+        assertEquals(listOf("Techno"), repository.observeCustomTags(CustomTagKind.TAG).first().map { it.name })
+        assertEquals(MAX_CUSTOM_TAG_ID, fakeDao.counter(CustomTagKind.TAG))
+    }
+
+    // ── delete ────────────────────────────────────────────────────────────────
+
+    // Mutation: the repository skips the DAO delete → the entry remains → RED.
+    @Test
+    fun delete_removesEntryAndLinks() = runTest {
+        repository.create(CustomTagKind.TAG, "Techno")
+        repository.create(CustomTagKind.TAG, "House")
+        fakeDao.seedSongs(listOf(song("1"), song("2")))
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(1L, 2L), subTagIds = emptySet()), null, 0L)
+        fakeDao.applyFileTags("2", CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), null, 0L)
+        assertEquals(listOf("1", "2"), repository.songIdsCarrying(CustomTagKind.TAG, 2L))
+
+        repository.delete(CustomTagKind.TAG, 2L)
+
+        assertEquals(listOf("Techno"), repository.observeCustomTags(CustomTagKind.TAG).first().map { it.name })
+        assertEquals(emptyList<String>(), repository.songIdsCarrying(CustomTagKind.TAG, 2L))
+        assertEquals(mapOf(1L to 1), repository.observeLinkCounts(CustomTagKind.TAG).first())
+        assertEquals(2L, fakeDao.counter(CustomTagKind.TAG))
+    }
+
+    // ── import ────────────────────────────────────────────────────────────────
+
+    // Here: TAG 2 "Techno" on 14 songs, TAG 5 "House" on 3, TAG 6 "Acid" on none. The file renames 2 and 6 and lacks 5.
+    // Mutation: skip IDs absent from the file → the House clash is missing → RED.
+    @Test
+    fun previewImport_reportsRenamedAndRemovedCarriedIds() = runTest {
+        seedTechnoHouseAcid()
+        val file = CustomTagListFile(
+            tags = listOf(CustomTag(CustomTagKind.TAG, 2L, "Jazz"), CustomTag(CustomTagKind.TAG, 6L, "Acid2")),
+            subTags = emptyList(),
+        )
+
+        assertEquals(
+            listOf(
+                ImportClash(CustomTagKind.TAG, 2L, currentName = "Techno", importedName = "Jazz", songCount = 14),
+                ImportClash(CustomTagKind.TAG, 5L, currentName = "House", importedName = null, songCount = 3),
+            ),
+            repository.previewImport(file),
+        )
+    }
+
+    // Mutation: report every carried ID → clashes for 2 and 5 → RED.
+    @Test
+    fun previewImport_sameNames_noClashes() = runTest {
+        seedTechnoHouseAcid()
+        val file = CustomTagListFile(
+            tags = listOf(
+                CustomTag(CustomTagKind.TAG, 2L, "Techno"),
+                CustomTag(CustomTagKind.TAG, 5L, "House"),
+                CustomTag(CustomTagKind.TAG, 9L, "New"),
+            ),
+            subTags = emptyList(),
+        )
+
+        assertEquals(emptyList<ImportClash>(), repository.previewImport(file))
+    }
+
+    // Before: TAG "Old" 1, SUBTAG counter 30 from a file. The import's highest TAG is 40 and SUBTAG is 2.
+    // Mutation: insert without the counter raise → create(TAG) issues 2 ≠ 41 → RED.
+    @Test
+    fun applyImport_replacesListsAndRaisesCounters() = runTest {
+        repository.create(CustomTagKind.TAG, "Old")
+        fakeDao.raiseCounter(CustomTagKind.SUBTAG, 30L)
+        val file = CustomTagListFile(
+            tags = listOf(CustomTag(CustomTagKind.TAG, 3L, "House"), CustomTag(CustomTagKind.TAG, 40L, "Techno")),
+            subTags = listOf(CustomTag(CustomTagKind.SUBTAG, 2L, "Hard")),
+        )
+
+        repository.applyImport(file)
+
+        assertEquals(file, repository.exportLists())
+        assertEquals(
+            CustomTagNameResult.Saved(CustomTag(CustomTagKind.TAG, 41L, "Acid")),
+            repository.create(CustomTagKind.TAG, "Acid"),
+        )
+        assertEquals(
+            CustomTagNameResult.Saved(CustomTag(CustomTagKind.SUBTAG, 31L, "Soft")),
+            repository.create(CustomTagKind.SUBTAG, "Soft"),
+        )
+    }
+
+    // TAG 2 and SUBTAG 1 are both carried and both renamed. Mutation: subtags before tags → [SUBTAG, TAG] → RED.
+    @Test
+    fun previewImport_tagAndSubtagClashes_tagsFirst() = runTest {
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.TAG, 2L, "Techno", "techno"))
+        fakeDao.insertTag(CustomTagEntity(CustomTagKind.SUBTAG, 1L, "Hard", "hard"))
+        fakeDao.seedSongs(listOf(song("1")))
+        fakeDao.applyFileTags("1", CustomTagIds(tagIds = setOf(2L), subTagIds = setOf(1L)), null, 0L)
+        val file = CustomTagListFile(
+            tags = listOf(CustomTag(CustomTagKind.TAG, 2L, "Jazz")),
+            subTags = listOf(CustomTag(CustomTagKind.SUBTAG, 1L, "Soft")),
+        )
+
+        assertEquals(
+            listOf(
+                ImportClash(CustomTagKind.TAG, 2L, currentName = "Techno", importedName = "Jazz", songCount = 1),
+                ImportClash(CustomTagKind.SUBTAG, 1L, currentName = "Hard", importedName = "Soft", songCount = 1),
+            ),
+            repository.previewImport(file),
+        )
+    }
+
+    // A file built in code is checked with the repository's own name rules before the DAO is touched: a blank name,
+    // and two TAG names equal ignoring case and spaces, each throw and leave the lists as they were.
+    // Mutation: drop the validation → the blank-name file replaces the lists, no throw → RED.
+    @Test
+    fun applyImport_invalidFile_throwsAndChangesNothing() = runTest {
+        repository.create(CustomTagKind.TAG, "Old")
+        val before = repository.exportLists()
+        val blankName = CustomTagListFile(
+            tags = listOf(CustomTag(CustomTagKind.TAG, 2L, "  ")),
+            subTags = emptyList(),
+        )
+        val duplicateKey = CustomTagListFile(
+            tags = listOf(CustomTag(CustomTagKind.TAG, 2L, "Techno"), CustomTag(CustomTagKind.TAG, 3L, " techno")),
+            subTags = emptyList(),
+        )
+
+        val blankResult = runCatching { repository.applyImport(blankName) }
+        val duplicateResult = runCatching { repository.applyImport(duplicateKey) }
+
+        assertTrue("blank: $blankResult", blankResult.exceptionOrNull() is IllegalArgumentException)
+        assertTrue("duplicate: $duplicateResult", duplicateResult.exceptionOrNull() is IllegalArgumentException)
+        assertEquals(before, repository.exportLists())
+    }
+
+    // ── reserve ───────────────────────────────────────────────────────────────
+
+    // A file the editor opened carries TAG 40 before the scan has read it. Mutation: no-op reserveIds → 1 ≠ 41 → RED.
+    @Test
+    fun reserveIds_raisesCountersSoCreateIssuesAbove() = runTest {
+        repository.reserveIds(CustomTagIds(tagIds = setOf(3L, 40L), subTagIds = emptySet()))
+
+        assertEquals(
+            CustomTagNameResult.Saved(CustomTag(CustomTagKind.TAG, 41L, "Techno")),
+            repository.create(CustomTagKind.TAG, "Techno"),
+        )
+        assertEquals(
+            CustomTagNameResult.Saved(CustomTag(CustomTagKind.SUBTAG, 1L, "Hard")),
+            repository.create(CustomTagKind.SUBTAG, "Hard"),
+        )
+    }
+
     // ── DAO ceiling guard ─────────────────────────────────────────────────────
 
     // The fake runs CustomTagDao's own insertNew default body, so this pins the DAO's guard for direct callers: at the
     // ceiling, and at Long.MAX_VALUE where `highest + 1` would wrap to a negative ID.
     @Test
-    fun daoInsertNew_atCeiling_throwsAndInsertsNothing() = runTest {
+    fun daoInsertNew_atCeiling_returnsNullAndInsertsNothing() = runTest {
         fakeDao.raiseCounter(CustomTagKind.TAG, MAX_CUSTOM_TAG_ID)
         fakeDao.raiseCounter(CustomTagKind.SUBTAG, Long.MAX_VALUE)
 
         val atCeiling = runCatching { fakeDao.insertNew(CustomTagKind.TAG, "Techno", "techno") }
         val atLongMax = runCatching { fakeDao.insertNew(CustomTagKind.SUBTAG, "Peak", "peak") }
 
-        assertTrue("at the ceiling: $atCeiling", atCeiling.exceptionOrNull() is IllegalStateException)
-        assertTrue("at Long.MAX_VALUE: $atLongMax", atLongMax.exceptionOrNull() is IllegalStateException)
+        assertEquals("at the ceiling", Result.success(null), atCeiling)
+        assertEquals("at Long.MAX_VALUE", Result.success(null), atLongMax)
         assertTrue(fakeDao.observeCustomTags(CustomTagKind.TAG).first().isEmpty())
         assertTrue(fakeDao.observeCustomTags(CustomTagKind.SUBTAG).first().isEmpty())
         assertEquals(MAX_CUSTOM_TAG_ID, fakeDao.counter(CustomTagKind.TAG))
     }
 
+    /** TAG 2 "Techno" on songs 1–14, TAG 5 "House" on songs 15–17, TAG 6 "Acid" on none. */
+    private suspend fun seedTechnoHouseAcid() {
+        listOf(2L to "Techno", 5L to "House", 6L to "Acid").forEach { (id, name) ->
+            fakeDao.insertTag(CustomTagEntity(CustomTagKind.TAG, id, name, name.lowercase()))
+        }
+        fakeDao.raiseCounter(CustomTagKind.TAG, 6L)
+        val songIds = (1..17).map { it.toString() }
+        fakeDao.seedSongs(songIds.map { song(it) })
+        songIds.forEachIndexed { index, songId ->
+            val tagId = if (index < 14) 2L else 5L
+            fakeDao.applyFileTags(songId, CustomTagIds(tagIds = setOf(tagId), subTagIds = emptySet()), null, 0L)
+        }
+    }
+
     /** A DAO whose name lookup finds nothing, as when another writer saves the same name between check and write. */
     private class NameCheckMissingDao(private val delegate: CustomTagDao) : CustomTagDao by delegate {
         override suspend fun findByNameKey(kind: CustomTagKind, nameKey: String): CustomTagEntity? = null
+    }
+
+    /**
+     * A DAO where another writer takes the kind's last ID just before each [insertNew]: it raises the counter to
+     * [MAX_CUSTOM_TAG_ID], then runs the real default body, whose own check must find the list full.
+     */
+    private class LastIdTakenDao(private val delegate: CustomTagDao) : CustomTagDao by delegate {
+        override suspend fun insertNew(kind: CustomTagKind, name: String, nameKey: String): Long? {
+            delegate.raiseCounter(kind, MAX_CUSTOM_TAG_ID)
+            return delegate.insertNew(kind, name, nameKey)
+        }
     }
 
     private fun song(id: String): SongEntity = SongEntity(

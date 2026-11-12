@@ -26,3 +26,6 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Bui
   search, "New tag" row, toggle rows, empty states, Done; the owner holds `state.page`), `CustomTagRows` (two rows with
   `LabelChip`s in a `FlowRow`, or "None"; disabled rows show and announce "Tags can be saved to MP3 and FLAC files
   only."), `CustomTagNameDialog` + `CustomTagNameDialogState`.
+- 2026-11-11 (custom tags phase 3, Tasks 3 and 5): `CustomTagNameDialog` takes a title and confirm label (rename
+  reuses it); `CustomTagPickerSheet` gains `onManageClick: (() -> Unit)? = null`, a centred "Manage tags" text button
+  under the pager when set.

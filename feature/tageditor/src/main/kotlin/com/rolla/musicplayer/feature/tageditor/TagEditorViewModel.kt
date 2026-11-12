@@ -26,6 +26,7 @@ import com.rolla.musicplayer.feature.tageditor.io.supportsArtwork
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -116,6 +117,11 @@ data class TagEditorUiState(
     val isPickerOpen: Boolean = false,
     /** The open "New tag"/"New subtag" dialog, with the reason the last Create was refused; null when closed. */
     val nameDialog: CustomTagNameDialogState? = null,
+    /**
+     * The ticks the lists' prune removed that the user has not touched since ([CustomTagEditing.prunedIds]): not an
+     * edit, and left by Save as the file holds them. The screen never reads it.
+     */
+    internal val prunedCustomTagIds: CustomTagIds = CustomTagIds.EMPTY,
     val tags: SongTags = SongTags(),
     val yearError: String? = null,
     val trackNumberError: String? = null,
@@ -153,7 +159,9 @@ data class TagEditorUiState(
  * it. It is only ever recreated if a prior attempt already deleted it (see
  * [handleGenericFailure]), and it is always deleted -- via [SongFileResolver.deleteEditableCopy]
  * on the happy path, or a direct, synchronous [File.delete] in [onCleared] -- so no edit ever
- * leaves a stray temp file in the app cache.
+ * leaves a stray temp file in the app cache. A save that writes custom tags also makes a second,
+ * short-lived copy to read the file's `ROLLA_TAGS` field as it is now (see "Custom tags"); that
+ * one is deleted as soon as it has been read.
  *
  * ## The consent dance
  * [onSaveClick] never writes a byte itself: it just marks the state as saving and populates
@@ -205,10 +213,16 @@ data class TagEditorUiState(
  * that cannot be read never fails the load but disables the rows (ruling 8). A failing custom tag table reads as
  * empty lists rather than crashing the editor.
  *
- * Save writes the field only when the ticks differ from the baseline (ruling 7), so a save of other fields leaves it
- * byte for byte as it was. It runs after the fields and the artwork, on the same copy, before the single persist: the
- * ticked IDs plus the IDs in the copy's field that the lists do not know, re-read from the copy at save time, so a tag
- * this app cannot name is never dropped. A failure there is the ordinary save failure.
+ * Save writes the user's own changes onto the field as the file holds it NOW (final review I1): it reads the field
+ * from a fresh copy of the file at save time, removes the IDs the user unticked since load, and adds the ones the user
+ * ticked ([CustomTagChange]). Every other ID stays as the file holds it, known or not: a tag this app cannot name, one
+ * an import in Manage tags made known, and a tick the lists pruned while the editor was open (an import that dropped
+ * it is not the user's removal, and a Manage delete has already removed it from the file, so it is not written back).
+ * It runs after the fields and the artwork, on the same copy, before the single persist, and rewrites the copy's field
+ * only when its IDs differ from that value, so a save of other fields over an unchanged file leaves it byte for byte
+ * as it was (ruling 7). A pruned tick is therefore not an edit. A failure there, including a file that cannot be
+ * copied again, is the ordinary save failure. At load every ID in the field is reserved
+ * ([CustomTagRepository.reserveIds]), so a tag created before the scan has read this file gets a higher ID.
  *
  * "New tag" in the picker opens the name dialog ([TagEditorUiState.nameDialog]) with the search text; a saved entry
  * closes it and is ticked, a refused name keeps it open with the reason.
@@ -253,9 +267,10 @@ class TagEditorViewModel @Inject constructor(
     private var pendingArtwork: PickedArtwork? = null
 
     /**
-     * The custom tag IDs read from the copy at load that the lists know: the picker's ticks at load and the baseline
-     * the dirty check compares them with. Null until the load completes. Unknown IDs are not kept here; Save re-reads
-     * them from the copy.
+     * The custom tag IDs read from the copy at load that the lists know: the picker's ticks at load, and the baseline
+     * the user's [CustomTagChange] is measured from (dirty check and Save). Null until the load completes. Never
+     * pruned (the ticks are, recorded in [TagEditorUiState.prunedCustomTagIds], so a pruned ID is not the user's
+     * removal). Unknown IDs are not kept here; Save reads the field from the file itself.
      */
     private var loadedCustomTagIds: CustomTagIds? = null
 
@@ -474,11 +489,11 @@ class TagEditorViewModel @Inject constructor(
                 artwork != null -> tagWriter.writeArtwork(copy, artwork)
                 _uiState.value.isArtworkRemoved -> tagWriter.removeArtwork(copy)
             }
-            // Unchanged ticks leave the field exactly as it is (ruling 7): a value this app would rewrite, such as an
-            // undecodable one or one with extra keys, survives a save that edits only other fields.
-            val picker = _uiState.value.picker
-            if (_uiState.value.customTagsEditable && picker.selected != loadedCustomTagIds) {
-                writeCustomTags(copy, picker)
+            val state = _uiState.value
+            if (state.customTagsEditable) {
+                val loadedKnown = loadedCustomTagIds ?: CustomTagIds.EMPTY
+                val change = CustomTagChange.of(state.picker.selected, loadedKnown, state.prunedCustomTagIds)
+                writeCustomTags(song, copy, change)
             }
         } catch (e: CancellationException) {
             throw e
@@ -490,41 +505,79 @@ class TagEditorViewModel @Inject constructor(
     }
 
     /**
-     * Writes the custom tags into [copy]'s `ROLLA_TAGS` field: the ticks in [picker] plus the IDs in the field that the
-     * lists do not know, re-read from [copy] now, so a tag this app cannot name survives the save. Throws what
-     * [RollaTagsFileIo] throws; the caller reports it as the ordinary save failure.
+     * Writes the user's [change] onto [song]'s `ROLLA_TAGS` field as the file holds it NOW (final review I1):
+     * `(current − unticked) ∪ ticked`, with `current` read from a fresh copy of the file ([readCurrentCustomTagIds]),
+     * not from [copy], which was made at load and may be stale (Manage tags deleted an entry from the file, or another
+     * program wrote it, while the editor was open). Every ID the user did not tick or untick stays as the file holds
+     * it, known or not: an unknown one, one an import made known, and a tick the lists pruned (an import that dropped
+     * it is not the user's removal; a Manage delete has already removed it from the file).
+     *
+     * [copy] is persisted over the file, so its field is rewritten whenever its IDs differ from that value; when they
+     * are equal the field is left untouched, so a save that changes no tick and finds the file as loaded keeps the
+     * value byte for byte, even one this app would rewrite (an undecodable value, extra keys; ruling 7).
+     *
+     * Throws what [SongFileResolver.createEditableCopy] and [RollaTagsFileIo] throw; the caller reports it as the
+     * ordinary save failure, so nothing is persisted when the file's field cannot be read now.
      */
-    private suspend fun writeCustomTags(copy: File, picker: CustomTagPickerState) = withContext(ioDispatcher) {
-        val inFile = rollaTagsFileIo.read(copy).customTagIds
-        val knownTagIds = picker.tags.mapTo(HashSet()) { it.id }
-        val knownSubTagIds = picker.subTags.mapTo(HashSet()) { it.id }
-        val ids = CustomTagIds(
-            tagIds = picker.selected.tagIds + (inFile.tagIds - knownTagIds),
-            subTagIds = picker.selected.subTagIds + (inFile.subTagIds - knownSubTagIds),
-        )
-        rollaTagsFileIo.writeCustomTagIds(copy, ids)
+    private suspend fun writeCustomTags(song: Song, copy: File, change: CustomTagChange) {
+        val ids = change.appliedTo(readCurrentCustomTagIds(song))
+        withContext(ioDispatcher) {
+            if (rollaTagsFileIo.read(copy).customTagIds != ids) {
+                rollaTagsFileIo.writeCustomTagIds(copy, ids)
+            }
+        }
+    }
+
+    /**
+     * The IDs in [song]'s `ROLLA_TAGS` field as the file holds them now, read from a fresh copy that is always
+     * deleted afterwards, even on failure or cancellation. Throws what the copy or the read throws.
+     */
+    private suspend fun readCurrentCustomTagIds(song: Song): CustomTagIds {
+        val fresh = songFileResolver.createEditableCopy(song)
+        return try {
+            withContext(ioDispatcher) { rollaTagsFileIo.read(fresh).customTagIds }
+        } finally {
+            withContext(NonCancellable) { songFileResolver.deleteEditableCopy(fresh) }
+        }
     }
 
     /**
      * The IDs in [copy]'s `ROLLA_TAGS` field that the lists know (waiting for the lists' first answer): the picker's
-     * ticks at load. Null when the field cannot be read: that must not fail the load (the fields still edit), and the
-     * caller then disables the rows (ruling 8), so Save never writes a field it could not read. Cancellation is
-     * rethrown.
+     * ticks at load. Every ID read, known or not, is first reserved ([CustomTagRepository.reserveIds]), so a tag
+     * created before the scan has read this file is issued an ID above the file's. Null when the field cannot be read:
+     * that must not fail the load (the fields still edit), and the caller then disables the rows (ruling 8), so Save
+     * never writes a field it could not read. Cancellation is rethrown.
      */
     private suspend fun loadKnownCustomTagIds(copy: File): CustomTagIds? {
         val inFile = if (isCustomTagExtension(copy.extension)) {
-            try {
+            val read = try {
                 withContext(ioDispatcher) { rollaTagsFileIo.read(copy).customTagIds }
             } catch (e: CancellationException) {
                 throw e
             } catch (@Suppress("TooGenericExceptionCaught") ignored: Exception) {
                 return null
             }
+            reserveIdsOrIgnore(read)
+            read
         } else {
             // A format the scan reads no field from (OGG, WAV) carries none here either: it is not opened.
             CustomTagIds.EMPTY
         }
         return inFile.knownIn(customTagEditing.lists.filterNotNull().first())
+    }
+
+    /**
+     * [CustomTagRepository.reserveIds] for [ids], best-effort: a failing custom tag table must not fail the load (the
+     * lists then read as empty, so Create fails the same way). Cancellation is rethrown.
+     */
+    private suspend fun reserveIdsOrIgnore(ids: CustomTagIds) {
+        try {
+            customTagRepository.reserveIds(ids)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (@Suppress("TooGenericExceptionCaught", "SwallowedException") ignored: Exception) {
+            // Nothing to do: Create still issues IDs above everything the scan has read.
+        }
     }
 
     /**
@@ -536,6 +589,7 @@ class TagEditorViewModel @Inject constructor(
             picker = state.picker,
             isPickerOpen = state.isPickerOpen,
             nameDialog = state.nameDialog,
+            prunedIds = state.prunedCustomTagIds,
         )
 
         override fun write(state: TagEditorUiState, editing: CustomTagEditing): TagEditorUiState {
@@ -543,8 +597,11 @@ class TagEditorViewModel @Inject constructor(
                 picker = editing.picker,
                 isPickerOpen = editing.isPickerOpen,
                 nameDialog = editing.nameDialog,
+                prunedCustomTagIds = editing.prunedIds,
             )
-            return if (editing.picker.selected == state.picker.selected) written else written.recomputeSaveState()
+            val unchanged = editing.picker.selected == state.picker.selected &&
+                editing.prunedIds == state.prunedCustomTagIds
+            return if (unchanged) written else written.recomputeSaveState()
         }
 
         override fun canEdit(state: TagEditorUiState): Boolean =
@@ -624,12 +681,6 @@ private suspend fun TagReader.hasArtworkOrFalse(file: File): Boolean = try {
     false
 }
 
-/** These IDs without any the [lists] do not know: what the picker may show. */
-private fun CustomTagIds.knownIn(lists: CustomTagLists): CustomTagIds = CustomTagIds(
-    tagIds = tagIds.filterTo(HashSet()) { id -> lists.tags.any { it.id == id } },
-    subTagIds = subTagIds.filterTo(HashSet()) { id -> lists.subTags.any { it.id == id } },
-)
-
 private fun SongTags.withField(field: TagField, value: String): SongTags = when (field) {
     TagField.TITLE -> copy(title = value)
     TagField.ARTIST -> copy(artist = value)
@@ -647,9 +698,10 @@ private fun SongTags.withField(field: TagField, value: String): SongTags = when 
  * called after every field edit, after a validated artwork pick, after "Remove artwork", and once
  * right after a successful load completes. A pending artwork pick counts as dirty exactly like a
  * field edit -- it too is only written on Save -- and so does removing a picture the file holds
- * ([fileHasArtwork]); removing only a pick from a picture-less file changes nothing on disk. Custom tag ticks that
- * differ from [loadedCustomTagIds] (the known IDs the file carried at load) are an edit too, and are recomputed after
- * every tick and every created entry.
+ * ([fileHasArtwork]); removing only a pick from a picture-less file changes nothing on disk. A custom tag the user
+ * ticked or unticked since load ([CustomTagChange] from [loadedCustomTagIds], the known IDs the file carried at load)
+ * is an edit too, recomputed after every tick, created entry and prune; a tick the lists pruned is not, since Save
+ * leaves it as the file holds it.
  */
 private fun TagEditorUiState.recomputeSaveState(
     loadedTags: SongTags?,
@@ -659,7 +711,8 @@ private fun TagEditorUiState.recomputeSaveState(
     // dirty is only ever true when loadedTags is non-null (see the condition below), so it alone
     // is sufficient to gate canSave -- no separate "loadedTags != null" check is needed here.
     val artworkChanged = pendingArtworkUri != null || (isArtworkRemoved && fileHasArtwork)
-    val customTagsChanged = loadedCustomTagIds != null && picker.selected != loadedCustomTagIds
+    val customTagsChanged = loadedCustomTagIds != null &&
+        !CustomTagChange.of(picker.selected, loadedCustomTagIds, prunedCustomTagIds).isEmpty
     val dirty = loadedTags != null && (tags != loadedTags || artworkChanged || customTagsChanged)
     val hasErrors = yearError != null || trackNumberError != null
     val canRemove = isArtworkSupported && !isArtworkRemoved && (fileHasArtwork || pendingArtworkUri != null)

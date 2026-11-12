@@ -23,6 +23,10 @@ related: ["[[Decisions]]", "[[Tag editor]]", "[[feature-tageditor]]", "[[tag-edi
 - jaudiotagger is set to `isPreserveFileIdentity = true` (commit in place) and, on a device, `isAndroid = true` (FLAC
   artwork decodes through `BitmapFactory`, not `javax.imageio`).
 
+- Since custom tags phase 3 (2026-11-11), the single editor's save also makes a second, short-lived copy of the
+  original to read its current `ROLLA_TAGS`, so a change made elsewhere since load (a Manage tags delete) is not undone
+  by the load-time copy; that copy is deleted in a `finally`.
+
 **Why:** in scoped storage, jaudiotagger's rename-based commit fails on a `content://`-only file even with consent.
 
 **Rules out:** editing the media file in place; online metadata lookups.

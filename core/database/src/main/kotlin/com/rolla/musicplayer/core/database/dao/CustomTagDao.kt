@@ -2,6 +2,7 @@ package com.rolla.musicplayer.core.database.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.MapColumn
 import androidx.room.Query
 import androidx.room.Transaction
 import com.rolla.musicplayer.core.database.entity.CustomTagEntity
@@ -17,12 +18,14 @@ import kotlinx.coroutines.flow.Flow
  * writes guarded by each song row's [SongEntity.fileTagsGeneration] (v7, custom tags phase 2).
  *
  * IDs are issued per kind from `custom_tag_counters` and never reused: [insertNew] issues counter + 1, and
- * [applyFileTags] raises the counter to the highest ID a file carries. The counter only ever rises.
+ * [applyFileTags] and [replaceAll] raise the counter to the highest ID a file or an imported list carries. The counter
+ * only ever rises; [deleteCustomTag] leaves it as it is.
  *
- * The primitives ([highestId], [insertTag], [raiseCounter], [deleteSongLinks], [insertLinks], [setGenreAndRead],
- * [setFileTagsRead], [fileTagsGeneration]) are interface members so the `@Transaction` default bodies can compose them
- * inside one transaction (the same reason as [PlaylistDao]); callers use the other members, except that the repository
- * reads [highestId] to tell a full list (one that has reached [MAX_CUSTOM_TAG_ID]) before it calls [insertNew].
+ * The primitives ([highestId], [insertTag], [raiseCounter], [deleteSongLinks], [deleteTagRow], [deleteLinksTo],
+ * [deleteAllTags], [insertLinks], [setGenreAndRead], [setFileTagsRead], [fileTagsGeneration]) are interface members so
+ * the `@Transaction` default bodies can compose them inside one transaction (the same reason as [PlaylistDao]);
+ * callers use the other members, except that the repository calls [raiseCounter] to reserve the IDs a file carries
+ * before the scan has read it (custom tags phase 3).
  *
  * The file pass's two writes, [applyFileTags] and [markFileTagsRead], are conditional on the row's
  * [SongEntity.fileTagsGeneration] (v7, custom tags phase 2): a read of a file the scanner reset meanwhile is dropped.
@@ -42,21 +45,77 @@ interface CustomTagDao {
     suspend fun findById(kind: CustomTagKind, id: Long): CustomTagEntity?
 
     /**
-     * Adds an entry to [kind]'s list with the next ID (counter + 1) and raises the counter to it. A second entry with
-     * the same [nameKey] in the list throws `SQLiteConstraintException` and leaves the counter as it was.
+     * Adds an entry to [kind]'s list with the next ID (counter + 1), raises the counter to it and returns it. A second
+     * entry with the same [nameKey] in the list throws `SQLiteConstraintException` and leaves the counter as it was.
      *
-     * @throws IllegalStateException inserting nothing, when the counter has reached [MAX_CUSTOM_TAG_ID]: the next ID
-     *   would pass the ceiling (or, for a counter at `Long.MAX_VALUE`, wrap to a negative ID). The repository checks
-     *   [highestId] first and reports the full list instead.
+     * Returns null, inserting nothing, when the counter has reached [MAX_CUSTOM_TAG_ID]: the next ID would pass the
+     * ceiling (or, for a counter at `Long.MAX_VALUE`, wrap to a negative ID). The check runs inside the transaction,
+     * so a writer that takes the last ID between a caller's own look at the counter and this call cannot make it throw
+     * (custom tags phase 3; phase 1 threw `IllegalStateException`).
      */
     @Transaction
-    suspend fun insertNew(kind: CustomTagKind, name: String, nameKey: String): Long {
+    suspend fun insertNew(kind: CustomTagKind, name: String, nameKey: String): Long? {
         val highest = highestId(kind) ?: 0L
-        check(highest < MAX_CUSTOM_TAG_ID) { "The $kind list has issued its last ID ($MAX_CUSTOM_TAG_ID)" }
+        if (highest >= MAX_CUSTOM_TAG_ID) return null
         val id = highest + 1
         insertTag(CustomTagEntity(kind = kind, id = id, name = name, nameKey = nameKey))
         raiseCounter(kind, id)
         return id
+    }
+
+    /**
+     * Deletes [kind]'s entry [id] and every song link to it, in one transaction. The counter is left as it is, so the
+     * ID is never issued again. Deleting an ID with no entry still removes its links.
+     */
+    @Transaction
+    suspend fun deleteCustomTag(kind: CustomTagKind, id: Long) {
+        deleteTagRow(kind, id)
+        deleteLinksTo(kind, id)
+    }
+
+    /** The songs that carry [kind]'s [id], whether or not the list has an entry for it, by song ID. */
+    @Query("SELECT song_id FROM song_custom_tags WHERE kind = :kind AND tag_id = :id ORDER BY song_id ASC")
+    suspend fun songIdsCarrying(kind: CustomTagKind, id: Long): List<String>
+
+    /** For each of [kind]'s IDs that songs carry, known to the list or not, the number of songs carrying it. */
+    @Query("SELECT tag_id, COUNT(*) AS song_count FROM song_custom_tags WHERE kind = :kind GROUP BY tag_id")
+    suspend fun linkCounts(
+        kind: CustomTagKind,
+    ): Map<
+        @MapColumn(columnName = "tag_id")
+        Long,
+        @MapColumn(columnName = "song_count")
+        Int,
+        >
+
+    /** [linkCounts] as a stream that emits again whenever the links change. */
+    @Query("SELECT tag_id, COUNT(*) AS song_count FROM song_custom_tags WHERE kind = :kind GROUP BY tag_id")
+    fun observeLinkCounts(
+        kind: CustomTagKind,
+    ): Flow<
+        Map<
+            @MapColumn(columnName = "tag_id")
+            Long,
+            @MapColumn(columnName = "song_count")
+            Int,
+            >,
+        >
+
+    /**
+     * Replaces both lists' entries with [tags] and [subTags] (an import), in one transaction. Song links are kept as
+     * they are: an ID the new lists lack becomes unknown, and an unknown ID they name becomes known. Each kind's
+     * counter is raised to the highest ID its new list holds, never lowered, so no ID a file or the old list used is
+     * reissued. The entries must be of their list's kind and unique per kind by ID and name key; a clash throws
+     * `SQLiteConstraintException` and rolls the whole import back.
+     */
+    @Transaction
+    suspend fun replaceAll(tags: List<CustomTagEntity>, subTags: List<CustomTagEntity>) {
+        require(tags.all { it.kind == CustomTagKind.TAG }) { "tags must all be TAG entries" }
+        require(subTags.all { it.kind == CustomTagKind.SUBTAG }) { "subTags must all be SUBTAG entries" }
+        deleteAllTags()
+        (tags + subTags).forEach { insertTag(it) }
+        tags.maxOfOrNull { it.id }?.let { raiseCounter(CustomTagKind.TAG, it) }
+        subTags.maxOfOrNull { it.id }?.let { raiseCounter(CustomTagKind.SUBTAG, it) }
     }
 
     /** Renames an entry; returns the number of rows changed (0 when the entry does not exist). */
@@ -132,6 +191,15 @@ interface CustomTagDao {
 
     @Query("DELETE FROM song_custom_tags WHERE song_id = :songId")
     suspend fun deleteSongLinks(songId: String)
+
+    @Query("DELETE FROM custom_tags WHERE kind = :kind AND id = :id")
+    suspend fun deleteTagRow(kind: CustomTagKind, id: Long)
+
+    @Query("DELETE FROM song_custom_tags WHERE kind = :kind AND tag_id = :id")
+    suspend fun deleteLinksTo(kind: CustomTagKind, id: Long)
+
+    @Query("DELETE FROM custom_tags")
+    suspend fun deleteAllTags()
 
     @Insert
     suspend fun insertLinks(links: List<SongCustomTagCrossRef>)

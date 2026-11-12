@@ -87,6 +87,12 @@ data class CustomTagIds(
 ) // the custom tags one song carries; isEmpty, CustomTagIds.EMPTY
 
 const val MAX_CUSTOM_TAG_ID: Long = 999_999_999L // the highest ID a list issues or accepts from a file
+const val CUSTOM_TAG_NAME_MAX_LENGTH = 40          // a custom tag name's limit, in code points (after trimming)
+
+data class CustomTagListFile(
+    val tags: List<CustomTag>,
+    val subTags: List<CustomTag>
+) // the exported/imported tag lists (the "enums" file); its JSON codec is CustomTagListJson in :core:tagio
 
 enum class RepeatMode { OFF, ONE, ALL }
 enum class ShuffleMode { OFF, ON }

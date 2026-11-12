@@ -13,6 +13,7 @@ Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything
 - [[claude-md]] — The project memory file every agent loads: overview, architecture, rules, status and the wiki schema.
 - [[custom-tags-phase1-plan]] — Custom tags phase 1: the ROLLA_TAGS field IO, Room v6, the scan's file pass and the tag repository.
 - [[custom-tags-phase2-plan]] — Custom tags phase 2: the Room v7 read guard, the picker sheet, tags in both tag editors.
+- [[custom-tags-phase3-plan]] — Custom tags phase 3: Manage tags, rename, delete with file clean-up, export/import.
 - [[custom-tags-roadmap]] — The four-phase roadmap for custom tags.
 - [[custom-tags-spec]] — The approved design for user-defined tags and subtags stored in each file's ROLLA_TAGS field.
 - [[ownership-map]] — CODEOWNERS-style map: one primary owner agent per path, required reviewers for cross-cutting files.

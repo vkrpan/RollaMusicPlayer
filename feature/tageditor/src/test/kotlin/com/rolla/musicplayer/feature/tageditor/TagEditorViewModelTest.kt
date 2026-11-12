@@ -9,6 +9,7 @@ import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
 import com.rolla.musicplayer.core.model.CustomTag
 import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
+import com.rolla.musicplayer.core.model.CustomTagListFile
 import com.rolla.musicplayer.core.model.MAX_CUSTOM_TAG_ID
 import com.rolla.musicplayer.core.model.Song
 import com.rolla.musicplayer.core.tagio.RollaTagsFileIo
@@ -38,6 +39,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
@@ -52,6 +56,7 @@ import org.jaudiotagger.tag.id3.ID3v24Tag
 import org.jaudiotagger.tag.id3.framebody.FrameBodyTXXX
 import org.jaudiotagger.tag.id3.valuepair.TextEncoding
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -180,8 +185,24 @@ class TagEditorViewModelTest {
     }
 
     /**
+     * The song's file on the device, set by [loadedViewModel] to the bytes its copy holds at load. Every copy the
+     * editor makes after its load-time one (Save's fresh read of the `ROLLA_TAGS` field) is a new copy of it, so a
+     * test that changes it stands for a write made while the editor is open (Manage tags, another program).
+     */
+    private lateinit var original: File
+
+    /**
+     * A new file in the temporary folder holding [source]'s bytes, as [SongFileResolver.createEditableCopy] makes;
+     * empty when [source] names no real file (a test that only needs the copy's extension).
+     */
+    private fun copyOf(source: File): File = File.createTempFile("copy", ".${source.extension}", folder.root).apply {
+        if (source.exists()) writeBytes(source.readBytes())
+    }
+
+    /**
      * Emits [song], stubs a successful copy+read of [copy] whose tag embeds a picture when [hasArtwork], and returns a
-     * constructed, loaded ViewModel.
+     * constructed, loaded ViewModel. The first copy made is [copy]; every later one is a new copy of [original] (a
+     * snapshot of [copy] taken now), which the broad clean-up stub deletes; a test's own stub for [copy] wins over it.
      */
     private fun TestScope.loadedViewModel(
         copy: File = editableCopy,
@@ -189,7 +210,15 @@ class TagEditorViewModelTest {
         repository: CustomTagRepository = customTagRepository,
     ): TagEditorViewModel {
         fakeSongRepository.emit(listOf(song))
-        coEvery { songFileResolver.createEditableCopy(song) } returns copy
+        original = copyOf(copy)
+        var copiesMade = 0
+        coEvery { songFileResolver.createEditableCopy(song) } answers {
+            if (copiesMade++ == 0) copy else copyOf(original)
+        }
+        coEvery { songFileResolver.deleteEditableCopy(any()) } answers {
+            firstArg<File>().delete()
+            Unit
+        }
         coEvery { tagReader.read(copy) } returns loadedTags
         coEvery { tagReader.hasArtwork(copy) } returns hasArtwork
         val viewModel = newViewModel(repository = repository)
@@ -1246,7 +1275,267 @@ class TagEditorViewModelTest {
         assertEquals("New Title", realReader.read(editableCopy).title)
         assertEquals(listOf("""{"tags":"3,99","subTags":""}"""), rollaTagsOnDisk(editableCopy))
     }
+
+    // ── custom tags: returning from Manage tags (phase 3) ─────────────────
+
+    // Manage tags deletes a ticked entry while the editor is open, removing it from the song's file as well; the
+    // editor prunes the tick. A title-only save then writes the field as the file holds it now, so the copy (made
+    // before the delete, and persisted over the file) does not regain the deleted ID. Control: both IDs are ticked at
+    // load. Mutation (final fix round): write the field only when the user changed a tick → the copy keeps 2 → RED.
+    @Test
+    fun returnFromManage_deletedTickedTag_isNotWrittenBack() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        assertEquals(
+            "both IDs are ticked at load (control)",
+            CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        customTagRepository.delete(CustomTagKind.TAG, 2L)
+        writeFileIds(original, CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()))
+        advanceUntilIdle()
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals(listOf("""{"tags":"3","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
+
+    // An import in Manage tags makes the file's unknown ID 99 known while the editor is open. The user never touched
+    // 99, so a save that ticks TAG 4 keeps it. Control: 99 is not ticked at load. Mutation: the phase 2 formula
+    // selected ∪ (inFile − known-now) → 99 is dropped (now known, not selected) → RED.
+    @Test
+    fun returnFromManage_importedKnownId_isKept() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(3L, 99L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        assertEquals(
+            "only the known ID is ticked at load (control)",
+            CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        customTagRepository.applyImport(
+            CustomTagListFile(
+                tags = listOf(
+                    CustomTag(kind = CustomTagKind.TAG, id = 1L, name = "Acid"),
+                    CustomTag(kind = CustomTagKind.TAG, id = 2L, name = "Techno"),
+                    CustomTag(kind = CustomTagKind.TAG, id = 3L, name = "Peak time"),
+                    CustomTag(kind = CustomTagKind.TAG, id = 4L, name = "Dub"),
+                    CustomTag(kind = CustomTagKind.TAG, id = 99L, name = "Jungle"),
+                ),
+                subTags = listOf(CustomTag(kind = CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+            ),
+        )
+        advanceUntilIdle()
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 4L)
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals(listOf("""{"tags":"3,4,99","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Final review I1: an import in Manage tags drops TAG 2, which the file carries and the user ticked at load. The
+    // lists prune the tick, but the user never unticked it, so a title-only save keeps 2 in the file (spec anti-goal:
+    // no tag of any kind is lost on save). Control: the import pruned the tick. Mutation: count every loaded ID no
+    // longer ticked as unticked (drop "− pruned") → the field is written as {3} → RED.
+    @Test
+    fun returnFromManage_importDroppingTickedId_keepsItInTheFile() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+
+        customTagRepository.applyImport(importWithout2())
+        advanceUntilIdle()
+        assertEquals(
+            "the import pruned the tick (control)",
+            CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals(listOf("""{"tags":"2,3","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Final fix round: a tick the lists pruned is not the user's edit, so it leaves the form clean and Save disabled
+    // (Save would write nothing). Control: the tick was pruned. Mutation: compare the ticks with the load-time baseline
+    // alone in the dirty check → dirty → RED.
+    @Test
+    fun returnFromManage_importDroppingTickedId_isNotAnEdit() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+
+        customTagRepository.applyImport(importWithout2())
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(
+            "the import pruned the tick (control)",
+            CustomTagIds(tagIds = setOf(3L), subTagIds = emptySet()),
+            state.picker.selected,
+        )
+        assertFalse("a pruned tick is not an edit", state.isDirty)
+        assertFalse("nothing to save", state.canSave)
+    }
+
+    // Review M2 of Task 5: ID 99 is unknown at load, an import names it, and Manage tags deletes it, removing it from
+    // the song's file. A save with a tick change must not write 99 back from the load-time copy. Control: 99 is not
+    // ticked at load. Mutation: merge the copy's own field into the IDs written ((current ∪ inCopy − unticked) ∪
+    // ticked) → 99 restored → RED.
+    @Test
+    fun returnFromManage_deletedThenSaved_doesNotRestoreIt() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 99L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+        assertEquals(
+            "only the known ID is ticked at load (control)",
+            CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()),
+            viewModel.uiState.value.picker.selected,
+        )
+
+        customTagRepository.applyImport(importNaming99())
+        advanceUntilIdle()
+        customTagRepository.delete(CustomTagKind.TAG, 99L)
+        writeFileIds(original, CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()))
+        advanceUntilIdle()
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals(listOf("""{"tags":"2,3","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Final fix round: another writer adds TAG 7 to the song's file after the editor loaded. Save reads the field from
+    // a fresh copy of the file, so a tick change keeps 7. Control: 7 is not in the load-time copy. Mutation: read the
+    // current field from the load-time copy instead of a fresh one → 7 lost → RED.
+    @Test
+    fun save_readsTheFieldFromTheOriginalNow() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+
+        writeFileIds(original, CustomTagIds(tagIds = setOf(2L, 7L), subTagIds = emptySet()))
+        assertEquals(
+            "the load-time copy does not carry 7 (control)",
+            listOf("""{"tags":"2","subTags":""}"""),
+            rollaTagsOnDisk(editableCopy),
+        )
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        saveWithConsent(viewModel)
+
+        assertTrue("the save completes", viewModel.uiState.value.isSaved)
+        assertEquals(listOf("""{"tags":"2,3,7","subTags":""}"""), rollaTagsOnDisk(editableCopy))
+    }
+
+    // Final fix round: when the song's file cannot be copied again at save time, the field's current value is unknown,
+    // so the save fails like an unreadable field does: nothing is persisted and the generic message shows. Mutation:
+    // fall back to the load-time copy's field when the fresh read fails → the save persists → RED.
+    @Test
+    fun save_originalUnreadable_failsWithoutPersisting() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+        stubSuccessfulSave()
+
+        coEvery { songFileResolver.createEditableCopy(song) } throws IOException("gone")
+        viewModel.onCustomTagToggle(CustomTagKind.TAG, 3L)
+        saveWithConsent(viewModel)
+
+        coVerify(exactly = 0) { songFileResolver.persistEditedCopy(any(), any()) }
+        val state = viewModel.uiState.value
+        assertFalse("the save does not complete", state.isSaved)
+        assertEquals("Couldn't save changes. Please try again.", state.message)
+    }
+
+    // Right after install the scan may not have read this file yet, so the lists' counter knows nothing of its TAG 40.
+    // Loading the editor reserves the file's IDs, so a tag created here gets 41, not 1. Mutation: skip reserveIds →
+    // create issues 1 → RED.
+    @Test
+    fun load_reservesIdsFromTheFile() = runTest {
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(40L), subTagIds = emptySet()))
+        val viewModel = loadedViewModel()
+
+        viewModel.onCreateCustomTagClick(CustomTagKind.TAG, "Dub")
+        viewModel.onCreateCustomTagConfirm("Dub")
+        advanceUntilIdle()
+
+        assertEquals(41L, viewModel.uiState.value.picker.tags.single { it.name == "Dub" }.id)
+    }
+
+    // Fix round 1 (review I1): the custom tag table breaks after load, so the lists fall back to empty. That fallback
+    // is not a deletion: the ticks stay, so a title-only save leaves the copy's ROLLA_TAGS field (here, the whole copy,
+    // since the field writer is mocked) byte for byte as it was. Control: TAG 2 and 3 ticked at load, and the lists
+    // empty after the failure. Mutation: prune on the fallback → ticks ∅ → Save writes inFile − loadedKnown → RED.
+    @Test
+    fun listsFailAfterLoad_titleSave_keepsTheFieldByteIdentical() = runTest {
+        seedCustomTagLists()
+        writeFileIds(editableCopy, CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet()))
+        val failing = ListsFailingRepository(customTagRepository)
+        val viewModel = loadedViewModel(repository = failing)
+        stubSuccessfulSave()
+        val ticked = CustomTagIds(tagIds = setOf(2L, 3L), subTagIds = emptySet())
+        assertEquals("both IDs are ticked at load (control)", ticked, viewModel.uiState.value.picker.selected)
+        val before = editableCopy.readBytes()
+
+        failing.failLists()
+        advanceUntilIdle()
+        val listsAfterFailure = viewModel.uiState.value.picker.tags
+        assertEquals("the lists fell back to empty (control)", emptyList<CustomTag>(), listsAfterFailure)
+        viewModel.onFieldChanged(TagField.TITLE, "New Title")
+        saveWithConsent(viewModel)
+
+        assertTrue("the title edit is saved", viewModel.uiState.value.isSaved)
+        assertArrayEquals("the copy's ROLLA_TAGS field is untouched", before, editableCopy.readBytes())
+    }
 }
+
+/**
+ * [CustomTagRepository] over [delegate] whose list flows throw once [failLists] is set, as a broken custom tag table
+ * would mid-session: the editors' lists then fall back to empty. Shared with [BatchTagEditorViewModelTest].
+ */
+internal class ListsFailingRepository(private val delegate: CustomTagRepository) : CustomTagRepository by delegate {
+    private val failed = MutableStateFlow(false)
+
+    fun failLists() {
+        failed.value = true
+    }
+
+    override fun observeCustomTags(kind: CustomTagKind): Flow<List<CustomTag>> =
+        combine(delegate.observeCustomTags(kind), failed) { list, isFailed ->
+            check(!isFailed) { "custom_tags is broken" }
+            list
+        }
+}
+
+/** The TAG list Acid (1) and Peak time (3) with the SUBTAG list Warm-up (1): the seeded lists without Techno (2). */
+private fun importWithout2(): CustomTagListFile = CustomTagListFile(
+    tags = listOf(
+        CustomTag(kind = CustomTagKind.TAG, id = 1L, name = "Acid"),
+        CustomTag(kind = CustomTagKind.TAG, id = 3L, name = "Peak time"),
+    ),
+    subTags = listOf(CustomTag(kind = CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+)
+
+/** The seeded lists plus Jungle (99) in the TAG list: an import that makes a file's unknown ID 99 known. */
+private fun importNaming99(): CustomTagListFile = CustomTagListFile(
+    tags = listOf(
+        CustomTag(kind = CustomTagKind.TAG, id = 1L, name = "Acid"),
+        CustomTag(kind = CustomTagKind.TAG, id = 2L, name = "Techno"),
+        CustomTag(kind = CustomTagKind.TAG, id = 3L, name = "Peak time"),
+        CustomTag(kind = CustomTagKind.TAG, id = 99L, name = "Jungle"),
+    ),
+    subTags = listOf(CustomTag(kind = CustomTagKind.SUBTAG, id = 1L, name = "Warm-up")),
+)
 
 private const val NOT_JSON = "not-json"
 private const val EXTRA_KEY_VALUE = """{"tags":"2","subTags":"","x":"y"}"""

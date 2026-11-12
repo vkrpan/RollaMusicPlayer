@@ -3,8 +3,8 @@ type: entity
 summary: "Repositories, the MediaStore scanner and the per-track artwork cache."
 aliases: [":core:data"]
 tags: [module]
-sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]"]
-updated: 2026-11-11
+sources: ["[[sources/claude-md]]", "[[sources/ownership-map]]", "[[sources/custom-tags-phase1-plan]]", "[[sources/custom-tags-phase2-plan]]", "[[sources/custom-tags-phase3-plan]]"]
+updated: 2026-11-12
 ---
 # :core:data
 
@@ -23,6 +23,8 @@ rescan) and `SongArtworkCache`, the per-track artwork disk cache ([[per-track-ar
   ([[agent-module-ownership]]).
 - **Cross-feature flows** go through here or through navigation, never feature to feature
   ([[multi-module-architecture]]).
+- **Custom tags phase 3:** `CustomTagRepository` gains delete, link counts, export, import preview/apply (with
+  `ImportClash.songCount`) and `reserveIds` ([[custom-tags-phase3-plan]]).
 
 ## Related
 [[claude-md]], [[ownership-map]], [[per-track-artwork]], [[agent-module-ownership]], [[multi-module-architecture]]

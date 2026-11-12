@@ -12,5 +12,6 @@ once its durable content is in the entity notes ([[Save compaction summaries to 
 
 - [[2026-11-08 000000 compaction (before the hook)]] — written by hand when the hooks were added.
 - [[2026-11-08 144821 compaction]] — the first one saved by the hook (per-track artwork, Task 2 done).
+- [[2026-11-11 215746 compaction]] — custom tags phase 3, Task 5 stopped by the spend limit.
 
 Find undistilled ones: `grep -l "^status: to-distill" docs/history/sessions/*.md`

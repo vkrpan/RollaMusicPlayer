@@ -43,3 +43,7 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Per-track artwork]]", "[[Alb
 - 2026-11-10 (final fix wave): `CustomTagNameResult.LimitReached` when the list's next ID would pass
   `MAX_CUSTOM_TAG_ID`; lists tie-break by name then ID, as playlists do; `rename` validates the name before the ID
   lookup (KDoc, Ruling 9).
+- 2026-11-11 (custom tags phase 3, Task 1): `CustomTagRepository` gains `delete`, `songIdsCarrying`,
+  `observeLinkCounts`, `exportLists`, `previewImport` (`ImportClash(kind, id, oldName, newName, songCount)`),
+  `applyImport` (validates names and uniqueness with the repository's own rules) and `reserveIds`; `create` maps a full
+  list to `LimitReached` (the DAO returns null instead of throwing).

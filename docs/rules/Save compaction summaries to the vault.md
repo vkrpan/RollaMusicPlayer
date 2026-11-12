@@ -35,3 +35,6 @@ following the same steps.
 **Hook order (seen 2026-11-08, first real firing):** the SessionStart reminder ran before PostCompact had written the
 note, so its listing missed the new note (and matched `Sessions.md`, whose prose names the status). The script now
 reads the status from frontmatter only and tells Claude to list `docs/history/sessions/` itself.
+
+**Encoding (fixed 2026-11-11):** on Windows the hook read stdin as cp1252, so every non-ASCII character of a saved
+summary became mojibake ("â€¦" for "…"). It now decodes stdin bytes as UTF-8; the two earlier notes were repaired.

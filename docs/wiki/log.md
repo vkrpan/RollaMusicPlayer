@@ -28,3 +28,16 @@ updated: 2026-11-09
   [[module-core-designsystem]], [[module-feature-tageditor]], [[module-core-testing]], [[development-history]].
 - Contradictions: none new. The spec's "M4A freeform atom" storage is narrowed by the user's 2026-11-10 decision (MP3
   and FLAC writes only); recorded on [[custom-tags]] and [[custom-tags-roadmap]].
+
+## [2026-11-11] lint | before custom tags phase 3
+- Structural pass: 43 pages, 0 broken links, 0 orphans, every page has frontmatter.
+- Still open from the first ingest: the [[ownership-map]] `:app/.../di/**` rows (see [[module-app]]); CLAUDE.md's
+  "Use Material Design 3 components throughout" line vs the kit-only rule ([[one-ui-design-system]]).
+- No fixes applied.
+
+## [2026-11-12] ingest | docs/superpowers/plans/2026-11-11-custom-tags-phase3-managing.md
+- Created: [[custom-tags-phase3-plan]].
+- Updated: [[custom-tags]] (managing section; the phase 2 open question resolved), [[module-feature-tageditor]],
+  [[module-core-data]], [[module-core-database]], [[module-core-tagio]], [[module-core-ui]], [[module-app]], index.
+- Contradictions: none. The plan's `trackCount` names became `songCount` in code (final review I2,
+  [[song-not-track]]); the page uses the code's name.

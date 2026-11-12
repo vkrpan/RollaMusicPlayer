@@ -32,3 +32,6 @@ Depends only on `:core:model`; exposes jaudiotagger through `api`.
 - 2026-11-10 (final fix wave): `decode` drops IDs above `MAX_CUSTOM_TAG_ID` (999 999 999, Ruling 10); a static
   companion sets the `org.jaudiotagger` logger to WARNING once (R8 keep rule still owed, [[Backlog]]); the write refusal
   names the Mp4TagCreator reason only for M4A; `@throws` KDoc on `read` and `writeCustomTagIds`.
+- 2026-11-11 (custom tags phase 3, Task 1): `CustomTagListJson`, the codec of the exported tag lists
+  (`{"format":…, "version":…, "tags":[…], "subTags":[…]}`); strict decode (null on a wrong format or version, duplicate
+  IDs or names ignoring case, a blank or over-long name, an ID outside 1..`MAX_CUSTOM_TAG_ID`, or garbage).

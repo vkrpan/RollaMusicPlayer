@@ -72,6 +72,7 @@ class HomeScreenRestorationTest {
                     selection = rememberSongSelectionState(),
                     onSearchClick = {},
                     onSettingsClick = {},
+                    onManageTagsClick = {},
                     onCreatePlaylistClick = {},
                     onEditTagsForSelection = {},
                 ) { tab -> Text("page-${tab.name}") }

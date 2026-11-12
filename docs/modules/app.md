@@ -23,3 +23,6 @@ related: ["[[Modules]]", "[[Home and library]]", "[[Now Playing and mini-player]
 - 2026-11-09 (per-track artwork Task 8): `HomeRoute` obtains `SelectionArtworkViewModel` and drives `selectionBusy`;
   `HomeScreen` gains the `selectionActions` slot (ruling P2), a `SnackbarHost` above the pill, and locks the selection
   (`SongSelectionState.isLocked`, set in a `SideEffect`), the pager, ✕, Back and Edit tags while busy.
+- 2026-11-11 (custom tags phase 3, Task 5): route `ManageCustomTags` (16 routes; no mini-player), registered in
+  `MainActivity` as a plain push; Home ⋮ "Manage tags" above "Settings"; both editor routes navigate there from the
+  picker link (the sheet closes first).

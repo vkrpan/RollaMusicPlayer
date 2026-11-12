@@ -6,6 +6,7 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.rolla.musicplayer.core.database.MusicDatabase
+import com.rolla.musicplayer.core.database.entity.CustomTagEntity
 import com.rolla.musicplayer.core.database.entity.SongCustomTagCrossRef
 import com.rolla.musicplayer.core.database.entity.SongEntity
 import com.rolla.musicplayer.core.model.CustomTagIds
@@ -22,7 +23,10 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** The v6 custom tag lists, their never-reused ID counters and the song links (custom tags phase 1, Task 4). */
+/**
+ * The v6 custom tag lists, their never-reused ID counters and the song links (custom tags phase 1, Task 4), and their
+ * management: delete, import and link counts (phase 3, Task 1).
+ */
 @RunWith(AndroidJUnit4::class)
 class CustomTagDaoTest {
 
@@ -106,19 +110,79 @@ class CustomTagDaoTest {
         assertEquals(2L, dao.insertNew(CustomTagKind.TAG, "House", "house"))
     }
 
-    // Mutation: drop insertNew's ceiling check → TAG 1000000000 is inserted, no throw → RED.
+    // The ceiling check runs inside insertNew's transaction, so a caller that read the counter just before another
+    // writer took the last ID gets null rather than a throw (custom tags phase 3; phase 1 threw IllegalStateException).
+    // Mutation: keep the old `check()` → Failure(IllegalStateException) ≠ Success(null) → RED.
     @Test
-    fun insertNew_atCeiling_throwsAndInsertsNothing() = runTest {
+    fun insertNew_atCeiling_returnsNull() = runTest {
         dao.raiseCounter(CustomTagKind.TAG, MAX_CUSTOM_TAG_ID)
 
-        try {
-            dao.insertNew(CustomTagKind.TAG, "Techno", "techno")
-            fail("A list at the ceiling must refuse a new ID")
-        } catch (expected: IllegalStateException) {
-            // insertNew's guard refused it before inserting.
-        }
+        val result = runCatching { dao.insertNew(CustomTagKind.TAG, "Techno", "techno") }
+
+        assertEquals(Result.success(null), result)
         assertEquals(emptyList<Long>(), dao.observeCustomTags(CustomTagKind.TAG).first().map { it.id })
         assertEquals(MAX_CUSTOM_TAG_ID, dao.highestId(CustomTagKind.TAG))
+    }
+
+    // TAG 2 is carried by "a" and "b"; "a" also carries TAG 1 and SUBTAG 2, which must survive.
+    // Mutation: delete the entry only → the TAG 2 links remain → RED.
+    @Test
+    fun deleteCustomTag_removesEntryAndLinksKeepsCounter() = runTest {
+        dao.insertNew(CustomTagKind.TAG, "Techno", "techno")
+        dao.insertNew(CustomTagKind.TAG, "House", "house")
+        songDao.upsertSongs(listOf(song("a"), song("b")))
+        dao.applyFileTags("a", CustomTagIds(tagIds = setOf(1L, 2L), subTagIds = setOf(2L)), null, 0L)
+        dao.applyFileTags("b", CustomTagIds(tagIds = setOf(2L), subTagIds = emptySet()), null, 0L)
+        assertEquals(listOf("a", "b"), dao.songIdsCarrying(CustomTagKind.TAG, 2L))
+
+        dao.deleteCustomTag(CustomTagKind.TAG, 2L)
+
+        assertEquals(setOf(link("a", CustomTagKind.TAG, 1L), link("a", CustomTagKind.SUBTAG, 2L)), linksOf("a"))
+        assertEquals(emptySet<SongCustomTagCrossRef>(), linksOf("b"))
+        assertEquals(emptyList<String>(), dao.songIdsCarrying(CustomTagKind.TAG, 2L))
+        assertEquals(listOf(1L), dao.observeCustomTags(CustomTagKind.TAG).first().map { it.id })
+        // The counter stays at 2, so 2 is never reissued.
+        assertEquals(3L, dao.insertNew(CustomTagKind.TAG, "Acid", "acid"))
+    }
+
+    // Before: TAG "Old" 1, a file carried TAG 7 and SUBTAG 3 (counters 7 and 3). The imported lists hold TAG 7 and 20
+    // and SUBTAG 1. Mutation: set the counter to the file's max → the SUBTAG counter drops to 1 → RED.
+    @Test
+    fun replaceAll_keepsLinksAndRaisesCounters() = runTest {
+        dao.insertNew(CustomTagKind.TAG, "Old", "old")
+        songDao.upsertSongs(listOf(song("a")))
+        dao.applyFileTags("a", CustomTagIds(tagIds = setOf(7L), subTagIds = setOf(3L)), null, 0L)
+
+        dao.replaceAll(
+            tags = listOf(
+                CustomTagEntity(CustomTagKind.TAG, 7L, "Techno", "techno"),
+                CustomTagEntity(CustomTagKind.TAG, 20L, "House", "house"),
+            ),
+            subTags = listOf(CustomTagEntity(CustomTagKind.SUBTAG, 1L, "Hard", "hard")),
+        )
+
+        assertEquals(
+            listOf(7L to "Techno", 20L to "House"),
+            dao.observeCustomTags(CustomTagKind.TAG).first().map { it.id to it.name },
+        )
+        assertEquals(listOf(1L), dao.observeCustomTags(CustomTagKind.SUBTAG).first().map { it.id })
+        assertEquals(setOf(link("a", CustomTagKind.TAG, 7L), link("a", CustomTagKind.SUBTAG, 3L)), linksOf("a"))
+        assertEquals("raised to the file's highest TAG", 20L, dao.highestId(CustomTagKind.TAG))
+        assertEquals("never lowered to the file's highest SUBTAG", 3L, dao.highestId(CustomTagKind.SUBTAG))
+    }
+
+    // TAG 1 has an entry; TAG 99 does not, but a file carries it.
+    // Mutation: inner join to custom_tags → 99 missing → RED.
+    @Test
+    fun linkCounts_countsKnownAndUnknownIds() = runTest {
+        dao.insertNew(CustomTagKind.TAG, "Techno", "techno")
+        songDao.upsertSongs(listOf(song("a"), song("b")))
+        dao.applyFileTags("a", CustomTagIds(tagIds = setOf(1L, 99L), subTagIds = setOf(1L)), null, 0L)
+        dao.applyFileTags("b", CustomTagIds(tagIds = setOf(1L), subTagIds = emptySet()), null, 0L)
+
+        assertEquals(mapOf(1L to 2, 99L to 1), dao.linkCounts(CustomTagKind.TAG))
+        assertEquals(mapOf(1L to 2, 99L to 1), dao.observeLinkCounts(CustomTagKind.TAG).first())
+        assertEquals(mapOf(1L to 1), dao.linkCounts(CustomTagKind.SUBTAG))
     }
 
     // Mutation: skip the delete of the song's old links → {TAG 2, SUBTAG 1, TAG 3} remain → RED.

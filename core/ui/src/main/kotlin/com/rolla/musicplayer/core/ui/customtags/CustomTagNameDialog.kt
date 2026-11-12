@@ -25,13 +25,20 @@ import com.rolla.musicplayer.core.model.CustomTagKind
  *
  * Stateless towards its owner: like PlaylistNameDialog, it keeps only the text being typed, and does not dismiss
  * itself on Create.
+ *
+ * Manage tags renames an entry with the same dialog (custom tags phase 3): it passes [title] ("Rename tag"/"Rename
+ * subtag") and [confirmLabel] ("Rename"), and [onCreate] then receives the new name.
  */
+// Five parameters: the state, its two events, the modifier and the two rename labels.
+@Suppress("LongParameterList")
 @Composable
 fun CustomTagNameDialog(
     state: CustomTagNameDialogState,
     onCreate: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String = state.kind.newEntryLabel(),
+    confirmLabel: String = "Create",
 ) {
     var name by remember(state.kind, state.initialName) { mutableStateOf(state.initialName) }
     // True once the name changes after the last Create: the owner's error then describes a name no longer on screen.
@@ -48,8 +55,8 @@ fun CustomTagNameDialog(
     }
     OneUiDialog(
         onDismissRequest = onDismiss,
-        title = state.kind.newEntryLabel(),
-        confirmButton = { OneUiTextButton(text = "Create", onClick = create, enabled = name.isNotBlank()) },
+        title = title,
+        confirmButton = { OneUiTextButton(text = confirmLabel, onClick = create, enabled = name.isNotBlank()) },
         dismissButton = { OneUiTextButton(text = "Cancel", onClick = onDismiss) },
         text = {
             OneUiDialogField(

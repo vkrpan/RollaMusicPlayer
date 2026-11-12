@@ -24,7 +24,7 @@ import kotlinx.coroutines.flow.update
  * runs under Robolectric. Unlike Room, a throw inside a default body does not roll back the steps before it.
  */
 // Mirrors CustomTagDao's shape one-to-one (which carries the same suppression): the fake implements every primitive so
-// the interface's @Transaction default bodies (insertNew, applyFileTags) run unchanged.
+// the interface's @Transaction default bodies (insertNew, deleteCustomTag, replaceAll, applyFileTags) run unchanged.
 @Suppress("TooManyFunctions")
 class FakeCustomTagDao : CustomTagDao {
 
@@ -56,10 +56,18 @@ class FakeCustomTagDao : CustomTagDao {
     override suspend fun findById(kind: CustomTagKind, id: Long): CustomTagEntity? =
         tagsFlow.value.firstOrNull { it.kind == kind && it.id == id }
 
-    // insertNew, applyFileTags and markFileTagsRead are NOT overridden: their @Transaction default bodies in
-    // CustomTagDao compose the primitives below, so the fake issues and raises IDs, and checks a row's
-    // fileTagsGeneration, exactly as the real DAO does. To reset a row as the scanner would, seedSongs it again with a
-    // bumped generation.
+    // insertNew, deleteCustomTag, replaceAll, applyFileTags and markFileTagsRead are NOT overridden: their @Transaction
+    // default bodies in CustomTagDao compose the primitives below, so the fake issues, raises and keeps IDs, and checks
+    // a row's fileTagsGeneration, exactly as the real DAO does. To reset a row as the scanner would, seedSongs it again
+    // with a bumped generation.
+
+    override suspend fun songIdsCarrying(kind: CustomTagKind, id: Long): List<String> =
+        linksFlow.value.filter { it.kind == kind && it.tagId == id }.map { it.songId }.sorted()
+
+    override suspend fun linkCounts(kind: CustomTagKind): Map<Long, Int> = countLinks(linksFlow.value, kind)
+
+    override fun observeLinkCounts(kind: CustomTagKind): Flow<Map<Long, Int>> =
+        linksFlow.map { links -> countLinks(links, kind) }
 
     override suspend fun rename(kind: CustomTagKind, id: Long, name: String, nameKey: String): Int {
         val target = findById(kind, id) ?: return 0
@@ -96,6 +104,18 @@ class FakeCustomTagDao : CustomTagDao {
         linksFlow.update { current -> current.filterNot { it.songId == songId } }
     }
 
+    override suspend fun deleteTagRow(kind: CustomTagKind, id: Long) {
+        tagsFlow.update { current -> current.filterNot { it.kind == kind && it.id == id } }
+    }
+
+    override suspend fun deleteLinksTo(kind: CustomTagKind, id: Long) {
+        linksFlow.update { current -> current.filterNot { it.kind == kind && it.tagId == id } }
+    }
+
+    override suspend fun deleteAllTags() {
+        tagsFlow.value = emptyList()
+    }
+
     override suspend fun insertLinks(links: List<SongCustomTagCrossRef>) {
         if (links.any { link -> song(link.songId) == null }) {
             throw SQLiteConstraintException("FOREIGN KEY constraint failed")
@@ -115,6 +135,10 @@ class FakeCustomTagDao : CustomTagDao {
     }
 
     override suspend fun fileTagsGeneration(songId: String): Long? = song(songId)?.fileTagsGeneration
+
+    /** Every carried ID of [kind], known to the list or not (no join to the entries, as in the Room query). */
+    private fun countLinks(links: List<SongCustomTagCrossRef>, kind: CustomTagKind): Map<Long, Int> =
+        links.filter { it.kind == kind }.groupingBy { it.tagId }.eachCount()
 
     private fun updateSong(songId: String, change: (SongEntity) -> SongEntity) {
         songsFlow.update { current -> current.map { if (it.id == songId) change(it) else it } }

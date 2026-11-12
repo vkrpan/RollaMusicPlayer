@@ -94,6 +94,9 @@ import kotlin.math.abs
 // NATIVE graphics: the swipe test relies on real layout (the gesture spans the page's measured width), and LEGACY mode
 // measures text lines at ~36 dp / ~1 px per char. Nothing here captures pixels. The plain Application keeps
 // Robolectric from booting RollaApp's real Hilt graph (PlaybackController, artwork cache) for a stateless screen test.
+// LargeClass: one test class per screen, as in the rest of the codebase; Home's header, pager, selection and menu tests
+// share its fixtures.
+@Suppress("LargeClass")
 @RunWith(AndroidJUnit4::class)
 @Config(qualifiers = "w360dp-h640dp", application = Application::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -108,6 +111,7 @@ class HomeScreenTest {
 
     private var searchClicks = 0
     private var settingsClicks = 0
+    private var manageTagsClicks = 0
     private var createPlaylistClicks = 0
     private var editTagsClicks = 0
     private var rowTaps = 0
@@ -432,6 +436,22 @@ class HomeScreenTest {
         assertEquals("Settings must fire once", 1, settingsClicks)
     }
 
+    // Custom tags phase 3: the ⋮ menu offers "Manage tags" above "Settings", and a tap opens Manage tags (not
+    // Settings). Mutation: menu item absent → "Manage tags" not found → RED.
+    @Test
+    fun homeMenu_manageTags_navigates() {
+        setHome()
+
+        composeRule.onNodeWithContentDescription("More options").performClick()
+
+        val manageTop = composeRule.onNodeWithText("Manage tags").assertIsDisplayed().getBoundsInRoot().top
+        val settingsTop = composeRule.onNodeWithText("Settings").assertIsDisplayed().getBoundsInRoot().top
+        assertTrue("Manage tags must sit above Settings", manageTop < settingsTop)
+        composeRule.onNodeWithText("Manage tags").performClick()
+        assertEquals("Manage tags must fire once", 1, manageTagsClicks)
+        assertEquals("Manage tags must not open Settings", 0, settingsClicks)
+    }
+
     @Test
     fun searchOpensSearch() {
         setHome()
@@ -644,6 +664,7 @@ class HomeScreenTest {
                         selection = selection,
                         onSearchClick = {},
                         onSettingsClick = {},
+                        onManageTagsClick = {},
                         onCreatePlaylistClick = {},
                         onEditTagsForSelection = {},
                         selectionActions = { ids, onResult ->
@@ -673,6 +694,7 @@ class HomeScreenTest {
                         selection = selection,
                         onSearchClick = {},
                         onSettingsClick = {},
+                        onManageTagsClick = {},
                         onCreatePlaylistClick = {},
                         onEditTagsForSelection = {},
                         selectionActions = { ids, onResult ->
@@ -704,6 +726,7 @@ class HomeScreenTest {
                     selection = selection,
                     onSearchClick = {},
                     onSettingsClick = {},
+                    onManageTagsClick = {},
                     onCreatePlaylistClick = {},
                     onEditTagsForSelection = {},
                     accessGranted = accessGranted,
@@ -734,6 +757,7 @@ class HomeScreenTest {
                     selection = selection,
                     onSearchClick = {},
                     onSettingsClick = {},
+                    onManageTagsClick = {},
                     onCreatePlaylistClick = { showCreateDialog = true },
                     onEditTagsForSelection = {},
                     accessGranted = accessGranted,
@@ -817,6 +841,7 @@ class HomeScreenTest {
                     selection = rememberSongSelectionState(),
                     onSearchClick = {},
                     onSettingsClick = {},
+                    onManageTagsClick = {},
                     onCreatePlaylistClick = {},
                     onEditTagsForSelection = {},
                     accessGranted = false,
@@ -857,6 +882,7 @@ class HomeScreenTest {
                     selection = selection,
                     onSearchClick = { searchClicks++ },
                     onSettingsClick = { settingsClicks++ },
+                    onManageTagsClick = { manageTagsClicks++ },
                     onCreatePlaylistClick = { createPlaylistClicks++ },
                     onEditTagsForSelection = { editTagsClicks++ },
                     accessGranted = accessGranted,

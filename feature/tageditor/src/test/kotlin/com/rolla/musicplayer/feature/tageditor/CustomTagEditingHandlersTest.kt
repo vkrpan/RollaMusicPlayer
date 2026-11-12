@@ -1,9 +1,9 @@
 package com.rolla.musicplayer.feature.tageditor
 
-import com.rolla.musicplayer.core.data.repository.CUSTOM_TAG_NAME_MAX_LENGTH
 import com.rolla.musicplayer.core.data.repository.CustomTagNameResult
 import com.rolla.musicplayer.core.data.repository.CustomTagRepository
 import com.rolla.musicplayer.core.data.repository.CustomTagRepositoryImpl
+import com.rolla.musicplayer.core.model.CUSTOM_TAG_NAME_MAX_LENGTH
 import com.rolla.musicplayer.core.model.CustomTag
 import com.rolla.musicplayer.core.model.CustomTagIds
 import com.rolla.musicplayer.core.model.CustomTagKind
@@ -184,6 +184,31 @@ class CustomTagEditingHandlersTest {
         handlers.onQueryChange(CustomTagKind.SUBTAG, "warm")
         assertEquals("the page still changes (control)", CustomTagKind.SUBTAG, editing.picker.page)
         assertEquals("the search still changes (control)", "warm", editing.picker.subTagQuery)
+    }
+
+    // Custom tags phase 3: Manage tags can delete a ticked entry while an editor is open. When the lists next arrive,
+    // the ticks keep only IDs the lists still know; the other list's ticks are untouched. Control: TAG 2 is ticked
+    // before the delete. Mutation: no pruning → the deleted ID stays selected → RED.
+    @Test
+    fun lists_change_prunesSelectedToKnownIds() = runTest {
+        customTagRepository.create(CustomTagKind.TAG, "Acid")
+        customTagRepository.create(CustomTagKind.TAG, "Techno")
+        customTagRepository.create(CustomTagKind.SUBTAG, "Warm-up")
+        val handlers = newHandlers()
+        advanceUntilIdle()
+        handlers.onToggle(CustomTagKind.TAG, 1L)
+        handlers.onToggle(CustomTagKind.TAG, 2L)
+        handlers.onToggle(CustomTagKind.SUBTAG, 1L)
+        assertEquals(
+            "TAG 2 is ticked before the delete (control)",
+            CustomTagIds(tagIds = setOf(1L, 2L), subTagIds = setOf(1L)),
+            editing.picker.selected,
+        )
+
+        customTagRepository.delete(CustomTagKind.TAG, 2L)
+        advanceUntilIdle()
+
+        assertEquals(CustomTagIds(tagIds = setOf(1L), subTagIds = setOf(1L)), editing.picker.selected)
     }
 
     // A failing custom tag table reads as two empty lists, not as no lists. Mutation: drop the catch → the lists stay

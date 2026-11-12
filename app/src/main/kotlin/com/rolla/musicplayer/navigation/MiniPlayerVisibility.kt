@@ -8,7 +8,7 @@ import kotlin.reflect.KClass
 internal val allRoutes: List<KClass<out Route>> = listOf(
     Home::class, NowPlaying::class, Equalizer::class, PlaylistDetail::class, SmartPlaylist::class,
     AlbumDetail::class, ArtistDetail::class, FolderDetail::class, TagEditor::class, BatchTagEditor::class,
-    Search::class, Settings::class, About::class, Licenses::class, Privacy::class,
+    ManageCustomTags::class, Search::class, Settings::class, About::class, Licenses::class, Privacy::class,
 )
 
 /** Spec §7.3: the pill is hidden on the player itself and on settings, editor and info screens. */
@@ -21,6 +21,7 @@ private val routesWithoutMiniPlayer: Set<KClass<out Route>> = setOf(
     Privacy::class,
     TagEditor::class,
     BatchTagEditor::class,
+    ManageCustomTags::class,
 )
 
 internal fun showsMiniPlayer(routeClass: KClass<out Route>?): Boolean =

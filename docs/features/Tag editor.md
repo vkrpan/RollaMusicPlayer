@@ -31,6 +31,9 @@ related: ["[[Features]]", "[[Tag writes go through a cache copy]]", "[[Custom ta
   tapping opens the picker sheet (tabs, search, checklist, "New tag"). The single editor saves the ticks into the
   file's `ROLLA_TAGS` (MP3 and FLAC; other formats show the rows disabled with a note); the batch editor adds the chosen
   tags to every selected track and never removes any.
+- **Manage tags (phase 3 of [[Custom tags]], 2026-11-11):** the picker links to the Manage tags screen; on return
+  the ticks are pruned to the known tags and the single editor saves only the user's own tick changes onto the file's
+  current `ROLLA_TAGS` (read from a fresh copy at save).
 - **Set/Remove artwork for a selection:** from the Tracks tab's selection ⋮ (`SelectionArtworkViewModel`,
   `SelectionArtworkActions`; per-track artwork Task 8). The batch editor screen itself has no artwork fields.
 - **Skill:** `implement-tag-editor`. **Module:** [[feature-tageditor]]. **Owner:** [[tag-editor-agent]] (IO),

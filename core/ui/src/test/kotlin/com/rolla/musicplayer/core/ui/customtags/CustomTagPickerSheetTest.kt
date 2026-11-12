@@ -150,6 +150,34 @@ class CustomTagPickerSheetTest {
         assertEquals(listOf("Techno"), created)
     }
 
+    // Custom tags phase 3: with a callback the sheet offers a "Manage tags" link under the list, which reports a tap;
+    // without one there is no link (an owner that cannot open Manage tags). Mutation: always show the link → it is
+    // found with a null callback → RED.
+    @Test
+    fun picker_manageLink_shownOnlyWithCallback() {
+        var showLink by mutableStateOf(false)
+        var manageClicks = 0
+        composeRule.setContent {
+            RollaMusicPlayerTheme(darkTheme = true) {
+                CustomTagPickerSheet(
+                    state = pickerState(),
+                    onPageChange = {},
+                    onQueryChange = { _, _ -> },
+                    onToggle = { _, _ -> },
+                    onCreateClick = { _, _ -> },
+                    onDone = {},
+                    onManageClick = if (showLink) ({ manageClicks++ }) else null,
+                )
+            }
+        }
+        composeRule.onNodeWithText("Techno").assertIsDisplayed()
+        composeRule.onNodeWithText("Manage tags").assertDoesNotExist()
+
+        showLink = true
+        composeRule.onNodeWithText("Manage tags").assertIsDisplayed().performClick()
+        assertEquals(1, manageClicks)
+    }
+
     private fun setSheet(
         state: CustomTagPickerState,
         onToggle: (CustomTagKind, Long) -> Unit = { _, _ -> },

@@ -10,7 +10,9 @@ related: ["[[Modules]]", "[[Per-track artwork]]", "[[Song in code, Tracks on scr
 # core-model
 
 `:core:model` — Domain models and enums, pure Kotlin: `Song`, `Album`, `Artist`, `Folder`, `Playlist`, `EqualizerPreset`, `SavedPlayback`, `RepeatMode`, `ShuffleMode`, `artistDisplayName`, and (since 2026-11-09, [[Custom tags]])
-`CustomTagKind`, `CustomTag`, `CustomTagIds`, `MAX_CUSTOM_TAG_ID`. A shared contract: changes follow the model vocabulary and need code-reviewer and consumer review.
+`CustomTagKind`, `CustomTag`, `CustomTagIds`, `MAX_CUSTOM_TAG_ID`, and (phase 3) `CUSTOM_TAG_NAME_MAX_LENGTH` (40 code
+points; the one definition the repository, the list-file codec and the editors share) and `CustomTagListFile` (the
+exported/imported lists). A shared contract: changes follow the model vocabulary and need code-reviewer and consumer review.
 
 - **Owner agent(s):** [[code-reviewer]]
 - **Features:** [[Per-track artwork]]

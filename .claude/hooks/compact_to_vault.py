@@ -19,7 +19,9 @@ SUMMARY_KEYS = ("summary", "compact_summary", "compactSummary", "compaction_summ
 
 
 def read_payload():
-    raw = sys.stdin.read()
+    # Read bytes and decode as UTF-8: on Windows sys.stdin uses the ANSI code page (cp1252), which turned every
+    # non-ASCII character of the summary into mojibake ("â€¦" for "…").
+    raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
     try:
         return json.loads(raw) if raw.strip() else {}
     except ValueError:

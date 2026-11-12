@@ -85,11 +85,15 @@ private const val ARTWORK_REMOVED = "Artwork removed"
  * only [rememberMediaWriteRequester] can provide), so this Route observes them via
  * [LaunchedEffect] and calls back into the ViewModel once the system prompt resolves. No byte is
  * ever written from here directly -- this function only ever forwards consent outcomes.
+ *
+ * The picker's "Manage tags" link closes the sheet, then calls [onManageTagsClick] (custom tags phase 3). The editor
+ * stays on the back stack; on return its ticks have been pruned to the entries that still exist.
  */
 @Suppress("LongMethod")
 @Composable
 fun TagEditorRoute(
     onNavigateUp: () -> Unit,
+    onManageTagsClick: () -> Unit,
     viewModel: TagEditorViewModel = hiltViewModel(),
     modifier: Modifier = Modifier,
 ) {
@@ -162,13 +166,20 @@ fun TagEditorRoute(
         onCreateCustomTagConfirm = remember(viewModel) { viewModel::onCreateCustomTagConfirm },
         onNameDialogDismiss = remember(viewModel) { viewModel::onNameDialogDismiss },
         modifier = modifier,
+        onManageTagsClick = remember(viewModel, onManageTagsClick) {
+            {
+                viewModel.onPickerDone()
+                onManageTagsClick()
+            }
+        },
     )
 }
 
 /**
  * The single tag editor: the header, the fields card, the Tags and Subtags rows, and Save/Cancel. It also hosts the
  * custom tag picker sheet while [TagEditorUiState.isPickerOpen] and the "New tag" dialog while
- * [TagEditorUiState.nameDialog] is set; both are driven entirely by [uiState].
+ * [TagEditorUiState.nameDialog] is set; both are driven entirely by [uiState]. The sheet shows its "Manage tags" link
+ * when [onManageTagsClick] is set.
  */
 // One callback per editor action plus the Scaffold; splitting it would only move the parameter fan-out.
 @Suppress("LongParameterList", "LongMethod")
@@ -190,6 +201,7 @@ fun TagEditorScreen(
     onCreateCustomTagConfirm: (String) -> Unit,
     onNameDialogDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    onManageTagsClick: (() -> Unit)? = null,
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val message = uiState.message
@@ -230,6 +242,7 @@ fun TagEditorScreen(
             onToggle = onCustomTagToggle,
             onCreateClick = onCreateCustomTagClick,
             onDone = onPickerDone,
+            onManageClick = onManageTagsClick,
         )
     }
     uiState.nameDialog?.let { dialog ->

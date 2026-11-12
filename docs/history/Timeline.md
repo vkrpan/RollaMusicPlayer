@@ -10,7 +10,8 @@ Dates from `git log` and the specs. Newest first.
 
 | Date | What | Notes |
 |---|---|---|
-| 2026-11-10 → 11-11 | Custom tags phase 2 (assigning) built subagent-driven (Tasks 1–5 reviewed; final review + fix wave); JVM gate green; device Room 121/121; the user's walk passed; waiting for the user's commit | [[Custom tags]]; [[2026-11-10-custom-tags-phase2-assigning]]; [[2026-11-10-custom-tags-phase2-assigning rulings]] |
+| 2026-11-11 → 11-12 | Custom tags phase 3 (managing: Manage tags screen, rename, delete with file clean-up, export/import) built subagent-driven (Tasks 1–5 reviewed; final review + fix wave); JVM gate green; device Room 124/124; the user's walk passed | [[Custom tags]]; [[2026-11-11-custom-tags-phase3-managing]]; [[2026-11-11-custom-tags-phase3-managing rulings]] |
+| 2026-11-10 → 11-11 | Custom tags phase 2 (assigning) built subagent-driven (Tasks 1–5 reviewed; final review + fix wave); JVM gate green; device Room 121/121; the user's walk passed; committed `eb9ebcb` (not pushed) | [[Custom tags]]; [[2026-11-10-custom-tags-phase2-assigning]]; [[2026-11-10-custom-tags-phase2-assigning rulings]] |
 | 2026-11-09 → 11-10 | Custom tags phase 1 (foundation) built subagent-driven (Tasks 1–6, each reviewed; final review fixes); JVM gate green; device 117/117 and first scan of 91 files in 3 s on the Motorola; committed `dce76dd` (not pushed) | [[2026-11-09-custom-tags-phase1-foundation rulings]]; [[Custom tags]]; [[2026-11-09-custom-tags-phase1-foundation]]; [[core-tagio]] |
 | 2026-11-09 | Custom tags: brainstormed, spec approved, roadmap and phase 1 plan written | [[Custom tags]]; [[2026-11-09-custom-tags-design]]; [[2026-11-09-custom-tags-roadmap]] |
 | 2026-11-09 | Per-track artwork committed (`e129f3e`, with the knowledge vault; the compaction hook in `4dd862a`) and pushed to `origin/feat/oneui-redesign` | [[Per-track artwork]]; [[2026-11-08-per-track-artwork rulings]] |

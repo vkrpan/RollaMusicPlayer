@@ -28,20 +28,36 @@ Open work, newest first. Each item links to its source.
 - [ ] **Custom tags and subtags** (asked 2026-11-09): replaces [[Custom tag system is cut]]. Spec approved
   ([[2026-11-09-custom-tags-design]]); four phases ([[2026-11-09-custom-tags-roadmap]]). Phase 1
   ([[2026-11-09-custom-tags-phase1-foundation]]) complete, device-verified, committed `dce76dd`. Phase 2
-  ([[2026-11-10-custom-tags-phase2-assigning]]) complete and device-walked, waiting for the user's commit; phase 3
-  (Manage tags) next. Progress
-  and phase-2 notes in [[Custom tags]].
+  ([[2026-11-10-custom-tags-phase2-assigning]]) complete, device-walked, committed `eb9ebcb`. Phase 3
+  ([[2026-11-11-custom-tags-phase3-managing]], Manage tags) complete and device-walked 2026-11-12, waiting for the user's
+  commit; phase 4 (Find tracks, chips) next. Progress and notes in [[Custom tags]].
   - Batch the `FileTagPass` writes (one transaction per 50 files instead of per file) if the device probe shows the
     first pass costs CPU or scroll smoothness (final review I3, Ruling 11).
   - M4A writes: decided 2026-11-10, MP3 and FLAC only (M4A writing is a possible later item). The apply-after-reset
     race is fixed (phase 2 Task 1, Room v7).
-  - Phase 3: Manage-tags link on the picker; diff-based editor writes and tick pruning after Manage; `reserveIds`
-    ([[Custom tags]] "Phase 3 hand-off").
   - Create's non-duplicate database errors are uncaught in both editors (needs an error copy).
+  - Single editor: a tick pruned by an import and made known again by a later import is not re-ticked (shows unticked;
+    Save keeps it). Re-tick `prunedIds ∩ known` on each non-fallback emission (phase 3 final fix re-review N1).
+  - Single editor: the save-time fresh copy can stay in the cache after a cancellation right as
+    `createEditableCopy` returns, or as a partial copy after an IO failure; nothing sweeps that folder and no test pins
+    the deletion (phase 3 final fix re-review N2). Each MP3/FLAC save also costs one extra full copy (consider reading
+    only the field).
+  - Manage tags delete asks write consent for, and copies, M4A/WAV/OGG files it can never write; filter them out
+    before consent (phase 3 final review M1).
+  - Manage tags delete re-encodes `ROLLA_TAGS` canonically in every file it touches, dropping junk entries,
+    out-of-range IDs and extra keys (phase 3 final review M2).
+  - After a lists failure the editors still offer the picker (empty, ticks invisible) and Create; disable the rows
+    instead (phase 3 Task 5 fix re-review).
+  - Create in the picker ticks its new ID before the lists contain it; tick only once the lists emit it, to close the
+    (unreachable today) stale-emission prune race for good (phase 3 Task 5 review).
   - FLAC artwork kept on a `ROLLA_TAGS` write: still untested.
+  - Extract the per-file write loop (consent, editable copy, API 29 recovery, finalizer) shared by
+    `SelectionArtworkViewModel`, `BatchTagEditorViewModel` and the Manage tags delete; `retryPersist` exists three times
+    (custom tags phase 3 review).
+  - Extract the picker's pager sync and empty state into `:core:ui` (`CustomTagPagerSync`), shared by
+    `CustomTagPickerSheet` and the Manage tags screen (~40 duplicated lines, phase 3 Task 3 review).
   - R8 keep rule for `RollaTagsFileIo`'s static jaudiotagger logger field (`:core:tagio` consumer rules), so release
     keeps jaudiotagger at WARNING (final fix re-review).
-  - Phase 3: make `insertNew` report "full" in its transaction (last-ID race, [[Custom tags]] "Known limits").
   - Distinguish an absent `ROLLA_TAGS` from an undecodable one in `RollaTagsFileIo.read`; then both editors fail that
     song instead of replacing the unreadable value when tags change (phase 2 Ruling 10).
   - An MP3/FLAC whose `ROLLA_TAGS` can't be read shows "Tags can be saved to MP3 and FLAC files only." — the wrong
@@ -62,6 +78,8 @@ Open work, newest first. Each item links to its source.
     `:core:database/di`, `PreferencesModule` in `:core:datastore/di`; `MediaModule` and `ImageModule` do not exist.
   - `CLAUDE.md` Notes say "Use Material Design 3 components throughout"; [[Build UI from tokens and the kit]] wins.
   - `CLAUDE.md` Current Status still calls `15821b4` the redesign's last commit; the branch is at `e129f3e`.
+- [ ] **Agent tools:** `tag-editor-agent` (and the other project agents with `tools: Read, Edit, Grep, Glob, Bash`) have
+  no Write tool, so a new file is made with `touch` then Edit (custom tags phase 3 final fix). Add `Write` if wanted.
 - [ ] **Hooks block**: the compaction hooks live in `.claude/settings.local.json`; move them into the committed
   `.claude/settings.json` if the user wants them shared.
 

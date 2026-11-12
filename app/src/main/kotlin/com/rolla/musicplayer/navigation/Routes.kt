@@ -44,6 +44,11 @@ data class TagEditor(val songId: Long) : Route
 @Serializable
 data class BatchTagEditor(val songIds: List<Long>) : Route
 
+// Manage tags (custom tags phase 3): rename, delete, export and import the custom tag lists. Reached from the Home
+// header's overflow menu and from the tag picker's "Manage tags" link in both tag editors.
+@Serializable
+data object ManageCustomTags : Route
+
 // Nullable-with-default per navigation-conventions.md: `query` becomes an optional query param
 // in both the type-safe route itself and the `navDeepLink<Search>` derived from it. A missing or
 // blank query never crashes -- SearchViewModel treats a null/blank query as its Idle state.
