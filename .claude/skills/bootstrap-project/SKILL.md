@@ -18,7 +18,7 @@ A one-time, ordered workflow to take RollaMusicPlayer from an empty repo to a wo
 - Claude Code launched from the repo root
 - `.claude/` fully populated; Track→Song rename applied per `model-vocabulary.md`
 - `git init` done; an emulator/device available (AOSP/Google-APIs image)
-- Read first: `CLAUDE.md`, `docs/agents/Ownership map.md`, `.claude/rules/*`
+- Read first: `CLAUDE.md`, `docs/03 Modules/Agents/Ownership map.md`, `.claude/rules/*`
 
 ## Operating Rules
 - **One step at a time.** Do not batch — each step must reach its checkpoint (green build) before the next.
@@ -29,7 +29,7 @@ A one-time, ordered workflow to take RollaMusicPlayer from an empty repo to a wo
 
 ### Step 0: Orient (no code)
 **Goal**: Confirm shared understanding before writing anything
-**Actions**: Have Claude read `CLAUDE.md`, `docs/agents/Ownership map.md`, and `.claude/rules/`, then restate the Phase 0 plan and the agents/skills it will use per step. Verify it commits to offline-first and `Song` (never `Track`).
+**Actions**: Have Claude read `CLAUDE.md`, `docs/03 Modules/Agents/Ownership map.md`, and `.claude/rules/`, then restate the Phase 0 plan and the agents/skills it will use per step. Verify it commits to offline-first and `Song` (never `Track`).
 **Checkpoint**: Plan restated correctly; no network, no `Track`.
 
 ### Step 1: Scaffold the skeleton
@@ -69,15 +69,15 @@ A one-time, ordered workflow to take RollaMusicPlayer from an empty repo to a wo
 - Each step committed
 
 ## Related Files
-- `docs/history/v1-phases/PHASE0-BOOTSTRAP.md` — the exact copy-paste prompt sequence this skill formalizes
+- `docs/08 Project/History/v1-phases/PHASE0-BOOTSTRAP.md` — the exact copy-paste prompt sequence this skill formalizes
 - `CLAUDE.md` — module graph + ownership quick map
-- `docs/agents/Ownership map.md` — who owns which path / cross-cutting files
+- `docs/03 Modules/Agents/Ownership map.md` — who owns which path / cross-cutting files
 - `.claude/rules/model-vocabulary.md` — canonical model names
 
 ## Notes
 - This is a run-once skill. After it, proceed feature-by-feature (player, playlists, equalizer, tageditor, search, widget), each on its own branch, reusing the loop: skill → owning agent → build → review gate → commit.
 - The airplane-mode end-to-end check in 3g is the real success signal — it proves the offline guarantee, not just compilation.
-- If the slice exposes friction at an agent boundary, fix `docs/agents/Ownership map.md` / the agent before scaling.
+- If the slice exposes friction at an agent boundary, fix `docs/03 Modules/Agents/Ownership map.md` / the agent before scaling.
 
 ## Common Pitfalls
 - ❌ Skipping checkpoints / batching steps — a broken build compounds across modules.

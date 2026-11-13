@@ -47,8 +47,8 @@ private const val PERMISSION_LEGACY_WRITE_DETAIL =
  *
  * Deliberately contains NO toggles: the app collects and transmits nothing, so there is nothing to
  * opt in or out of, and adding switches here would only imply otherwise (see
- * docs/history/v1-phases/PHASE6-SETTINGS.md's "no decorative toggles" note and CLAUDE.md's Offline & Privacy
- * Architecture, which this text
+ * docs/08 Project/History/v1-phases/PHASE6-SETTINGS.md's "no decorative toggles" note and CLAUDE.md's
+ * Offline & Privacy Architecture, which this text
  * restates in plain language). The permission facts mirror the actual manifests:
  * `:core:permissions` declares the version-aware audio-read permission, and `:feature:tageditor`
  * declares WRITE_EXTERNAL_STORAGE with maxSdkVersion=28 for the legacy tag-save path.

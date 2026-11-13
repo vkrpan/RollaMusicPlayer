@@ -49,3 +49,16 @@ updated: 2026-11-09
   [[module-feature-player]], [[module-feature-search]], [[module-feature-library]], index.
 - Contradictions: none. The plan put the Now Playing chips "under the title"; they sit under the title and artist (the
   plan's own decision, walked by the user).
+
+## [2026-11-13] ingest | CLAUDE.md
+- Re-ingest after the authored vault moved to the numbered layout (`00 Home.md` … `99 Meta/`) and Obsidian's vault
+  root moved to the repository root (`.obsidian/` there, `wikiFolder: docs/wiki`).
+- Created: none.
+- Updated: [[claude-md]] (vault layout, note routing, mentions incl. [[custom-tags]] and [[ownership-map]]),
+  [[knowledge-vault]] (rewritten for the new layout and paths), [[llm-wiki]] (plugin location, naming),
+  [[development-history]] (new paths, Changelog, all four custom-tags phases), [[ownership-map]] (alias for the moved
+  path), index.
+- Contradictions: still open — "Use Material Design 3 components throughout" vs the kit-only rule
+  ([[one-ui-design-system]]); "last commit `15821b4`" ([[development-history]]). New, minor: the schema scopes name
+  uniqueness to "the `docs/` vault" while the vault is now the repo root ([[llm-wiki]]). Older log entries keep the
+  paths that were true when written.

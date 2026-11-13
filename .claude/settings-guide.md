@@ -89,7 +89,7 @@ The settings.json file configures:
 ## Key Concepts
 
 ### Agents
-Specialized sub-agents with domain expertise. Several are **exclusive owners** of a module/package to prevent concurrent-edit conflicts. See `docs/agents/Ownership map.md` (CODEOWNERS-style) for the authoritative module-path ownership map.
+Specialized sub-agents with domain expertise. Several are **exclusive owners** of a module/package to prevent concurrent-edit conflicts. See `docs/03 Modules/Agents/Ownership map.md` (CODEOWNERS-style) for the authoritative module-path ownership map.
 
 **Audio & Playback**
 - **audio-engineer**: `:core:media` — ExoPlayer, MediaSession, foreground service, audio focus, gapless playback. Exposes the audio session id for the equalizer.
@@ -132,7 +132,7 @@ Multi-step workflows for common tasks, grouped by area.
 
 **Build, Testing & Ops**: setup-static-analysis, add-unit-testing, add-ui-testing-compose, debug-playback-issue, release-build
 
-> `bootstrap-project` is a run-once Phase 0 workflow (scaffold → `:core:model` → first vertical slice). Its copy-paste prompt sequence lives in `docs/history/v1-phases/PHASE0-BOOTSTRAP.md`.
+> `bootstrap-project` is a run-once Phase 0 workflow (scaffold → `:core:model` → first vertical slice). Its copy-paste prompt sequence lives in `docs/08 Project/History/v1-phases/PHASE0-BOOTSTRAP.md`.
 
 ### Rules
 Coding standards and conventions:

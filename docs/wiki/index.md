@@ -1,7 +1,7 @@
 ---
 type: index
 summary: "Entry point of the LLM wiki: every page, one line each."
-updated: 2026-11-11
+updated: 2026-11-13
 ---
 
 # Rolla Music wiki — index
@@ -10,7 +10,7 @@ Generated and maintained by the LLM (the Karpathy LLM Wiki plugin and the `/wiki
 Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything here. History: [[log]].
 
 ## Sources
-- [[claude-md]] — The project memory file every agent loads: overview, architecture, rules, status and the wiki schema.
+- [[claude-md]] — The project memory file every agent loads: overview, architecture, rules, status, the vault layout and the wiki schema.
 - [[custom-tags-phase1-plan]] — Custom tags phase 1: the ROLLA_TAGS field IO, Room v6, the scan's file pass and the tag repository.
 - [[custom-tags-phase2-plan]] — Custom tags phase 2: the Room v7 read guard, the picker sheet, tags in both tag editors.
 - [[custom-tags-phase3-plan]] — Custom tags phase 3: Manage tags, rename, delete with file clean-up, export/import.
@@ -47,8 +47,8 @@ Schema: `CLAUDE.md` → "Knowledge wiki". Code and `CLAUDE.md` win over anything
 - [[agent-module-ownership]] — Every path has one primary owner agent; cross-cutting files name required reviewers.
 - [[custom-tags]] — User-defined tags and subtags: IDs in each file's ROLLA_TAGS field, indexed in Room.
 - [[core-model-governance]] — `:core:model` has no owner; changes follow model-vocabulary.md and need code-reviewer plus consumer review.
-- [[development-history]] — v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); then per-track artwork.
-- [[knowledge-vault]] — The authored Obsidian vault in docs/: rules, decisions, knowledge, features, history and backlog.
+- [[development-history]] — v1.0 built in Phases 0–8 (Jun–Jul 2026); One UI redesign Phases 1–7 (Oct–Nov 2026); per-track artwork; custom tags in four phases (Nov 2026).
+- [[knowledge-vault]] — The authored Obsidian vault in docs/, in a numbered layout (00 Home … 99 Meta); the repo root is the vault.
 - [[llm-wiki]] — This wiki: an LLM-maintained layer of linked pages over the project's raw sources.
 - [[multi-module-architecture]] — Hybrid feature + core modules; features never depend on each other.
 - [[offline-privacy-architecture]] — No network layer, local data only, no analytics, storage-only permissions.

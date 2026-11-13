@@ -1,10 +1,10 @@
 """Compaction → knowledge vault hooks for RollaMusicPlayer.
 
 PostCompact:          `python .claude/hooks/compact_to_vault.py save`
-    Saves the compaction summary verbatim into docs/history/sessions/ as a note marked `status: to-distill`.
+    Saves the compaction summary verbatim into docs/08 Project/History/sessions/ as a note marked `status: to-distill`.
 SessionStart/compact: `python .claude/hooks/compact_to_vault.py remind`
     Injects context telling Claude to distil every `to-distill` session note into the vault's entity notes before
-    continuing (vault rule docs/rules/Save compaction summaries to the vault.md).
+    continuing (vault rule docs/07 Development/Rules/Save compaction summaries to the vault.md).
 
 Never fails the session: any error is reported on stderr and the script exits 0.
 """
@@ -14,7 +14,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SESSIONS = os.path.join(ROOT, "docs", "history", "sessions")
+SESSIONS = os.path.join(ROOT, "docs", "08 Project", "History", "sessions")
 SUMMARY_KEYS = ("summary", "compact_summary", "compactSummary", "compaction_summary")
 
 
@@ -49,7 +49,7 @@ def pending_notes():
             lines = f.read(600).splitlines()
         # Only a frontmatter line counts: Sessions.md mentions the status in its prose.
         if "status: to-distill" in frontmatter(lines):
-            out.append("docs/history/sessions/" + name)
+            out.append("docs/08 Project/History/sessions/" + name)
     return out
 
 
@@ -90,16 +90,16 @@ def remind():
     listing = "\n".join("- " + n for n in notes) if notes else "- (none listed yet)"
     # SessionStart can fire before PostCompact has written the note, so the listing may miss the newest one.
     listing += (
-        "\n(This reminder can run before the save hook finishes: list docs/history/sessions/ and take every note whose"
+        "\n(This reminder can run before the save hook finishes: list docs/08 Project/History/sessions/ and take every note whose"
         " frontmatter says `status: to-distill`. If none exists, the save hook failed; write the summary's notes by hand.)"
     )
     context = (
         "COMPACTION HAPPENED. Before continuing the user's task, save the important notes from the compaction summary "
-        "into the knowledge vault (docs/), per docs/rules/Save compaction summaries to the vault.md:\n"
+        "into the knowledge vault (docs/), per docs/07 Development/Rules/Save compaction summaries to the vault.md:\n"
         "1. Read each session note marked `status: to-distill`:\n" + listing + "\n"
-        "2. Distil every durable item into its entity note in the same turn: user preferences/instructions -> docs/rules/; "
-        "decisions -> docs/decisions/; lessons -> docs/knowledge/; feature/module/agent state -> docs/features|modules|agents/; "
-        "open or closed work and pending tasks -> docs/backlog/Backlog.md; phase progress -> docs/history/Timeline.md. "
+        "2. Distil every durable item into its entity note in the same turn: user preferences/instructions -> docs/07 Development/Rules/; "
+        "decisions -> docs/02 Architecture/Decisions/; lessons -> docs/06 Operations/Knowledge/; feature/module/agent state -> docs/03 Modules/ (Features/, Agents/);"
+        "open or closed work and pending tasks -> docs/08 Project/Backlog.md; phase progress -> docs/08 Project/History/Timeline.md. "
         "Update existing notes rather than duplicating; add new notes to their folder index.\n"
         "3. Set the session note's `status: distilled` and list the notes you updated under a '## Distilled into' heading.\n"
         "4. Then resume the task the summary describes."

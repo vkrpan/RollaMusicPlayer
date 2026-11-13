@@ -1,0 +1,20 @@
+{
+  "attachmentFolderPath": "docs/99 Meta/Attachments",
+  "newFileLocation": "folder",
+  "newFileFolderPath": "docs",
+  "userIgnoreFilters": [
+    "build/",
+    ".gradle/",
+    "app/",
+    "core/",
+    "feature/",
+    "features/",
+    "baselineprofile/",
+    "build-logic/",
+    "gradle/",
+    "config/",
+    "keystore/",
+    "media player example/",
+    "docs/design/calibration/"
+  ]
+}

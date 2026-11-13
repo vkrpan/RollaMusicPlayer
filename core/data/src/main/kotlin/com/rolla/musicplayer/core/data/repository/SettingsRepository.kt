@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * App-wide appearance and playback settings surfaced on the Settings screen (see
- * `ui-style-guide.md` §6 and `docs/history/v1-phases/PHASE6-SETTINGS.md`'s scope note -- no
+ * `ui-style-guide.md` §6 and `docs/08 Project/History/v1-phases/PHASE6-SETTINGS.md`'s scope note -- no
  * crossfade/gapless/pure-black toggles; those were rejected as decorative controls that wouldn't actually do anything).
  *
  * Every `observe*` stream is backed by `:core:datastore`'s `SettingsPreferences` (Preferences

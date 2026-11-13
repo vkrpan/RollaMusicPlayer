@@ -1,10 +1,10 @@
 ---
 type: source
 summary: "CODEOWNERS-style map: one primary owner agent per path, required reviewers for cross-cutting files."
-aliases: ["Ownership map", "docs/agents/Ownership map.md"]
+aliases: ["Ownership map", "docs/03 Modules/Agents/Ownership map.md", "docs/agents/Ownership map.md"]
 tags: [source]
 sources: []
-updated: 2026-11-09
+updated: 2026-11-13
 ---
 # Source: Ownership map (formerly OWNERSHIP.md)
 

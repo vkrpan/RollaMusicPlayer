@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Contract for the app-wide appearance/playback settings surfaced on the Settings screen (see
- * `ui-style-guide.md` §6 and `docs/history/v1-phases/PHASE6-SETTINGS.md`'s scope note).
+ * `ui-style-guide.md` §6 and `docs/08 Project/History/v1-phases/PHASE6-SETTINGS.md`'s scope note).
  *
  * Deliberately narrow: no crossfade, gapless, or pure-black toggles -- those were rejected as
  * decorative (ExoPlayer has no crossfade API, gapless is automatic with nothing to switch, and the

@@ -1,0 +1,12 @@
+filters:
+  and:
+    - 'type == "module"'
+views:
+  - type: table
+    name: Modules
+    order:
+      - file.name
+      - gradle
+      - code
+      - status
+      - owners

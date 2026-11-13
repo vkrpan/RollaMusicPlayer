@@ -88,24 +88,31 @@ compaction, when the skill body is out of context.
 
 ## Knowledge vault (project memory)
 
-`docs/` is an Obsidian vault and the project's memory: the user's standing rules, decisions, lessons learned, history
-and backlog. Claude's private auto-memory holds only a pointer to it. Entry point `docs/Home.md`; note types,
-frontmatter and query commands in `docs/_meta/Vault conventions.md`.
+`docs/` holds the knowledge vault, the project's memory: the user's standing rules, decisions, lessons learned,
+history and backlog. Obsidian opens the whole repository as the vault (`.obsidian/` at the root, code folders
+excluded), so `CLAUDE.md` and `README.md` link in too. `docs/` follows a numbered layout: `00 Home.md` (entry point,
+links only), `01 Overview/`, `02 Architecture/` (with `Decisions/`), `03 Modules/` (with `Features/`, `Agents/`),
+`04 Interfaces/`, `05 Data/`, `06 Operations/` (with `Knowledge/`, `Devices/`), `07 Development/` (with `Rules/`,
+`Guides/`), `08 Project/` (`Backlog.md`, `History/`) and `99 Meta/`; `design/`, `superpowers/` and `wiki/` keep their
+paths. Note types, frontmatter and query commands: `docs/99 Meta/Vault conventions.md`. Paths contain spaces: quote
+them in shell commands.
 
 - **Vault first.** For any question about the project and before any task, grep the vault for the area
-  (`grep -rli "<term>" docs --include=*.md`), read the matching notes and obey every note in `docs/rules/` (index
-  `docs/rules/Rules.md`) before reading code or git history.
+  (`grep -rli "<term>" docs --include=*.md`), read the matching notes and obey every note in
+  `docs/07 Development/Rules/` (index `docs/07 Development/Rules/Rules.md`) before reading code or git history.
 - **Every change reaches every involved entity.** When code or an `.md` file is created, modified or removed, update
   every vault note that describes it — its feature, module, agent, decision, rule, guide, backlog and timeline notes —
   before reporting the work done. A change with no vault update is unfinished. Subagents report the entities they
   touched; the controller writes the vault.
-- **After every compaction**, before resuming: a PostCompact hook saves the summary to `docs/history/sessions/`
-  (`status: to-distill`); distil each such note into the entity notes, then mark it `status: distilled`
-  (`docs/rules/Save compaction summaries to the vault.md`).
-- **Write in the same turn.** A preference the user states ("from now on", "always", "never") → `docs/rules/`; a
-  product or design choice → `docs/decisions/`; a lesson learned the hard way → `docs/knowledge/`; a finished phase
-  → `docs/history/` and `docs/history/Timeline.md`; opened or closed work → `docs/backlog/Backlog.md`. Update an
-  existing note before adding one, mark replaced notes `status: superseded`, and add every note to its folder index.
+- **After every compaction**, before resuming: a PostCompact hook saves the summary to
+  `docs/08 Project/History/sessions/` (`status: to-distill`); distil each such note into the entity notes, then mark
+  it `status: distilled` (`docs/07 Development/Rules/Save compaction summaries to the vault.md`).
+- **Write in the same turn.** A preference the user states ("from now on", "always", "never") →
+  `docs/07 Development/Rules/`; a product or design choice → `docs/02 Architecture/Decisions/`; a lesson learned the
+  hard way → `docs/06 Operations/Knowledge/` (and a line in `Troubleshooting.md` when it has a symptom); a finished
+  phase → `docs/08 Project/History/`, `History/Timeline.md` and `Changelog.md`; opened or closed work →
+  `docs/08 Project/Backlog.md` (and `Roadmap.md` / `Known Issues.md` when it changes them). Update an existing note
+  before adding one, mark replaced notes `status: superseded`, and add every note to its folder index.
 - **Point, don't copy.** `.claude/rules/`, `.claude/agents/` and `.claude/skills/` stay where the harness loads them;
   specs and plans stay in `docs/superpowers/`. Vault notes link to them.
 
@@ -196,8 +203,8 @@ frontmatter and query commands in `docs/_meta/Vault conventions.md`.
 > A **custom user-defined tag system** was cut from v1.0, then asked for again on 2026-11-09 and built in four phases
 > (2026-11-09 to 2026-11-12): tags and subtags stored in each file's `ROLLA_TAGS` field, assigned in the tag editors,
 > managed (rename, delete, export/import) in Manage tags, shown as chips in track lists and on Now Playing, and found
-> with Find tracks — see `docs/features/Custom tags.md` and
-> `docs/decisions/Custom tags live in the file's ROLLA_TAGS field.md`.
+> with Find tracks — see `docs/03 Modules/Features/Custom tags.md` and
+> `docs/02 Architecture/Decisions/Custom tags live in the file's ROLLA_TAGS field.md`.
 
 ### Home Screen Widget
 - The current track's own artwork (or the white note)
@@ -260,8 +267,9 @@ core never depends on a feature; no cycles. Cross-feature flows go through `:cor
 
 ## Development history
 
-v1.0 was built in Phases 0–8 (2026-06-29 to 2026-07-23; prompt docs in `docs/history/v1-phases/`), the One UI redesign
-in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
+v1.0 was built in Phases 0–8 (2026-06-29 to 2026-07-23; prompt docs in `docs/08 Project/History/v1-phases/`), the
+One UI redesign in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/08 Project/History/Timeline.md` and, per version,
+`docs/08 Project/Changelog.md`.
 
 ## Key Design Decisions
 
@@ -287,25 +295,25 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
 
 ## Current Status
 
-- **v1.0.0** shipped on `main` (2026-07-23). Detail: `docs/history/v1.0 release.md`.
+- **v1.0.0** shipped on `main` (2026-07-23). Detail: `docs/08 Project/History/v1.0 release.md`.
 - **One UI redesign** Phases 1–7 complete on `feat/oneui-redesign` (last commit `15821b4`, pushed), waiting for the
-  user's merge into `main`. Detail: `docs/history/One UI redesign.md`.
+  user's merge into `main`. Detail: `docs/08 Project/History/One UI redesign.md`.
 - **Per-track artwork**: committed (`e129f3e`) and pushed on `feat/oneui-redesign` (2026-11-09), device-verified. Spec
   `docs/superpowers/specs/2026-11-08-per-track-artwork-design.md`, plan `docs/superpowers/plans/2026-11-08-per-track-artwork.md`,
-  status `docs/features/Per-track artwork.md`.
+  status `docs/03 Modules/Features/Per-track artwork.md`.
 - **Custom tags** phase 1 of 4 (foundation: `:core:tagio`, Room v6, the scan's file pass, `CustomTagRepository`) built,
   reviewed, device-verified and committed (`dce76dd`, 2026-11-10) on `feat/oneui-redesign`. Phase 2 (assigning: the
   picker sheet, tags in the single and batch tag editors, Room v7) complete, device-walked and committed (`eb9ebcb`,
   2026-11-11). Phase 3 (managing: the Manage tags screen from Home ⋮ and the picker, rename, delete with file clean-up,
   export/import of the tag lists) complete, device-walked and committed (`7f26949`, 2026-11-12). Phase 4 (Find tracks,
   chips; the last phase, `docs/superpowers/plans/2026-11-12-custom-tags-phase4-finding.md`) complete and
-  device-walked (2026-11-12), waiting for the user's commit. Spec
+  device-walked and committed (`1cb705b`, 2026-11-12). All four phases are on `feat/oneui-redesign`, pushed 2026-11-12. Spec
   `docs/superpowers/specs/2026-11-09-custom-tags-design.md`, roadmap `docs/superpowers/plans/2026-11-09-custom-tags-roadmap.md`,
-  status `docs/features/Custom tags.md`.
-- Backlog, review follow-ups and next steps: `docs/backlog/Backlog.md`. History by date:
-  `docs/history/Timeline.md`.
+  status `docs/03 Modules/Features/Custom tags.md`.
+- Backlog, review follow-ups and next steps: `docs/08 Project/Backlog.md`. History by date:
+  `docs/08 Project/History/Timeline.md`.
 
-**Last Updated**: 2026-11-12
+**Last Updated**: 2026-11-13 (knowledge vault restructured into the numbered layout)
 
 ## Notes
 
@@ -318,15 +326,15 @@ in Phases 1–7 (2026-10-06 to 2026-11-04). See `docs/history/Timeline.md`.
 
 ## Knowledge wiki (Karpathy LLM-wiki pattern)
 
-`docs/wiki/` is an LLM-maintained knowledge base about this project, viewed in Obsidian inside the `docs/` vault (the
-"Karpathy LLM Wiki" plugin is installed there with `wikiFolder: wiki`). The plugin or Claude Code writes it; humans read
+`docs/wiki/` is an LLM-maintained knowledge base about this project, viewed in Obsidian inside the repository vault
+(the "Karpathy LLM Wiki" plugin is installed in the root `.obsidian/` with `wikiFolder: docs/wiki`). The plugin or Claude Code writes it; humans read
 it. Operations: `/wiki-ingest`, `/wiki-query`, `/wiki-lint` (in `.claude/commands/`) or the plugin's Ingest, Query wiki
-and Lint wiki. It is a derived view; the rest of the `docs/` vault stays the authored record ("Knowledge vault" above).
+and Lint wiki. It is a derived view; the rest of `docs/` stays the authored record ("Knowledge vault" above).
 
 ### Layers
 - **Raw sources (read-only during wiki work — never edit them as part of a wiki operation):**
-  `CLAUDE.md`, `docs/agents/Ownership map.md` (formerly `OWNERSHIP.md`), `README.md`,
-  `docs/history/v1-phases/PHASE*.md`, `docs/superpowers/specs/*.md`, `docs/superpowers/plans/*.md`,
+  `CLAUDE.md`, `docs/03 Modules/Agents/Ownership map.md` (formerly `OWNERSHIP.md`), `README.md`,
+  `docs/08 Project/History/v1-phases/PHASE*.md`, `docs/superpowers/specs/*.md`, `docs/superpowers/plans/*.md`,
   `.claude/rules/*.md`, `.claude/agents/*.md`, `.claude/skills/*/SKILL.md`. The code itself is the final authority.
 - **Wiki:** `docs/wiki/` — `sources/` (one page per raw doc), `entities/` (concrete things: modules,
   classes, screens, routes, agents, DB tables), `concepts/` (decisions, patterns, rules, rejected

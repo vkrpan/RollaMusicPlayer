@@ -1,6 +1,6 @@
 ---
 description: Ingest one raw source into the LLM wiki (docs/wiki/)
-argument-hint: <path to raw source, e.g. docs/history/v1-phases/PHASE7-WIDGET.md>
+argument-hint: <path to raw source, e.g. docs/08 Project/History/v1-phases/PHASE7-WIDGET.md>
 ---
 
 Ingest `$ARGUMENTS` into the project wiki, following CLAUDE.md → "Knowledge wiki".
